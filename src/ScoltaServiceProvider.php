@@ -93,8 +93,10 @@ class ScoltaServiceProvider extends ServiceProvider
         }
 
         $reflection = new \ReflectionClass(\Tag1\Scolta\Config\ScoltaConfig::class);
-        $coreSrcPath = dirname($reflection->getFileName(), 2);
-        $assetsPath = $coreSrcPath . '/assets';
+        // ScoltaConfig lives at <package-root>/src/Config/ScoltaConfig.php
+        // — go up 3 levels to reach the package root where /assets/ lives.
+        $packageRoot = dirname($reflection->getFileName(), 3);
+        $assetsPath = $packageRoot . '/assets';
 
         return is_dir($assetsPath) ? $assetsPath : null;
     }
