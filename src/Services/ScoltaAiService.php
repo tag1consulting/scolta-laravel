@@ -11,12 +11,17 @@ use Tag1\Scolta\Prompt\DefaultPrompts;
 /**
  * AI service adapter for Laravel.
  *
- * Dual-path AI provider support:
+ * Dual-path AI provider support, same pattern as WordPress:
  *   - Laravel 12+: Detects and uses the Laravel AI SDK (laravel/ai)
  *   - Laravel 11:  Falls back to scolta-core's built-in AiClient
  *
- * The service is bound as a singleton in the provider — config is read
- * once, instance reused across all API calls in a request.
+ * The detection is elegant: check if the Ai facade exists. If it does,
+ * the Laravel AI SDK is installed and configured. If not, use the
+ * built-in client. Runtime detection, zero configuration friction.
+ *
+ * Laravel's service container makes this even cleaner than WordPress —
+ * the service is bound as a singleton in the provider, so config is
+ * read once and the instance is reused across all API calls in a request.
  */
 class ScoltaAiService
 {
@@ -25,7 +30,8 @@ class ScoltaAiService
 
     public function __construct(array $configArray)
     {
-        $flat = self::flattenConfig($configArray);
+        // Flatten the nested config arrays for ScoltaConfig::fromArray().
+        $flat = $this->flattenConfig($configArray);
         $this->config = ScoltaConfig::fromArray($flat);
     }
 
@@ -56,9 +62,12 @@ class ScoltaAiService
             try {
                 return $this->messageViaLaravelSdk($systemPrompt, $userMessage, $maxTokens);
             } catch (\Exception $e) {
-                logger()->warning('[scolta] Laravel AI SDK failed, falling back to built-in', [
-                    'error' => $e->getMessage(),
-                ]);
+                // SDK not configured — fall through to built-in.
+                if (config('app.debug')) {
+                    logger()->warning('[scolta] Laravel AI SDK failed, falling back to built-in', [
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
         }
 
@@ -76,9 +85,11 @@ class ScoltaAiService
             try {
                 return $this->conversationViaLaravelSdk($systemPrompt, $messages, $maxTokens);
             } catch (\Exception $e) {
-                logger()->warning('[scolta] Laravel AI SDK conversation failed, falling back', [
-                    'error' => $e->getMessage(),
-                ]);
+                if (config('app.debug')) {
+                    logger()->warning('[scolta] Laravel AI SDK conversation failed, falling back', [
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
         }
 
@@ -148,9 +159,15 @@ class ScoltaAiService
 
     /**
      * Send a message via the Laravel AI SDK.
+     *
+     * The Laravel AI SDK provides a clean facade-based API. The user
+     * configures their provider and API key in config/ai.php, and
+     * we just call the facade.
      */
     private function messageViaLaravelSdk(string $systemPrompt, string $userMessage, int $maxTokens): string
     {
+        // Use the Ai facade. Laravel 12+ registers it automatically
+        // when laravel/ai is installed.
         $ai = app('ai');
 
         $response = $ai->chat()
@@ -172,6 +189,7 @@ class ScoltaAiService
             ->systemPrompt($systemPrompt)
             ->maxTokens($maxTokens);
 
+        // Build the conversation from message history.
         foreach ($messages as $msg) {
             if ($msg['role'] === 'user') {
                 $chat = $chat->user($msg['content']);
@@ -192,12 +210,13 @@ class ScoltaAiService
      * but ScoltaConfig expects flat snake_case keys. This flattens
      * one level of nesting.
      */
-    public static function flattenConfig(array $config): array
+    private function flattenConfig(array $config): array
     {
         $flat = [];
 
         foreach ($config as $key => $value) {
             if (is_array($value) && !array_is_list($value)) {
+                // Nested associative array — flatten with parent key prefix.
                 foreach ($value as $subKey => $subValue) {
                     $flat[$subKey] = $subValue;
                 }

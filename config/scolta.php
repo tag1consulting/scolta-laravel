@@ -168,31 +168,6 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Rate Limiting
-    |--------------------------------------------------------------------------
-    |
-    | Maximum AI endpoint requests per minute per IP. Set to 0 to disable.
-    | The default (30/min) prevents runaway AI costs while allowing normal
-    | search usage. Adjust based on your traffic patterns.
-    |
-    */
-
-    'rate_limit' => env('SCOLTA_RATE_LIMIT', 30),
-
-    /*
-    |--------------------------------------------------------------------------
-    | Health Check Middleware
-    |--------------------------------------------------------------------------
-    |
-    | Middleware applied to the GET /health endpoint. By default, public
-    | via 'api' middleware. Add 'auth:sanctum' to restrict access.
-    |
-    */
-
-    'health_middleware' => ['api'],
-
-    /*
-    |--------------------------------------------------------------------------
     | Prompt Overrides
     |--------------------------------------------------------------------------
     |
