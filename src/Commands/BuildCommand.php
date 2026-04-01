@@ -5,28 +5,20 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Process;
 use Tag1\Scolta\Config\ScoltaConfig;
 use Tag1\Scolta\Export\ContentExporter;
-use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 use Tag1\ScoltaLaravel\Services\ContentSource;
+use Tag1\ScoltaLaravel\Services\ScoltaAiService;
 
 /**
  * Build or rebuild the Scolta search index.
  *
- * This is the Artisan equivalent of `wp scolta build` (WordPress) and
- * `drush scolta:index` (Drupal). Same three-step pipeline:
+ * Three-step pipeline:
  *   1. Mark content for indexing
  *   2. Export as HTML with Pagefind attributes
  *   3. Run Pagefind CLI to build the static index
- *
- * Laravel's command system is beautifully expressive. The $signature
- * string declares options with types and defaults — the framework
- * handles parsing, validation, and help text generation. Compare this
- * to WordPress's WP-CLI where you manually extract flags from $assoc_args.
- *
- * The Process facade (built on Symfony Process) provides a clean API
- * for running the Pagefind binary. Much cleaner than shell_exec().
  */
 class BuildCommand extends Command
 {
@@ -36,19 +28,18 @@ class BuildCommand extends Command
 
     protected $description = 'Build or rebuild the Scolta search index';
 
-    public function handle(): int
+    public function handle(ContentSource $source): int
     {
-        $config = ScoltaConfig::fromArray($this->flattenConfig(config('scolta', [])));
+        $config = ScoltaConfig::fromArray(ScoltaAiService::flattenConfig(config('scolta', [])));
         $buildDir = config('scolta.pagefind.build_dir', storage_path('scolta/build'));
         $outputDir = config('scolta.pagefind.output_dir', public_path('scolta-pagefind'));
         $binary = config('scolta.pagefind.binary', 'pagefind');
 
-        $source = new ContentSource();
         $exporter = new ContentExporter($buildDir);
 
         // Step 1: Determine what to index.
         if ($this->option('incremental')) {
-            $pendingCount = ScoltaTracker::getPendingCount();
+            $pendingCount = $source->getPendingCount();
             if ($pendingCount === 0) {
                 $this->info('No changes pending. Index is up to date.');
                 return self::SUCCESS;
@@ -56,7 +47,7 @@ class BuildCommand extends Command
             $this->info("Step 1: Processing {$pendingCount} tracked changes...");
         } else {
             $this->info('Step 1: Marking all published content for reindex...');
-            $count = ScoltaTracker::markAllForReindex();
+            $count = \Tag1\ScoltaLaravel\Models\ScoltaTracker::markAllForReindex();
             $this->info("  Marked {$count} items.");
 
             // Full rebuild: clean the build directory.
@@ -86,7 +77,6 @@ class BuildCommand extends Command
         $exported = 0;
         $skipped = 0;
 
-        // Laravel's command output helpers make progress reporting clean.
         if (!$this->option('incremental')) {
             $total = $source->getTotalCount();
             $bar = $this->output->createProgressBar($total);
@@ -116,7 +106,7 @@ class BuildCommand extends Command
         $this->info("  Exported: {$exported}, Skipped (insufficient content): {$skipped}");
 
         // Clear the tracker after successful export.
-        ScoltaTracker::clearAll();
+        $source->clearTracker();
 
         // Step 3: Build Pagefind index.
         if ($this->option('skip-pagefind')) {
@@ -125,14 +115,19 @@ class BuildCommand extends Command
         }
 
         $this->info('Step 3: Building Pagefind index...');
-        return $this->runPagefind($binary, $buildDir, $outputDir);
+        $result = $this->runPagefind($binary, $buildDir, $outputDir);
+
+        if ($result === self::SUCCESS) {
+            // Invalidate expand query cache — results may be stale after reindex.
+            $this->info('Clearing expand query cache...');
+            Cache::increment('scolta_expand_generation');
+        }
+
+        return $result;
     }
 
     /**
      * Run the Pagefind CLI.
-     *
-     * Uses Laravel's Process facade — cleaner than shell_exec(), with
-     * proper timeout handling, output streaming, and exit code checking.
      */
     private function runPagefind(string $binary, string $buildDir, string $outputDir): int
     {
@@ -168,23 +163,5 @@ class BuildCommand extends Command
         $this->error("Pagefind build failed.");
         $this->line($result->errorOutput() ?: $result->output());
         return self::FAILURE;
-    }
-
-    /**
-     * Flatten nested config arrays for ScoltaConfig.
-     */
-    private function flattenConfig(array $config): array
-    {
-        $flat = [];
-        foreach ($config as $key => $value) {
-            if (is_array($value) && !array_is_list($value)) {
-                foreach ($value as $subKey => $subValue) {
-                    $flat[$subKey] = $subValue;
-                }
-            } else {
-                $flat[$key] = $value;
-            }
-        }
-        return $flat;
     }
 }

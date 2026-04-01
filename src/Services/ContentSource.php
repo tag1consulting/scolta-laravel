@@ -5,58 +5,47 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel\Services;
 
 use Generator;
+use Tag1\Scolta\Content\ContentSourceInterface;
 use Tag1\Scolta\Export\ContentItem;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 
 /**
  * Laravel content source for Scolta indexing.
  *
- * This is where Laravel's Eloquent ORM shines. Content discovery is
- * a matter of querying models — the ORM handles relationships, scopes,
- * eager loading, and chunked iteration automatically.
- *
- * Compared to WordPress:
- *   - WP: WP_Query with post_type filter, apply_filters('the_content')
- *   - Laravel: Eloquent model with Searchable trait, toSearchableContent()
- *
- * The developer has full control over content rendering through the
- * toSearchableContent() method on their model. They can use Blade views,
- * markdown parsers, or raw HTML — whatever produces the best content
- * for search indexing.
- *
- * Memory management: We use generators (yield) and Eloquent's chunk()
- * method to keep memory flat. Same principle as WordPress's paginated
- * WP_Query, but with Laravel's cleaner API.
+ * Implements ContentSourceInterface from scolta-core for cross-platform
+ * consistency. Uses Eloquent ORM for content discovery and rendering.
  */
-class ContentSource
+class ContentSource implements ContentSourceInterface
 {
     /**
      * Yield all published content as ContentItem objects.
      *
-     * Iterates through all configured models, applying the searchable
-     * scope and converting each to a ContentItem via the trait method.
+     * The $options parameter satisfies the interface but is ignored —
+     * Laravel uses config('scolta.models') to determine what to index.
      *
      * @return Generator<ContentItem>
      */
-    public function getPublishedContent(): Generator
+    public function getPublishedContent(array $options = []): Generator
     {
         $models = config('scolta.models', []);
 
         foreach ($models as $modelClass) {
             if (!class_exists($modelClass)) {
+                logger()->warning("[scolta] Model class not found: {$modelClass}. Check config/scolta.php 'models' array.");
+                continue;
+            }
+
+            if (!in_array(\Tag1\ScoltaLaravel\Searchable::class, class_uses_recursive($modelClass))) {
+                logger()->warning("[scolta] Model {$modelClass} does not use the Searchable trait. It will not be indexed.");
                 continue;
             }
 
             $model = new $modelClass();
 
-            // Use the Searchable scope if available.
             $query = method_exists($model, 'scopeSearchable')
                 ? $modelClass::searchable()
                 : $modelClass::query();
 
-            // Chunk to keep memory flat. Laravel's chunk() method is the
-            // equivalent of WordPress's paginated WP_Query — it processes
-            // N records at a time, freeing memory between chunks.
             foreach ($query->lazy(100) as $record) {
                 if (!method_exists($record, 'toSearchableContent')) {
                     continue;
@@ -73,16 +62,12 @@ class ContentSource
     /**
      * Yield changed content items from the tracker.
      *
-     * Only processes items marked as 'index'. Deletions are handled
-     * separately by getDeletedIds().
-     *
      * @return Generator<ContentItem>
      */
     public function getChangedContent(): Generator
     {
         $pending = ScoltaTracker::getPending('index');
 
-        // Group by content type for efficient querying.
         $grouped = $pending->groupBy('content_type');
 
         foreach ($grouped as $contentType => $records) {
@@ -92,9 +77,6 @@ class ContentSource
 
             $ids = $records->pluck('content_id')->all();
 
-            // Use lazy() for memory-efficient iteration with generators.
-            // Can't yield from within a closure (->each()), so we iterate
-            // with foreach instead — same efficiency, proper generator support.
             foreach ($contentType::whereIn((new $contentType())->getKeyName(), $ids)->lazy(100) as $record) {
                 if (!method_exists($record, 'toSearchableContent')) {
                     continue;
@@ -125,9 +107,17 @@ class ContentSource
     }
 
     /**
+     * Clear the change tracker after a successful build.
+     */
+    public function clearTracker(): void
+    {
+        ScoltaTracker::clearAll();
+    }
+
+    /**
      * Get total published content count across all configured models.
      */
-    public function getTotalCount(): int
+    public function getTotalCount(array $options = []): int
     {
         $models = config('scolta.models', []);
         $count = 0;
@@ -146,5 +136,13 @@ class ContentSource
         }
 
         return $count;
+    }
+
+    /**
+     * Get count of pending changes in the tracker.
+     */
+    public function getPendingCount(): int
+    {
+        return ScoltaTracker::getPendingCount();
     }
 }

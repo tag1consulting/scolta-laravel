@@ -3,17 +3,12 @@
 
     Usage: <x-scolta::search />
 
-    This is the Blade equivalent of WordPress's [scolta_search] shortcode
-    and Drupal's scolta search block. Outputs the container div, includes
-    scolta.js, and injects the configuration as window.scolta.
+    Outputs the container div, includes scolta.js + scolta.css, and injects
+    the configuration as window.scolta. The actual search UI is rendered
+    client-side by scolta.js, identical across all three platforms.
 
-    Laravel's Blade components are elegant — they work anywhere in any
-    Blade template, support attributes, and can be overridden by
-    publishing the views to resources/views/vendor/scolta/.
-
-    The component is intentionally minimal: a container div + config script.
-    The actual search UI is rendered client-side by scolta.js, identical
-    to how it works on WordPress and Drupal.
+    Assets must be published first:
+      php artisan vendor:publish --tag=scolta-assets
 --}}
 
 @php
@@ -26,6 +21,11 @@
         ? substr($outputDir, strlen($publicPath))
         : '/scolta-pagefind';
 @endphp
+
+{{-- Scolta CSS (published asset) --}}
+@if(file_exists(public_path('vendor/scolta/scolta.css')))
+    <link rel="stylesheet" href="{{ asset('vendor/scolta/scolta.css') }}" />
+@endif
 
 {{-- Pagefind UI CSS --}}
 @if(file_exists($outputDir . '/pagefind-ui.css'))
@@ -52,20 +52,9 @@
 {{-- Search container --}}
 <div id="scolta-search" {{ $attributes }}></div>
 
-{{-- Scolta JS --}}
-@php
-    // Look for scolta.js in the vendor package path.
-    $scoltaJsPath = base_path('vendor/tag1/scolta/assets/js/scolta.js');
-    $scoltaJsUrl = file_exists($scoltaJsPath)
-        ? asset('vendor/scolta/scolta.js')
-        : null;
-@endphp
-
-@if($scoltaJsUrl)
-    <script src="{{ $scoltaJsUrl }}" defer></script>
+{{-- Scolta JS (published asset) --}}
+@if(file_exists(public_path('vendor/scolta/scolta.js')))
+    <script src="{{ asset('vendor/scolta/scolta.js') }}" defer></script>
 @else
-    {{-- Fallback: try loading from public directory --}}
-    @if(file_exists(public_path('vendor/scolta/scolta.js')))
-        <script src="{{ asset('vendor/scolta/scolta.js') }}" defer></script>
-    @endif
+    <!-- Scolta JS not found. Run: php artisan vendor:publish --tag=scolta-assets -->
 @endif

@@ -8,15 +8,12 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Schema;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
+use Tag1\ScoltaLaravel\Searchable;
 use Tag1\ScoltaLaravel\Services\ContentSource;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
 
 /**
  * Show Scolta index status.
- *
- * Equivalent to `wp scolta status` (WordPress) and `drush scolta:status` (Drupal).
- * Uses Laravel's command table output for clean formatting — one of the
- * small touches that makes Artisan commands pleasant to work with.
  */
 class StatusCommand extends Command
 {
@@ -24,13 +21,11 @@ class StatusCommand extends Command
 
     protected $description = 'Show Scolta index status, tracker state, and configuration';
 
-    public function handle(): int
+    public function handle(ScoltaAiService $ai, ContentSource $source): int
     {
         $buildDir = config('scolta.pagefind.build_dir', storage_path('scolta/build'));
         $outputDir = config('scolta.pagefind.output_dir', public_path('scolta-pagefind'));
         $binary = config('scolta.pagefind.binary', 'pagefind');
-
-        $rows = [];
 
         // Tracker status.
         $this->info('--- Tracker ---');
@@ -49,9 +44,17 @@ class StatusCommand extends Command
         if (empty($models)) {
             $this->warn('  No models configured. Add model classes to config/scolta.php');
         } else {
-            $source = new ContentSource();
             $total = $source->getTotalCount();
-            $modelNames = array_map(fn($m) => class_basename($m), $models);
+            $modelNames = [];
+            foreach ($models as $modelClass) {
+                $name = class_basename($modelClass);
+                if (!class_exists($modelClass)) {
+                    $name .= ' (NOT FOUND)';
+                } elseif (!in_array(Searchable::class, class_uses_recursive($modelClass))) {
+                    $name .= ' (missing Searchable trait)';
+                }
+                $modelNames[] = $name;
+            }
             $this->line("  Models:    " . implode(', ', $modelNames));
             $this->line("  Published: {$total}");
         }
@@ -91,16 +94,26 @@ class StatusCommand extends Command
             $this->line("  Or:      php artisan scolta:download-pagefind");
         }
 
-        // AI provider.
+        // AI provider (use the service, not raw config).
         $this->info('--- AI Provider ---');
-        $ai = app(ScoltaAiService::class);
         if ($ai->hasLaravelAiSdk()) {
             $this->line("  Provider: Laravel AI SDK (laravel/ai)");
         } else {
-            $provider = config('scolta.ai_provider', 'anthropic');
-            $hasKey = !empty(config('scolta.ai_api_key'));
+            $config = $ai->getConfig();
+            $provider = $config->aiProvider ?: 'anthropic';
+            $hasKey = !empty($config->aiApiKey);
             $this->line("  Provider: {$provider} (built-in)");
-            $this->line("  API key:  " . ($hasKey ? 'configured' : 'NOT SET'));
+            $this->line("  API key:  " . ($hasKey ? 'configured (from environment)' : 'NOT SET — set SCOLTA_AI_API_KEY in .env'));
+        }
+
+        // Assets.
+        $this->info('--- Assets ---');
+        $jsPublished = file_exists(public_path('vendor/scolta/scolta.js'));
+        $cssPublished = file_exists(public_path('vendor/scolta/scolta.css'));
+        if ($jsPublished && $cssPublished) {
+            $this->line("  Published: yes");
+        } else {
+            $this->warn('  Assets not published. Run: php artisan vendor:publish --tag=scolta-assets');
         }
 
         return self::SUCCESS;
