@@ -32,6 +32,11 @@
     <link rel="stylesheet" href="{{ asset(ltrim($pagefindUrl, '/') . '/pagefind-ui.css') }}" />
 @endif
 
+{{-- Scolta CSS from published assets --}}
+@if(file_exists(public_path('vendor/scolta/scolta.css')))
+    <link rel="stylesheet" href="{{ asset('vendor/scolta/scolta.css') }}" />
+@endif
+
 {{-- Scolta config — sets window.scolta before scolta.js loads --}}
 <script>
     window.scolta = @json([
@@ -52,20 +57,9 @@
 {{-- Search container --}}
 <div id="scolta-search" {{ $attributes }}></div>
 
-{{-- Scolta JS --}}
-@php
-    // Look for scolta.js in the vendor package path.
-    $scoltaJsPath = base_path('vendor/tag1/scolta/assets/js/scolta.js');
-    $scoltaJsUrl = file_exists($scoltaJsPath)
-        ? asset('vendor/scolta/scolta.js')
-        : null;
-@endphp
-
-@if($scoltaJsUrl)
-    <script src="{{ $scoltaJsUrl }}" defer></script>
+{{-- Scolta JS from published assets --}}
+@if(file_exists(public_path('vendor/scolta/scolta.js')))
+    <script src="{{ asset('vendor/scolta/scolta.js') }}" defer></script>
 @else
-    {{-- Fallback: try loading from public directory --}}
-    @if(file_exists(public_path('vendor/scolta/scolta.js')))
-        <script src="{{ asset('vendor/scolta/scolta.js') }}" defer></script>
-    @endif
+    <!-- Scolta JS not published. Run: php artisan vendor:publish --tag=scolta-assets -->
 @endif

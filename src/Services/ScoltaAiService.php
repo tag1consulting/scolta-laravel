@@ -31,7 +31,7 @@ class ScoltaAiService
     public function __construct(array $configArray)
     {
         // Flatten the nested config arrays for ScoltaConfig::fromArray().
-        $flat = $this->flattenConfig($configArray);
+        $flat = self::flattenConfig($configArray);
         $this->config = ScoltaConfig::fromArray($flat);
     }
 
@@ -63,11 +63,9 @@ class ScoltaAiService
                 return $this->messageViaLaravelSdk($systemPrompt, $userMessage, $maxTokens);
             } catch (\Exception $e) {
                 // SDK not configured — fall through to built-in.
-                if (config('app.debug')) {
-                    logger()->warning('[scolta] Laravel AI SDK failed, falling back to built-in', [
-                        'error' => $e->getMessage(),
-                    ]);
-                }
+                logger()->warning('[scolta] Laravel AI SDK failed, falling back to built-in', [
+                    'error' => $e->getMessage(),
+                ]);
             }
         }
 
@@ -85,11 +83,9 @@ class ScoltaAiService
             try {
                 return $this->conversationViaLaravelSdk($systemPrompt, $messages, $maxTokens);
             } catch (\Exception $e) {
-                if (config('app.debug')) {
-                    logger()->warning('[scolta] Laravel AI SDK conversation failed, falling back', [
-                        'error' => $e->getMessage(),
-                    ]);
-                }
+                logger()->warning('[scolta] Laravel AI SDK conversation failed, falling back', [
+                    'error' => $e->getMessage(),
+                ]);
             }
         }
 
@@ -210,7 +206,7 @@ class ScoltaAiService
      * but ScoltaConfig expects flat snake_case keys. This flattens
      * one level of nesting.
      */
-    private function flattenConfig(array $config): array
+    public static function flattenConfig(array $config): array
     {
         $flat = [];
 

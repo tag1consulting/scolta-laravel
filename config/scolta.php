@@ -142,6 +142,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Rate Limiting
+    |--------------------------------------------------------------------------
+    |
+    | Maximum requests per minute for the Scolta API endpoints.
+    | Set to 0 to disable rate limiting. Uses Laravel's built-in
+    | rate limiter with per-IP tracking.
+    |
+    */
+
+    'rate_limit' => env('SCOLTA_RATE_LIMIT', 30),
+
+    /*
+    |--------------------------------------------------------------------------
     | Route Prefix
     |--------------------------------------------------------------------------
     |
@@ -165,6 +178,18 @@ return [
     */
 
     'middleware' => ['api'],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Health Check Middleware
+    |--------------------------------------------------------------------------
+    |
+    | Middleware applied to the health check endpoint. Separated from the
+    | main middleware to allow monitoring tools unrestricted access.
+    |
+    */
+
+    'health_middleware' => ['api'],
 
     /*
     |--------------------------------------------------------------------------

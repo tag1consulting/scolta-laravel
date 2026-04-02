@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel\Services;
 
 use Generator;
+use Tag1\Scolta\Content\ContentSourceInterface;
 use Tag1\Scolta\Export\ContentItem;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
+use Tag1\ScoltaLaravel\Searchable;
 
 /**
  * Laravel content source for Scolta indexing.
@@ -28,7 +30,7 @@ use Tag1\ScoltaLaravel\Models\ScoltaTracker;
  * method to keep memory flat. Same principle as WordPress's paginated
  * WP_Query, but with Laravel's cleaner API.
  */
-class ContentSource
+class ContentSource implements ContentSourceInterface
 {
     /**
      * Yield all published content as ContentItem objects.
@@ -38,12 +40,18 @@ class ContentSource
      *
      * @return Generator<ContentItem>
      */
-    public function getPublishedContent(): Generator
+    public function getPublishedContent(array $options = []): Generator
     {
         $models = config('scolta.models', []);
 
         foreach ($models as $modelClass) {
             if (!class_exists($modelClass)) {
+                continue;
+            }
+
+            // Validate that the model uses the Searchable trait.
+            if (!in_array(Searchable::class, class_uses_recursive($modelClass), true)) {
+                logger()->warning("[scolta] Model {$modelClass} does not use the Searchable trait, skipping.");
                 continue;
             }
 
@@ -125,9 +133,17 @@ class ContentSource
     }
 
     /**
+     * Mark all tracked changes as processed after a successful build.
+     */
+    public function clearTracker(): void
+    {
+        ScoltaTracker::clearAll();
+    }
+
+    /**
      * Get total published content count across all configured models.
      */
-    public function getTotalCount(): int
+    public function getTotalCount(array $options = []): int
     {
         $models = config('scolta.models', []);
         $count = 0;
@@ -146,5 +162,13 @@ class ContentSource
         }
 
         return $count;
+    }
+
+    /**
+     * Get the count of items pending reindexing.
+     */
+    public function getPendingCount(): int
+    {
+        return ScoltaTracker::getPendingCount();
     }
 }

@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace Tag1\ScoltaLaravel;
 
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use ReflectionClass;
 use Tag1\ScoltaLaravel\Commands\BuildCommand;
 use Tag1\ScoltaLaravel\Commands\StatusCommand;
 use Tag1\ScoltaLaravel\Commands\DownloadPagefindCommand;
 use Tag1\ScoltaLaravel\Observers\ScoltaObserver;
+use Tag1\ScoltaLaravel\Services\ContentSource;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
 
 /**
@@ -44,6 +48,11 @@ class ScoltaServiceProvider extends ServiceProvider
         $this->app->singleton(ScoltaAiService::class, function ($app) {
             return new ScoltaAiService($app['config']['scolta']);
         });
+
+        // Bind ContentSource as a singleton for consistent access.
+        $this->app->singleton(ContentSource::class, function () {
+            return new ContentSource();
+        });
     }
 
     /**
@@ -59,6 +68,7 @@ class ScoltaServiceProvider extends ServiceProvider
         $this->registerRoutes();
         $this->registerBladeComponents();
         $this->registerModelObservers();
+        $this->registerRateLimiter();
 
         if ($this->app->runningInConsole()) {
             $this->registerCommands();
@@ -66,7 +76,7 @@ class ScoltaServiceProvider extends ServiceProvider
     }
 
     /**
-     * Publish config, migrations, and views.
+     * Publish config, migrations, views, and assets.
      *
      * Laravel's publish system lets users customize anything. Run
      * `artisan vendor:publish --tag=scolta-config` for config only,
@@ -89,6 +99,24 @@ class ScoltaServiceProvider extends ServiceProvider
             $this->publishes([
                 __DIR__ . '/../resources/views' => resource_path('views/vendor/scolta'),
             ], 'scolta-views');
+
+            // Frontend assets from scolta-core.
+            // Resolve the scolta-core package path via ReflectionClass to avoid
+            // hardcoding vendor paths — works in monorepo and standard installs.
+            try {
+                $coreRef = new ReflectionClass(\Tag1\Scolta\Config\ScoltaConfig::class);
+                $corePath = dirname($coreRef->getFileName(), 3);
+                $assetsPath = $corePath . '/assets';
+
+                if (is_dir($assetsPath)) {
+                    $this->publishes([
+                        $assetsPath . '/js/scolta.js' => public_path('vendor/scolta/scolta.js'),
+                        $assetsPath . '/css/scolta.css' => public_path('vendor/scolta/scolta.css'),
+                    ], 'scolta-assets');
+                }
+            } catch (\ReflectionException $e) {
+                // scolta-core not installed — skip asset publishing.
+            }
         }
     }
 
@@ -131,9 +159,34 @@ class ScoltaServiceProvider extends ServiceProvider
         $models = config('scolta.models', []);
 
         foreach ($models as $modelClass) {
-            if (class_exists($modelClass)) {
-                $modelClass::observe(ScoltaObserver::class);
+            if (!class_exists($modelClass)) {
+                continue;
             }
+
+            // Validate that the model uses the Searchable trait.
+            if (!in_array(Searchable::class, class_uses_recursive($modelClass), true)) {
+                logger()->warning("[scolta] Model {$modelClass} is configured but does not use the Searchable trait.");
+                continue;
+            }
+
+            $modelClass::observe(ScoltaObserver::class);
+        }
+    }
+
+    /**
+     * Register the Scolta rate limiter.
+     *
+     * Uses Laravel's built-in rate limiting. The limit is configurable
+     * via config('scolta.rate_limit') / SCOLTA_RATE_LIMIT env var.
+     */
+    private function registerRateLimiter(): void
+    {
+        $limit = (int) config('scolta.rate_limit', 30);
+
+        if ($limit > 0) {
+            RateLimiter::for('scolta', function ($request) use ($limit) {
+                return Limit::perMinute($limit)->by($request->ip());
+            });
         }
     }
 

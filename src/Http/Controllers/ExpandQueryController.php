@@ -32,8 +32,9 @@ class ExpandQueryController extends Controller
         $query = $validated['query'];
         $config = $ai->getConfig();
 
-        // Cache lookup.
-        $cacheKey = 'scolta_expand_' . md5(strtolower($query));
+        // Cache lookup with generation counter for invalidation on rebuild.
+        $generation = Cache::get('scolta_expand_generation', 0);
+        $cacheKey = 'scolta_expand_' . $generation . '_' . md5(strtolower($query));
         if ($config->cacheTtl > 0) {
             $cached = Cache::get($cacheKey);
             if ($cached !== null) {
@@ -65,9 +66,7 @@ class ExpandQueryController extends Controller
 
             return response()->json($terms);
         } catch (\Exception $e) {
-            if (config('app.debug')) {
-                logger()->error('[scolta] Expand failed', ['error' => $e->getMessage()]);
-            }
+            logger()->error('[scolta] Expand failed', ['error' => $e->getMessage()]);
 
             return response()->json(
                 ['error' => 'Query expansion unavailable'],
