@@ -100,8 +100,8 @@ class ScoltaServiceProvider extends ServiceProvider
                 __DIR__ . '/../resources/views' => resource_path('views/vendor/scolta'),
             ], 'scolta-views');
 
-            // Frontend assets from scolta-core.
-            // Resolve the scolta-core package path via ReflectionClass to avoid
+            // Frontend assets from scolta-php.
+            // Resolve the scolta-php package path via ReflectionClass to avoid
             // hardcoding vendor paths — works in monorepo and standard installs.
             try {
                 $coreRef = new ReflectionClass(\Tag1\Scolta\Config\ScoltaConfig::class);
@@ -115,7 +115,7 @@ class ScoltaServiceProvider extends ServiceProvider
                     ], 'scolta-assets');
                 }
             } catch (\ReflectionException $e) {
-                // scolta-core not installed — skip asset publishing.
+                // scolta-php not installed — skip asset publishing.
             }
         }
     }

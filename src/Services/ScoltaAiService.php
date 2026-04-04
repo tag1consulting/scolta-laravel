@@ -13,7 +13,7 @@ use Tag1\Scolta\Prompt\DefaultPrompts;
  *
  * Dual-path AI provider support, same pattern as WordPress:
  *   - Laravel 12+: Detects and uses the Laravel AI SDK (laravel/ai)
- *   - Laravel 11:  Falls back to scolta-core's built-in AiClient
+ *   - Laravel 11:  Falls back to scolta-php's built-in AiClient
  *
  * The detection is elegant: check if the Ai facade exists. If it does,
  * the Laravel AI SDK is installed and configured. If not, use the
@@ -53,7 +53,7 @@ class ScoltaAiService
      * Send a single-turn AI message.
      *
      * Tries Laravel AI SDK first (if available), then falls back to
-     * scolta-core's built-in AiClient.
+     * scolta-php's built-in AiClient.
      */
     public function message(string $systemPrompt, string $userMessage, int $maxTokens = 512): string
     {
@@ -69,7 +69,7 @@ class ScoltaAiService
             }
         }
 
-        // Path 2: Built-in AiClient from scolta-core.
+        // Path 2: Built-in AiClient from scolta-php.
         return $this->getClient()->message($systemPrompt, $userMessage, $maxTokens);
     }
 
