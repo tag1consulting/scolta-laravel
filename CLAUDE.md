@@ -11,6 +11,14 @@ Major versions are synchronized across all Scolta packages. This is a platform a
 - Dependency constraint MUST be a caret constraint: `"tag1/scolta-php": "^X.Y"` (or `@dev` for development).
 - All public methods SHOULD have `@since` and `@stability` annotations.
 
+### Version management and -dev workflow
+
+The `version` field in `composer.json` is always either a tagged release (`0.2.0`) or a dev pre-release (`0.3.0-dev`). See scolta-core/VERSIONING.md for the full workflow.
+
+- If current version has `-dev`, **do not change it** — multiple commits accumulate on one dev version.
+- If current version is a bare release and you're making the first change after it, bump to next target with `-dev`.
+- **WARNING:** Never commit a bare version bump without tagging it as a release.
+
 ### Laravel conventions
 
 - Follow Laravel package conventions: service provider, publishable config/views/migrations.
