@@ -34,7 +34,7 @@ class FollowUpController extends Controller
         if (end($messages)['role'] !== 'user') {
             return response()->json(
                 ['error' => 'Last message must be from user'],
-                422
+                400
             );
         }
 

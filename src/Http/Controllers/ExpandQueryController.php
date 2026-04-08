@@ -34,7 +34,7 @@ class ExpandQueryController extends Controller
 
         // Cache lookup with generation counter for invalidation on rebuild.
         $generation = Cache::get('scolta_expand_generation', 0);
-        $cacheKey = 'scolta_expand_' . $generation . '_' . md5(strtolower($query));
+        $cacheKey = 'scolta_expand_' . $generation . '_' . hash('sha256', strtolower($query));
         if ($config->cacheTtl > 0) {
             $cached = Cache::get($cacheKey);
             if ($cached !== null) {

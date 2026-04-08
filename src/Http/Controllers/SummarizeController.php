@@ -20,7 +20,7 @@ class SummarizeController extends Controller
     public function __invoke(Request $request, ScoltaAiService $ai): JsonResponse
     {
         $validated = $request->validate([
-            'query' => 'required|string|min:1',
+            'query' => 'required|string|min:1|max:500',
             'context' => 'required|string|min:1|max:50000',
         ]);
 
