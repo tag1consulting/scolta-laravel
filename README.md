@@ -106,6 +106,16 @@ In any Blade template:
 <x-scolta::search />
 ```
 
+## Verify Your Setup
+
+After installation, run the setup check to verify all prerequisites:
+
+```bash
+php artisan scolta:check-setup
+```
+
+This verifies PHP version, FFI extension, Extism library, WASM binary, Pagefind binary, AI provider configuration, and cache backend. Fix any items marked as failed before proceeding.
+
 ## Configuration
 
 All settings in `config/scolta.php` with `.env` overrides:
@@ -138,11 +148,16 @@ Route prefix and middleware are configurable via `route_prefix` and `middleware`
 ## Artisan Commands
 
 ```bash
-php artisan scolta:build                # Full build: mark, export, run Pagefind
-php artisan scolta:build --incremental  # Only process tracked changes
-php artisan scolta:build --skip-pagefind  # Export HTML without rebuilding index
-php artisan scolta:status               # Show tracker, content, index, AI status
-php artisan scolta:download-pagefind    # Download Pagefind binary for your platform
+php artisan scolta:build                    # Full build: mark, export, run Pagefind
+php artisan scolta:build --incremental      # Only process tracked changes
+php artisan scolta:build --skip-pagefind    # Export HTML without rebuilding index
+php artisan scolta:export                   # Export content to HTML only
+php artisan scolta:export --incremental     # Only export tracked changes
+php artisan scolta:rebuild-index            # Rebuild Pagefind index from existing HTML
+php artisan scolta:status                   # Show tracker, content, index, AI status
+php artisan scolta:clear-cache              # Clear Scolta AI response caches
+php artisan scolta:download-pagefind        # Download Pagefind binary for your platform
+php artisan scolta:check-setup              # Verify PHP, Extism, Pagefind, and configuration
 ```
 
 ## Content Tracking
@@ -198,6 +213,43 @@ cd packages/scolta-laravel
 cd test-laravel-12
 ddev exec php vendor/bin/phpunit --testsuite=Integration
 ```
+
+## Troubleshooting
+
+### "FFI not enabled" or WASM load failure
+
+```bash
+php -r "echo extension_loaded('ffi') ? 'OK' : 'MISSING';"
+php -r "echo class_exists('\Extism\Plugin') ? 'OK' : 'MISSING';"
+```
+
+Install Extism if missing:
+
+```bash
+curl -s https://get.extism.org/cli | bash -s -- -y
+sudo extism lib install --version latest
+sudo ldconfig  # Linux only
+```
+
+### "Pagefind binary not found"
+
+```bash
+php artisan scolta:download-pagefind
+# or
+npm install -g pagefind
+```
+
+### "AI features not working"
+
+1. Verify API key: `php artisan scolta:check-setup`
+2. Clear stale cache: `php artisan scolta:clear-cache`
+3. Clear config cache: `php artisan config:clear`
+
+### "No search results"
+
+1. Check index status: `php artisan scolta:status`
+2. Run a full build: `php artisan scolta:build`
+3. Verify published assets: `php artisan vendor:publish --tag=scolta-assets --force`
 
 ## License
 
