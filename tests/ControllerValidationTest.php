@@ -162,7 +162,7 @@ class ControllerValidationTest extends TestCase
     {
         $generation = 5;
         $query = 'Product Pricing';
-        $key = 'scolta_expand_' . $generation . '_' . md5(strtolower($query));
+        $key = 'scolta_expand_' . $generation . '_' . hash('sha256', strtolower($query));
 
         $this->assertStringStartsWith('scolta_expand_5_', $key);
     }
@@ -170,8 +170,8 @@ class ControllerValidationTest extends TestCase
     public function testCacheKeyIsCaseInsensitive(): void
     {
         $gen = 0;
-        $key1 = 'scolta_expand_' . $gen . '_' . md5(strtolower('HELLO'));
-        $key2 = 'scolta_expand_' . $gen . '_' . md5(strtolower('hello'));
+        $key1 = 'scolta_expand_' . $gen . '_' . hash('sha256', strtolower('HELLO'));
+        $key2 = 'scolta_expand_' . $gen . '_' . hash('sha256', strtolower('hello'));
         $this->assertEquals($key1, $key2);
     }
 }
