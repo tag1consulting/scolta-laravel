@@ -196,8 +196,22 @@ return [
     | Prompt Overrides
     |--------------------------------------------------------------------------
     |
-    | Leave empty to use Scolta's built-in prompts. Set a string to
-    | override with your own system prompt for that feature.
+    | Leave empty to use Scolta's built-in prompts (from the WASM module).
+    | Set a string to override with your own system prompt for that feature.
+    | Supports {SITE_NAME} and {SITE_DESCRIPTION} placeholders.
+    |
+    | To see the full default prompts, run:
+    |   php artisan tinker
+    |   \Tag1\Scolta\Prompt\DefaultPrompts::getTemplate('expand_query')
+    |   \Tag1\Scolta\Prompt\DefaultPrompts::getTemplate('summarize')
+    |   \Tag1\Scolta\Prompt\DefaultPrompts::getTemplate('follow_up')
+    |
+    | Default expand_query: "You expand search queries for {SITE_NAME}...
+    |   Return a JSON array of 2-4 alternative search terms..."
+    | Default summarize: "You are a search assistant for the {SITE_NAME}
+    |   website... provide a brief, scannable summary..."
+    | Default follow_up: "You are a search assistant for the {SITE_NAME}
+    |   website. You are continuing a conversation..."
     |
     */
 
