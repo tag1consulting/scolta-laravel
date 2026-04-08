@@ -66,7 +66,7 @@ class ExpandQueryController extends Controller
 
             return response()->json($terms);
         } catch (\Exception $e) {
-            logger()->error('[scolta] Expand failed', ['error' => $e->getMessage()]);
+            logger()->error('[scolta] Expand failed', ['error' => $e->getMessage(), 'exception' => $e]);
 
             return response()->json(
                 ['error' => 'Query expansion unavailable'],

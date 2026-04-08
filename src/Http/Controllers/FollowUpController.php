@@ -65,7 +65,7 @@ class FollowUpController extends Controller
                 'remaining' => max(0, $remaining),
             ]);
         } catch (\Exception $e) {
-            logger()->error('[scolta] Follow-up failed', ['error' => $e->getMessage()]);
+            logger()->error('[scolta] Follow-up failed', ['error' => $e->getMessage(), 'exception' => $e]);
 
             return response()->json(
                 ['error' => 'Follow-up unavailable'],

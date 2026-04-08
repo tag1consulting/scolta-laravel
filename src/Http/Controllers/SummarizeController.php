@@ -35,7 +35,7 @@ class SummarizeController extends Controller
 
             return response()->json(['summary' => $summary]);
         } catch (\Exception $e) {
-            logger()->error('[scolta] Summarize failed', ['error' => $e->getMessage()]);
+            logger()->error('[scolta] Summarize failed', ['error' => $e->getMessage(), 'exception' => $e]);
 
             return response()->json(
                 ['error' => 'Summarization unavailable'],
