@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tag1\ScoltaLaravel\Models;
 
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -77,9 +78,9 @@ class ScoltaTracker extends Model
     /**
      * Get all pending records for a given action.
      *
-     * @return \Illuminate\Database\Eloquent\Collection<int, static>
+     * @return Collection<int, static>
      */
-    public static function getPending(string $action): \Illuminate\Database\Eloquent\Collection
+    public static function getPending(string $action): Collection
     {
         return static::where('action', $action)->get();
     }
@@ -107,11 +108,11 @@ class ScoltaTracker extends Model
         $count = 0;
 
         foreach ($models as $modelClass) {
-            if (!class_exists($modelClass)) {
+            if (! class_exists($modelClass)) {
                 continue;
             }
 
-            $model = new $modelClass();
+            $model = new $modelClass;
             $contentType = get_class($model);
 
             // Use the Searchable trait's scope if available, otherwise query all.

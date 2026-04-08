@@ -26,6 +26,7 @@ use Tag1\Scolta\Prompt\DefaultPrompts;
 class ScoltaAiService
 {
     private ScoltaConfig $config;
+
     private ?AiClient $client = null;
 
     public function __construct(array $configArray)
@@ -98,7 +99,7 @@ class ScoltaAiService
      */
     public function getExpandPrompt(): string
     {
-        if (!empty($this->config->promptExpandQuery)) {
+        if (! empty($this->config->promptExpandQuery)) {
             return $this->config->promptExpandQuery;
         }
 
@@ -114,7 +115,7 @@ class ScoltaAiService
      */
     public function getSummarizePrompt(): string
     {
-        if (!empty($this->config->promptSummarize)) {
+        if (! empty($this->config->promptSummarize)) {
             return $this->config->promptSummarize;
         }
 
@@ -130,7 +131,7 @@ class ScoltaAiService
      */
     public function getFollowUpPrompt(): string
     {
-        if (!empty($this->config->promptFollowUp)) {
+        if (! empty($this->config->promptFollowUp)) {
             return $this->config->promptFollowUp;
         }
 
@@ -211,7 +212,7 @@ class ScoltaAiService
         $flat = [];
 
         foreach ($config as $key => $value) {
-            if (is_array($value) && !array_is_list($value)) {
+            if (is_array($value) && ! array_is_list($value)) {
                 // Nested associative array — flatten with parent key prefix.
                 foreach ($value as $subKey => $subValue) {
                     $flat[$subKey] = $subValue;

@@ -21,7 +21,7 @@ class HealthController extends Controller
     public function __invoke(ScoltaAiService $ai): JsonResponse
     {
         $outputDir = config('scolta.pagefind.output_dir', public_path('scolta-pagefind'));
-        $indexFile = $outputDir . '/pagefind.js';
+        $indexFile = $outputDir.'/pagefind.js';
 
         // Index status.
         $indexBuilt = file_exists($indexFile);
@@ -29,7 +29,7 @@ class HealthController extends Controller
             'built' => $indexBuilt,
         ];
         if ($indexBuilt) {
-            $index['fragments'] = count(glob($outputDir . '/fragment/*') ?: []);
+            $index['fragments'] = count(glob($outputDir.'/fragment/*') ?: []);
             $mtime = filemtime($indexFile);
             $index['last_build'] = $mtime ? date('c', $mtime) : null;
         }
@@ -37,7 +37,7 @@ class HealthController extends Controller
         // AI status.
         $aiStatus = [
             'provider' => $ai->hasLaravelAiSdk() ? 'laravel-sdk' : ($ai->getConfig()->aiProvider ?: 'anthropic'),
-            'configured' => $ai->hasLaravelAiSdk() || !empty($ai->getConfig()->aiApiKey),
+            'configured' => $ai->hasLaravelAiSdk() || ! empty($ai->getConfig()->aiApiKey),
         ];
 
         // Tracker status.
@@ -49,10 +49,10 @@ class HealthController extends Controller
 
         // Overall status.
         $status = 'ok';
-        if (!$indexBuilt) {
+        if (! $indexBuilt) {
             $status = 'degraded';
         }
-        if (!$aiStatus['configured'] && !$ai->hasLaravelAiSdk()) {
+        if (! $aiStatus['configured'] && ! $ai->hasLaravelAiSdk()) {
             $status = 'degraded';
         }
 

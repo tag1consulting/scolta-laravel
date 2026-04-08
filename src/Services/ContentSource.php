@@ -45,17 +45,18 @@ class ContentSource implements ContentSourceInterface
         $models = config('scolta.models', []);
 
         foreach ($models as $modelClass) {
-            if (!class_exists($modelClass)) {
+            if (! class_exists($modelClass)) {
                 continue;
             }
 
             // Validate that the model uses the Searchable trait.
-            if (!in_array(Searchable::class, class_uses_recursive($modelClass), true)) {
+            if (! in_array(Searchable::class, class_uses_recursive($modelClass), true)) {
                 logger()->warning("[scolta] Model {$modelClass} does not use the Searchable trait, skipping.");
+
                 continue;
             }
 
-            $model = new $modelClass();
+            $model = new $modelClass;
 
             // Use the Searchable scope if available.
             $query = method_exists($model, 'scopeSearchable')
@@ -66,7 +67,7 @@ class ContentSource implements ContentSourceInterface
             // equivalent of WordPress's paginated WP_Query — it processes
             // N records at a time, freeing memory between chunks.
             foreach ($query->lazy(100) as $record) {
-                if (!method_exists($record, 'toSearchableContent')) {
+                if (! method_exists($record, 'toSearchableContent')) {
                     continue;
                 }
 
@@ -94,7 +95,7 @@ class ContentSource implements ContentSourceInterface
         $grouped = $pending->groupBy('content_type');
 
         foreach ($grouped as $contentType => $records) {
-            if (!class_exists($contentType)) {
+            if (! class_exists($contentType)) {
                 continue;
             }
 
@@ -103,12 +104,12 @@ class ContentSource implements ContentSourceInterface
             // Use lazy() for memory-efficient iteration with generators.
             // Can't yield from within a closure (->each()), so we iterate
             // with foreach instead — same efficiency, proper generator support.
-            foreach ($contentType::whereIn((new $contentType())->getKeyName(), $ids)->lazy(100) as $record) {
-                if (!method_exists($record, 'toSearchableContent')) {
+            foreach ($contentType::whereIn((new $contentType)->getKeyName(), $ids)->lazy(100) as $record) {
+                if (! method_exists($record, 'toSearchableContent')) {
                     continue;
                 }
 
-                if (method_exists($record, 'shouldBeSearchable') && !$record->shouldBeSearchable()) {
+                if (method_exists($record, 'shouldBeSearchable') && ! $record->shouldBeSearchable()) {
                     continue;
                 }
 
@@ -149,11 +150,11 @@ class ContentSource implements ContentSourceInterface
         $count = 0;
 
         foreach ($models as $modelClass) {
-            if (!class_exists($modelClass)) {
+            if (! class_exists($modelClass)) {
                 continue;
             }
 
-            $model = new $modelClass();
+            $model = new $modelClass;
             $query = method_exists($model, 'scopeSearchable')
                 ? $modelClass::searchable()
                 : $modelClass::query();

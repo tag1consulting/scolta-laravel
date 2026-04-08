@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tag1\ScoltaLaravel;
 
+use Illuminate\Database\Eloquent\Builder;
 use Tag1\Scolta\Export\ContentItem;
 
 /**
@@ -61,8 +62,8 @@ trait Searchable
      *   - Products: ->where('active', true)->where('visible', true)
      *   - Pages: ->whereNotNull('published_at')
      *
-     * @param \Illuminate\Database\Eloquent\Builder $query
-     * @return \Illuminate\Database\Eloquent\Builder
+     * @param  Builder  $query
+     * @return Builder
      */
     public function scopeSearchable($query)
     {

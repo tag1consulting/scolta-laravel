@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Cache;
 class ClearCacheCommand extends Command
 {
     protected $signature = 'scolta:clear-cache';
+
     protected $description = 'Clear all Scolta AI response caches';
 
     public function handle(): int

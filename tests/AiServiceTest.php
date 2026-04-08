@@ -48,7 +48,7 @@ class AiServiceTest extends TestCase
     // Config flattening
     // -------------------------------------------------------------------
 
-    public function testFlattenConfigFlattensNestedArrays(): void
+    public function test_flatten_config_flattens_nested_arrays(): void
     {
         $nested = [
             'ai_provider' => 'anthropic',
@@ -73,7 +73,7 @@ class AiServiceTest extends TestCase
         $this->assertArrayNotHasKey('pagefind', $flat);
     }
 
-    public function testFlattenConfigPreservesListArrays(): void
+    public function test_flatten_config_preserves_list_arrays(): void
     {
         $config = [
             'models' => ['App\\Models\\Post', 'App\\Models\\Page'],
@@ -86,7 +86,7 @@ class AiServiceTest extends TestCase
         $this->assertEquals(['api'], $flat['middleware']);
     }
 
-    public function testFlattenConfigPreservesScalarValues(): void
+    public function test_flatten_config_preserves_scalar_values(): void
     {
         $config = [
             'cache_ttl' => 3600,
@@ -105,25 +105,25 @@ class AiServiceTest extends TestCase
     // Config mapping
     // -------------------------------------------------------------------
 
-    public function testGetConfigReturnsScoltaConfig(): void
+    public function test_get_config_returns_scolta_config(): void
     {
         $service = $this->createService();
         $this->assertInstanceOf(ScoltaConfig::class, $service->getConfig());
     }
 
-    public function testConfigMapsProvider(): void
+    public function test_config_maps_provider(): void
     {
         $service = $this->createService(['ai_provider' => 'openai']);
         $this->assertEquals('openai', $service->getConfig()->aiProvider);
     }
 
-    public function testConfigMapsSiteName(): void
+    public function test_config_maps_site_name(): void
     {
         $service = $this->createService(['site_name' => 'My Laravel App']);
         $this->assertEquals('My Laravel App', $service->getConfig()->siteName);
     }
 
-    public function testConfigFlattensNestedScoring(): void
+    public function test_config_flattens_nested_scoring(): void
     {
         $service = $this->createService([
             'scoring' => [
@@ -137,7 +137,7 @@ class AiServiceTest extends TestCase
         $this->assertEquals(90, $config->recencyHalfLifeDays);
     }
 
-    public function testConfigMapsDisplaySettings(): void
+    public function test_config_maps_display_settings(): void
     {
         $service = $this->createService([
             'excerpt_length' => 500,
@@ -153,7 +153,7 @@ class AiServiceTest extends TestCase
     // Prompt resolution
     // -------------------------------------------------------------------
 
-    public function testCustomPromptOverrideUsed(): void
+    public function test_custom_prompt_override_used(): void
     {
         $service = $this->createService([
             'prompt_expand_query' => 'Custom expand for {SITE_NAME}',
@@ -162,7 +162,7 @@ class AiServiceTest extends TestCase
         $this->assertEquals('Custom expand for {SITE_NAME}', $service->getExpandPrompt());
     }
 
-    public function testCustomSummarizePromptUsed(): void
+    public function test_custom_summarize_prompt_used(): void
     {
         $service = $this->createService([
             'prompt_summarize' => 'Custom summarize',
@@ -171,7 +171,7 @@ class AiServiceTest extends TestCase
         $this->assertEquals('Custom summarize', $service->getSummarizePrompt());
     }
 
-    public function testCustomFollowUpPromptUsed(): void
+    public function test_custom_follow_up_prompt_used(): void
     {
         $service = $this->createService([
             'prompt_follow_up' => 'Custom follow-up',
@@ -180,7 +180,7 @@ class AiServiceTest extends TestCase
         $this->assertEquals('Custom follow-up', $service->getFollowUpPrompt());
     }
 
-    public function testDefaultPromptDelegatesToWasm(): void
+    public function test_default_prompt_delegates_to_wasm(): void
     {
         $service = $this->createService();
         try {
@@ -195,7 +195,7 @@ class AiServiceTest extends TestCase
     // Laravel AI SDK detection
     // -------------------------------------------------------------------
 
-    public function testHasLaravelAiSdkReturnsFalse(): void
+    public function test_has_laravel_ai_sdk_returns_false(): void
     {
         $service = $this->createService();
         $this->assertFalse($service->hasLaravelAiSdk());

@@ -32,7 +32,7 @@ class DownloadPagefindCommand extends Command
         $defaultTarget = $resolver->downloadTargetDir();
         $targetDir = $this->option('path') ?: $defaultTarget;
 
-        if (!is_dir($targetDir)) {
+        if (! is_dir($targetDir)) {
             mkdir($targetDir, 0755, true);
         }
 
@@ -50,6 +50,7 @@ class DownloadPagefindCommand extends Command
 
         if ($platform === null) {
             $this->error("Unsupported platform: {$os} {$arch}. Install Pagefind via npm instead.");
+
             return self::FAILURE;
         }
 
@@ -62,13 +63,15 @@ class DownloadPagefindCommand extends Command
             ->get('https://api.github.com/repos/CloudCannon/pagefind/releases/latest');
 
         if ($response->failed()) {
-            $this->error('Failed to check latest Pagefind version: ' . $response->status());
+            $this->error('Failed to check latest Pagefind version: '.$response->status());
+
             return self::FAILURE;
         }
 
         $version = ltrim($response->json('tag_name', ''), 'v');
         if (empty($version)) {
             $this->error('Could not determine latest Pagefind version.');
+
             return self::FAILURE;
         }
 
@@ -85,27 +88,29 @@ class DownloadPagefindCommand extends Command
             ->get($downloadUrl);
 
         if ($downloadResponse->failed()) {
-            $this->error('Download failed: HTTP ' . $downloadResponse->status());
+            $this->error('Download failed: HTTP '.$downloadResponse->status());
             @unlink($tmpFile);
+
             return self::FAILURE;
         }
 
         // Extract the binary.
-        $targetBinary = $targetDir . '/pagefind';
+        $targetBinary = $targetDir.'/pagefind';
 
         $result = Process::run(
-            'tar -xzf ' . escapeshellarg($tmpFile)
-            . ' -C ' . escapeshellarg($targetDir)
-            . ' pagefind'
+            'tar -xzf '.escapeshellarg($tmpFile)
+            .' -C '.escapeshellarg($targetDir)
+            .' pagefind'
         );
 
         @unlink($tmpFile);
 
-        if (!file_exists($targetBinary)) {
+        if (! file_exists($targetBinary)) {
             $this->error("Extraction failed. Binary not found at {$targetBinary}");
             if ($result->errorOutput()) {
                 $this->line($result->errorOutput());
             }
+
             return self::FAILURE;
         }
 

@@ -8,6 +8,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use ReflectionClass;
+use Tag1\Scolta\Config\ScoltaConfig;
 use Tag1\ScoltaLaravel\Commands\BuildCommand;
 use Tag1\ScoltaLaravel\Commands\CheckSetupCommand;
 use Tag1\ScoltaLaravel\Commands\ClearCacheCommand;
@@ -45,7 +46,7 @@ class ScoltaServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__ . '/../config/scolta.php', 'scolta');
+        $this->mergeConfigFrom(__DIR__.'/../config/scolta.php', 'scolta');
 
         // Bind the AI service as a singleton — one instance per request,
         // config read once, reused across all three endpoints.
@@ -55,7 +56,7 @@ class ScoltaServiceProvider extends ServiceProvider
 
         // Bind ContentSource as a singleton for consistent access.
         $this->app->singleton(ContentSource::class, function () {
-            return new ContentSource();
+            return new ContentSource;
         });
     }
 
@@ -91,31 +92,31 @@ class ScoltaServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             // Config.
             $this->publishes([
-                __DIR__ . '/../config/scolta.php' => config_path('scolta.php'),
+                __DIR__.'/../config/scolta.php' => config_path('scolta.php'),
             ], 'scolta-config');
 
             // Migrations.
             $this->publishesMigrations([
-                __DIR__ . '/../database/migrations' => database_path('migrations'),
+                __DIR__.'/../database/migrations' => database_path('migrations'),
             ], 'scolta-migrations');
 
             // Views (so users can override the Blade component).
             $this->publishes([
-                __DIR__ . '/../resources/views' => resource_path('views/vendor/scolta'),
+                __DIR__.'/../resources/views' => resource_path('views/vendor/scolta'),
             ], 'scolta-views');
 
             // Frontend assets from scolta-php.
             // Resolve the scolta-php package path via ReflectionClass to avoid
             // hardcoding vendor paths — works in monorepo and standard installs.
             try {
-                $coreRef = new ReflectionClass(\Tag1\Scolta\Config\ScoltaConfig::class);
+                $coreRef = new ReflectionClass(ScoltaConfig::class);
                 $corePath = dirname($coreRef->getFileName(), 3);
-                $assetsPath = $corePath . '/assets';
+                $assetsPath = $corePath.'/assets';
 
                 if (is_dir($assetsPath)) {
                     $this->publishes([
-                        $assetsPath . '/js/scolta.js' => public_path('vendor/scolta/scolta.js'),
-                        $assetsPath . '/css/scolta.css' => public_path('vendor/scolta/scolta.css'),
+                        $assetsPath.'/js/scolta.js' => public_path('vendor/scolta/scolta.js'),
+                        $assetsPath.'/css/scolta.css' => public_path('vendor/scolta/scolta.css'),
                     ], 'scolta-assets');
                 }
             } catch (\ReflectionException $e) {
@@ -133,7 +134,7 @@ class ScoltaServiceProvider extends ServiceProvider
      */
     private function registerRoutes(): void
     {
-        $this->loadRoutesFrom(__DIR__ . '/../routes/api.php');
+        $this->loadRoutesFrom(__DIR__.'/../routes/api.php');
     }
 
     /**
@@ -144,7 +145,7 @@ class ScoltaServiceProvider extends ServiceProvider
      */
     private function registerBladeComponents(): void
     {
-        $this->loadViewsFrom(__DIR__ . '/../resources/views', 'scolta');
+        $this->loadViewsFrom(__DIR__.'/../resources/views', 'scolta');
     }
 
     /**
@@ -163,13 +164,14 @@ class ScoltaServiceProvider extends ServiceProvider
         $models = config('scolta.models', []);
 
         foreach ($models as $modelClass) {
-            if (!class_exists($modelClass)) {
+            if (! class_exists($modelClass)) {
                 continue;
             }
 
             // Validate that the model uses the Searchable trait.
-            if (!in_array(Searchable::class, class_uses_recursive($modelClass), true)) {
+            if (! in_array(Searchable::class, class_uses_recursive($modelClass), true)) {
                 logger()->warning("[scolta] Model {$modelClass} is configured but does not use the Searchable trait.");
+
                 continue;
             }
 

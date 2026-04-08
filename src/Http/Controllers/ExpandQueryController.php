@@ -34,7 +34,7 @@ class ExpandQueryController extends Controller
 
         // Cache lookup with generation counter for invalidation on rebuild.
         $generation = Cache::get('scolta_expand_generation', 0);
-        $cacheKey = 'scolta_expand_' . $generation . '_' . hash('sha256', strtolower($query));
+        $cacheKey = 'scolta_expand_'.$generation.'_'.hash('sha256', strtolower($query));
         if ($config->cacheTtl > 0) {
             $cached = Cache::get($cacheKey);
             if ($cached !== null) {
@@ -45,7 +45,7 @@ class ExpandQueryController extends Controller
         try {
             $response = $ai->message(
                 $ai->getExpandPrompt(),
-                'Expand this search query: ' . $query,
+                'Expand this search query: '.$query,
                 512,
             );
 
@@ -56,7 +56,7 @@ class ExpandQueryController extends Controller
             $cleaned = trim($cleaned);
 
             $terms = json_decode($cleaned, true);
-            if (!is_array($terms) || count($terms) < 2) {
+            if (! is_array($terms) || count($terms) < 2) {
                 $terms = [$query];
             }
 

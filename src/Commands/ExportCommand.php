@@ -5,11 +5,9 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel\Commands;
 
 use Illuminate\Console\Command;
-use Tag1\Scolta\Config\ScoltaConfig;
 use Tag1\Scolta\Export\ContentExporter;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 use Tag1\ScoltaLaravel\Services\ContentSource;
-use Tag1\ScoltaLaravel\Services\ScoltaAiService;
 
 /**
  * Export content as HTML files for Pagefind indexing.
@@ -33,6 +31,7 @@ class ExportCommand extends Command
             $pendingCount = $source->getPendingCount();
             if ($pendingCount === 0) {
                 $this->info('No changes pending. Nothing to export.');
+
                 return self::SUCCESS;
             }
             $this->info("Processing {$pendingCount} tracked changes...");
@@ -46,13 +45,13 @@ class ExportCommand extends Command
         // Handle deletions.
         $deletedIds = $source->getDeletedIds();
         foreach ($deletedIds as $id) {
-            $filepath = rtrim($buildDir, '/') . '/' . $id . '.html';
+            $filepath = rtrim($buildDir, '/').'/'.$id.'.html';
             if (file_exists($filepath)) {
                 unlink($filepath);
             }
         }
         if (count($deletedIds) > 0) {
-            $this->info("  Removed " . count($deletedIds) . " deleted items.");
+            $this->info('  Removed '.count($deletedIds).' deleted items.');
         }
 
         // Export content.

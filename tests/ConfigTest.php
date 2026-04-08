@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tag1\ScoltaLaravel\Tests;
 
+use Illuminate\Container\Container;
+use Illuminate\Foundation\Application;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -17,18 +19,18 @@ class ConfigTest extends TestCase
     {
         // Set up a minimal Laravel app container so storage_path() and
         // public_path() work when the config file is loaded.
-        $app = new \Illuminate\Foundation\Application(dirname(__DIR__));
-        \Illuminate\Container\Container::setInstance($app);
+        $app = new Application(dirname(__DIR__));
+        Container::setInstance($app);
 
-        $this->config = require dirname(__DIR__) . '/config/scolta.php';
+        $this->config = require dirname(__DIR__).'/config/scolta.php';
     }
 
     protected function tearDown(): void
     {
-        \Illuminate\Container\Container::setInstance(null);
+        Container::setInstance(null);
     }
 
-    public function testConfigIsArray(): void
+    public function test_config_is_array(): void
     {
         $this->assertIsArray($this->config);
     }
@@ -37,7 +39,7 @@ class ConfigTest extends TestCase
     // AI provider section
     // -------------------------------------------------------------------
 
-    public function testAiProviderDefaults(): void
+    public function test_ai_provider_defaults(): void
     {
         $this->assertArrayHasKey('ai_provider', $this->config);
         $this->assertArrayHasKey('ai_api_key', $this->config);
@@ -45,7 +47,7 @@ class ConfigTest extends TestCase
         $this->assertArrayHasKey('ai_base_url', $this->config);
     }
 
-    public function testAiFeatureToggles(): void
+    public function test_ai_feature_toggles(): void
     {
         $this->assertArrayHasKey('ai_expand_query', $this->config);
         $this->assertArrayHasKey('ai_summarize', $this->config);
@@ -56,7 +58,7 @@ class ConfigTest extends TestCase
     // Site identity
     // -------------------------------------------------------------------
 
-    public function testSiteIdentity(): void
+    public function test_site_identity(): void
     {
         $this->assertArrayHasKey('site_name', $this->config);
         $this->assertArrayHasKey('site_description', $this->config);
@@ -67,7 +69,7 @@ class ConfigTest extends TestCase
     // Searchable models
     // -------------------------------------------------------------------
 
-    public function testModelsIsArray(): void
+    public function test_models_is_array(): void
     {
         $this->assertArrayHasKey('models', $this->config);
         $this->assertIsArray($this->config['models']);
@@ -77,7 +79,7 @@ class ConfigTest extends TestCase
     // Pagefind nested config
     // -------------------------------------------------------------------
 
-    public function testPagefindSection(): void
+    public function test_pagefind_section(): void
     {
         $this->assertArrayHasKey('pagefind', $this->config);
         $pf = $this->config['pagefind'];
@@ -91,7 +93,7 @@ class ConfigTest extends TestCase
     // Scoring nested config
     // -------------------------------------------------------------------
 
-    public function testScoringSection(): void
+    public function test_scoring_section(): void
     {
         $this->assertArrayHasKey('scoring', $this->config);
         $scoring = $this->config['scoring'];
@@ -108,7 +110,7 @@ class ConfigTest extends TestCase
         }
     }
 
-    public function testScoringDefaults(): void
+    public function test_scoring_defaults(): void
     {
         $scoring = $this->config['scoring'];
         $this->assertEquals(1.0, $scoring['title_match_boost']);
@@ -125,7 +127,7 @@ class ConfigTest extends TestCase
     // Display
     // -------------------------------------------------------------------
 
-    public function testDisplayDefaults(): void
+    public function test_display_defaults(): void
     {
         $this->assertEquals(300, $this->config['excerpt_length']);
         $this->assertEquals(10, $this->config['results_per_page']);
@@ -138,13 +140,13 @@ class ConfigTest extends TestCase
     // Caching and rate limiting
     // -------------------------------------------------------------------
 
-    public function testCacheDefault(): void
+    public function test_cache_default(): void
     {
         $this->assertArrayHasKey('cache_ttl', $this->config);
         $this->assertEquals(2592000, $this->config['cache_ttl']);
     }
 
-    public function testRateLimitDefault(): void
+    public function test_rate_limit_default(): void
     {
         $this->assertArrayHasKey('rate_limit', $this->config);
         $this->assertEquals(30, $this->config['rate_limit']);
@@ -154,12 +156,12 @@ class ConfigTest extends TestCase
     // Routes and middleware
     // -------------------------------------------------------------------
 
-    public function testRoutePrefix(): void
+    public function test_route_prefix(): void
     {
         $this->assertEquals('api/scolta/v1', $this->config['route_prefix']);
     }
 
-    public function testMiddleware(): void
+    public function test_middleware(): void
     {
         $this->assertArrayHasKey('middleware', $this->config);
         $this->assertContains('api', $this->config['middleware']);
@@ -169,7 +171,7 @@ class ConfigTest extends TestCase
     // Prompt overrides
     // -------------------------------------------------------------------
 
-    public function testPromptOverridesDefaultEmpty(): void
+    public function test_prompt_overrides_default_empty(): void
     {
         $this->assertEquals('', $this->config['prompt_expand_query']);
         $this->assertEquals('', $this->config['prompt_summarize']);

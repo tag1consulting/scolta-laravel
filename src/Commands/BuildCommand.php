@@ -56,6 +56,7 @@ class BuildCommand extends Command
             $pendingCount = $source->getPendingCount();
             if ($pendingCount === 0) {
                 $this->info('No changes pending. Index is up to date.');
+
                 return self::SUCCESS;
             }
             $this->info("Step 1: Processing {$pendingCount} tracked changes...");
@@ -74,13 +75,13 @@ class BuildCommand extends Command
         // Handle deletions first.
         $deletedIds = $source->getDeletedIds();
         foreach ($deletedIds as $id) {
-            $filepath = rtrim($buildDir, '/') . '/' . $id . '.html';
+            $filepath = rtrim($buildDir, '/').'/'.$id.'.html';
             if (file_exists($filepath)) {
                 unlink($filepath);
             }
         }
         if (count($deletedIds) > 0) {
-            $this->info("  Removed " . count($deletedIds) . " deleted items.");
+            $this->info('  Removed '.count($deletedIds).' deleted items.');
         }
 
         // Export new/changed content.
@@ -92,7 +93,7 @@ class BuildCommand extends Command
         $skipped = 0;
 
         // Laravel's command output helpers make progress reporting clean.
-        if (!$this->option('incremental')) {
+        if (! $this->option('incremental')) {
             $total = $source->getTotalCount();
             $bar = $this->output->createProgressBar($total);
             $bar->start();
@@ -126,6 +127,7 @@ class BuildCommand extends Command
         // Step 3: Build Pagefind index.
         if ($this->option('skip-pagefind')) {
             $this->info('Export complete. Skipped Pagefind build (--skip-pagefind).');
+
             return self::SUCCESS;
         }
 
@@ -134,9 +136,11 @@ class BuildCommand extends Command
         if ($binary === null) {
             $status = $resolver->status();
             $this->error($status['message']);
+
             return self::FAILURE;
         }
         $this->info("Using Pagefind: {$binary} (resolved via {$resolver->resolvedVia()})");
+
         return $this->runPagefind($binary, $buildDir, $outputDir);
     }
 
@@ -148,38 +152,42 @@ class BuildCommand extends Command
      */
     private function runPagefind(string $binary, string $buildDir, string $outputDir): int
     {
-        if (!is_dir($buildDir)) {
+        if (! is_dir($buildDir)) {
             $this->error("Build directory does not exist: {$buildDir}");
+
             return self::FAILURE;
         }
 
-        $htmlCount = count(glob($buildDir . '/*.html') ?: []);
+        $htmlCount = count(glob($buildDir.'/*.html') ?: []);
         if ($htmlCount === 0) {
             $this->error("No HTML files in {$buildDir}. Export content first.");
+
             return self::FAILURE;
         }
 
-        if (!is_dir($outputDir)) {
+        if (! is_dir($outputDir)) {
             mkdir($outputDir, 0755, true);
         }
 
         $cmd = escapeshellcmd($binary)
-            . ' --site ' . escapeshellarg($buildDir)
-            . ' --output-path ' . escapeshellarg($outputDir);
+            .' --site '.escapeshellarg($buildDir)
+            .' --output-path '.escapeshellarg($outputDir);
 
         $this->line("  Running: {$cmd}");
 
         $result = Process::timeout(300)->run($cmd);
 
-        if ($result->successful() && file_exists($outputDir . '/pagefind.js')) {
-            $fragmentCount = count(glob($outputDir . '/fragment/*') ?: []);
+        if ($result->successful() && file_exists($outputDir.'/pagefind.js')) {
+            $fragmentCount = count(glob($outputDir.'/fragment/*') ?: []);
             $this->info("Pagefind index built: {$htmlCount} files, {$fragmentCount} fragments.");
             Cache::increment('scolta_expand_generation');
+
             return self::SUCCESS;
         }
 
-        $this->error("Pagefind build failed.");
+        $this->error('Pagefind build failed.');
         $this->line($result->errorOutput() ?: $result->output());
+
         return self::FAILURE;
     }
 }

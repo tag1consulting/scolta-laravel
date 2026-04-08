@@ -32,7 +32,7 @@ class StatusCommand extends Command
 
         // Tracker status.
         $this->info('--- Tracker ---');
-        if (!Schema::hasTable('scolta_tracker')) {
+        if (! Schema::hasTable('scolta_tracker')) {
             $this->warn('Tracker table does not exist. Run: php artisan migrate');
         } else {
             $pendingIndex = ScoltaTracker::getPendingCount('index');
@@ -48,13 +48,13 @@ class StatusCommand extends Command
             $this->warn('  No models configured. Add model classes to config/scolta.php');
         } else {
             $total = $source->getTotalCount();
-            $modelNames = array_map(fn($m) => class_basename($m), $models);
-            $this->line("  Models:    " . implode(', ', $modelNames));
+            $modelNames = array_map(fn ($m) => class_basename($m), $models);
+            $this->line('  Models:    '.implode(', ', $modelNames));
             $this->line("  Published: {$total}");
 
             // Model validation: check each model uses the Searchable trait.
             foreach ($models as $modelClass) {
-                if (class_exists($modelClass) && !in_array(Searchable::class, class_uses_recursive($modelClass), true)) {
+                if (class_exists($modelClass) && ! in_array(Searchable::class, class_uses_recursive($modelClass), true)) {
                     $this->warn("  Warning: {$modelClass} does not use the Searchable trait.");
                 }
             }
@@ -63,7 +63,7 @@ class StatusCommand extends Command
         // Build directory.
         $this->info('--- Build Directory ---');
         if (is_dir($buildDir)) {
-            $htmlCount = count(glob($buildDir . '/*.html') ?: []);
+            $htmlCount = count(glob($buildDir.'/*.html') ?: []);
             $this->line("  Path:       {$buildDir}");
             $this->line("  HTML files: {$htmlCount}");
         } else {
@@ -72,13 +72,13 @@ class StatusCommand extends Command
 
         // Pagefind index.
         $this->info('--- Pagefind Index ---');
-        $indexFile = $outputDir . '/pagefind.js';
+        $indexFile = $outputDir.'/pagefind.js';
         if (file_exists($indexFile)) {
-            $fragmentCount = count(glob($outputDir . '/fragment/*') ?: []);
+            $fragmentCount = count(glob($outputDir.'/fragment/*') ?: []);
             $mtime = filemtime($indexFile);
             $this->line("  Path:       {$outputDir}");
             $this->line("  Fragments:  {$fragmentCount}");
-            $this->line("  Last built: " . ($mtime ? date('Y-m-d H:i:s', $mtime) : 'unknown'));
+            $this->line('  Last built: '.($mtime ? date('Y-m-d H:i:s', $mtime) : 'unknown'));
         } else {
             $this->line("  Path: {$outputDir} (no index built yet)");
         }
@@ -100,19 +100,19 @@ class StatusCommand extends Command
         // AI provider.
         $this->info('--- AI Provider ---');
         if ($ai->hasLaravelAiSdk()) {
-            $this->line("  Provider: Laravel AI SDK (laravel/ai)");
+            $this->line('  Provider: Laravel AI SDK (laravel/ai)');
         } else {
             $provider = $ai->getConfig()->aiProvider ?: 'anthropic';
-            $hasKey = !empty($ai->getConfig()->aiApiKey);
+            $hasKey = ! empty($ai->getConfig()->aiApiKey);
             $this->line("  Provider: {$provider} (built-in)");
-            $this->line("  API key:  " . ($hasKey ? 'configured' : 'NOT SET'));
+            $this->line('  API key:  '.($hasKey ? 'configured' : 'NOT SET'));
         }
 
         // Assets published check.
         $this->info('--- Assets ---');
         $assetsPublished = file_exists(public_path('vendor/scolta/scolta.js'));
-        $this->line("  Published: " . ($assetsPublished ? 'yes' : 'no'));
-        if (!$assetsPublished) {
+        $this->line('  Published: '.($assetsPublished ? 'yes' : 'no'));
+        if (! $assetsPublished) {
             $this->warn('  Run: php artisan vendor:publish --tag=scolta-assets');
         }
 

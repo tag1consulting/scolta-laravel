@@ -35,43 +35,48 @@ class RebuildIndexCommand extends Command
         $binary = $resolver->resolve();
         if ($binary === null) {
             $this->error($resolver->status()['message']);
+
             return self::FAILURE;
         }
 
-        if (!is_dir($buildDir)) {
+        if (! is_dir($buildDir)) {
             $this->error("Build directory does not exist: {$buildDir}");
+
             return self::FAILURE;
         }
 
-        $htmlCount = count(glob($buildDir . '/*.html') ?: []);
+        $htmlCount = count(glob($buildDir.'/*.html') ?: []);
         if ($htmlCount === 0) {
             $this->error("No HTML files in {$buildDir}. Run scolta:export first.");
+
             return self::FAILURE;
         }
 
-        if (!is_dir($outputDir)) {
+        if (! is_dir($outputDir)) {
             mkdir($outputDir, 0755, true);
         }
 
         $this->info("Using Pagefind: {$binary} (resolved via {$resolver->resolvedVia()})");
 
         $cmd = $binary
-            . ' --site ' . escapeshellarg($buildDir)
-            . ' --output-path ' . escapeshellarg($outputDir);
+            .' --site '.escapeshellarg($buildDir)
+            .' --output-path '.escapeshellarg($outputDir);
 
         $this->line("  Running: {$cmd}");
 
         $result = Process::timeout(300)->run($cmd);
 
-        if ($result->successful() && file_exists($outputDir . '/pagefind.js')) {
-            $fragmentCount = count(glob($outputDir . '/fragment/*') ?: []);
+        if ($result->successful() && file_exists($outputDir.'/pagefind.js')) {
+            $fragmentCount = count(glob($outputDir.'/fragment/*') ?: []);
             Cache::increment('scolta_expand_generation');
             $this->info("Pagefind index rebuilt: {$htmlCount} files, {$fragmentCount} fragments.");
+
             return self::SUCCESS;
         }
 
         $this->error('Pagefind build failed.');
         $this->line($result->errorOutput() ?: $result->output());
+
         return self::FAILURE;
     }
 }
