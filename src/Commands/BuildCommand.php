@@ -7,6 +7,7 @@ namespace Tag1\ScoltaLaravel\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Process;
+use Tag1\Scolta\Binary\PagefindBinary;
 use Tag1\Scolta\Config\ScoltaConfig;
 use Tag1\Scolta\Export\ContentExporter;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
@@ -43,7 +44,10 @@ class BuildCommand extends Command
         $config = ScoltaConfig::fromArray(ScoltaAiService::flattenConfig(config('scolta', [])));
         $buildDir = config('scolta.pagefind.build_dir', storage_path('scolta/build'));
         $outputDir = config('scolta.pagefind.output_dir', public_path('scolta-pagefind'));
-        $binary = config('scolta.pagefind.binary', 'pagefind');
+        $resolver = new PagefindBinary(
+            configuredPath: config('scolta.pagefind.binary'),
+            projectDir: base_path(),
+        );
 
         $exporter = new ContentExporter($buildDir);
 
@@ -126,6 +130,13 @@ class BuildCommand extends Command
         }
 
         $this->info('Step 3: Building Pagefind index...');
+        $binary = $resolver->resolve();
+        if ($binary === null) {
+            $status = $resolver->status();
+            $this->error($status['message']);
+            return self::FAILURE;
+        }
+        $this->info("Using Pagefind: {$binary} (resolved via {$resolver->resolvedVia()})");
         return $this->runPagefind($binary, $buildDir, $outputDir);
     }
 

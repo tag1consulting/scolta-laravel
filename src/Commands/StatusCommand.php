@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Schema;
+use Tag1\Scolta\Binary\PagefindBinary;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 use Tag1\ScoltaLaravel\Searchable;
 use Tag1\ScoltaLaravel\Services\ContentSource;
@@ -29,9 +29,6 @@ class StatusCommand extends Command
     {
         $buildDir = config('scolta.pagefind.build_dir', storage_path('scolta/build'));
         $outputDir = config('scolta.pagefind.output_dir', public_path('scolta-pagefind'));
-        $binary = config('scolta.pagefind.binary', 'pagefind');
-
-        $rows = [];
 
         // Tracker status.
         $this->info('--- Tracker ---');
@@ -88,14 +85,16 @@ class StatusCommand extends Command
 
         // Pagefind binary.
         $this->info('--- Pagefind Binary ---');
-        $result = Process::timeout(5)->run(escapeshellcmd($binary) . ' --version');
-        if ($result->successful()) {
-            $this->line("  Binary:  {$binary}");
-            $this->line("  Version: " . trim($result->output()));
+        $resolver = new PagefindBinary(
+            configuredPath: config('scolta.pagefind.binary'),
+            projectDir: base_path(),
+        );
+        $binaryStatus = $resolver->status();
+        if ($binaryStatus['available']) {
+            $this->line("  {$binaryStatus['message']}");
         } else {
-            $this->warn("Pagefind binary not found at: {$binary}");
-            $this->line("  Install: npm install -g pagefind");
-            $this->line("  Or:      php artisan scolta:download-pagefind");
+            $this->warn('  Pagefind: NOT AVAILABLE');
+            $this->line($binaryStatus['message']);
         }
 
         // AI provider.

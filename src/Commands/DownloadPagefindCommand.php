@@ -7,6 +7,7 @@ namespace Tag1\ScoltaLaravel\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
+use Tag1\Scolta\Binary\PagefindBinary;
 
 /**
  * Download the Pagefind binary for the current platform.
@@ -27,7 +28,9 @@ class DownloadPagefindCommand extends Command
 
     public function handle(): int
     {
-        $targetDir = $this->option('path') ?: storage_path('scolta/bin');
+        $resolver = new PagefindBinary(projectDir: base_path());
+        $defaultTarget = $resolver->downloadTargetDir();
+        $targetDir = $this->option('path') ?: $defaultTarget;
 
         if (!is_dir($targetDir)) {
             mkdir($targetDir, 0755, true);
@@ -109,12 +112,25 @@ class DownloadPagefindCommand extends Command
         chmod($targetBinary, 0755);
 
         $this->info("Pagefind v{$version} installed to {$targetBinary}");
-        $this->line('');
-        $this->line("Add to your .env file:");
-        $this->line("  SCOLTA_PAGEFIND_BINARY={$targetBinary}");
-        $this->line('');
-        $this->line("Or update config/scolta.php:");
-        $this->line("  'binary' => '{$targetBinary}'");
+
+        // Auto-update .env with the binary path.
+        $envPath = base_path('.env');
+        if (file_exists($envPath)) {
+            $env = file_get_contents($envPath);
+            if (str_contains($env, 'SCOLTA_PAGEFIND_BINARY=')) {
+                $env = preg_replace(
+                    '/^SCOLTA_PAGEFIND_BINARY=.*/m',
+                    "SCOLTA_PAGEFIND_BINARY={$targetBinary}",
+                    $env,
+                );
+            } else {
+                $env .= "\nSCOLTA_PAGEFIND_BINARY={$targetBinary}\n";
+            }
+            file_put_contents($envPath, $env);
+            $this->info("Updated .env: SCOLTA_PAGEFIND_BINARY={$targetBinary}");
+        } else {
+            $this->warn("Add to your .env: SCOLTA_PAGEFIND_BINARY={$targetBinary}");
+        }
 
         return self::SUCCESS;
     }

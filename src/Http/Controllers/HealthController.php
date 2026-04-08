@@ -7,6 +7,7 @@ namespace Tag1\ScoltaLaravel\Http\Controllers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Schema;
+use Tag1\Scolta\Binary\PagefindBinary;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
 
@@ -55,9 +56,21 @@ class HealthController extends Controller
             $status = 'degraded';
         }
 
+        // Pagefind binary status.
+        $resolver = new PagefindBinary(
+            configuredPath: config('scolta.pagefind.binary'),
+            projectDir: base_path(),
+        );
+        $binaryStatus = $resolver->status();
+
         return response()->json([
             'status' => $status,
             'index' => $index,
+            'pagefind' => [
+                'available' => $binaryStatus['available'],
+                'version' => $binaryStatus['version'],
+                'resolved_via' => $binaryStatus['via'],
+            ],
             'ai' => $aiStatus,
             'tracker' => $tracker,
             'assets_published' => file_exists(public_path('vendor/scolta/scolta.js')),
