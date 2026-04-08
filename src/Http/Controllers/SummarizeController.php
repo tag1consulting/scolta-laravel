@@ -7,6 +7,7 @@ namespace Tag1\ScoltaLaravel\Http\Controllers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Cache;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
 
 /**
@@ -14,6 +15,7 @@ use Tag1\ScoltaLaravel\Services\ScoltaAiService;
  *
  * Generates an AI summary of search results. Takes the user's query
  * and excerpts from the top results, returns a concise summary.
+ * Caches responses using the same generation counter as expand-query.
  */
 class SummarizeController extends Controller
 {
@@ -24,6 +26,18 @@ class SummarizeController extends Controller
             'context' => 'required|string|min:1|max:50000',
         ]);
 
+        $config = $ai->getConfig();
+
+        // Cache lookup with generation counter.
+        $generation = Cache::get('scolta_expand_generation', 0);
+        $cacheKey = 'scolta_summarize_'.$generation.'_'.hash('sha256', strtolower($validated['query']).'|'.$validated['context']);
+        if ($config->cacheTtl > 0) {
+            $cached = Cache::get($cacheKey);
+            if ($cached !== null) {
+                return response()->json($cached);
+            }
+        }
+
         $userMessage = "Search query: {$validated['query']}\n\nSearch result excerpts:\n{$validated['context']}";
 
         try {
@@ -33,7 +47,13 @@ class SummarizeController extends Controller
                 512,
             );
 
-            return response()->json(['summary' => $summary]);
+            $result = ['summary' => $summary];
+
+            if ($config->cacheTtl > 0) {
+                Cache::put($cacheKey, $result, $config->cacheTtl);
+            }
+
+            return response()->json($result);
         } catch (\Exception $e) {
             logger()->error('[scolta] Summarize failed', ['error' => $e->getMessage(), 'exception' => $e]);
 
