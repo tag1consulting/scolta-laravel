@@ -25,6 +25,21 @@
     $pagefindUrl = str_starts_with($outputDir, $publicPath)
         ? substr($outputDir, strlen($publicPath))
         : '/scolta-pagefind';
+
+    $routePrefix = config('scolta.route_prefix', 'api/scolta/v1');
+    $scoltaConfig = [
+        'scoring' => $config->toJsScoringConfig(),
+        'endpoints' => [
+            'expand' => url($routePrefix . '/expand-query'),
+            'summarize' => url($routePrefix . '/summarize'),
+            'followup' => url($routePrefix . '/followup'),
+        ],
+        'pagefindPath' => asset(ltrim($pagefindUrl, '/') . '/pagefind.js'),
+        'siteName' => $config->siteName ?: config('app.name', 'Laravel'),
+        'container' => '#scolta-search',
+        'allowedLinkDomains' => [],
+        'disclaimer' => '',
+    ];
 @endphp
 
 {{-- Pagefind UI CSS --}}
@@ -39,19 +54,7 @@
 
 {{-- Scolta config — sets window.scolta before scolta.js loads --}}
 <script>
-    window.scolta = @json([
-        'scoring' => $config->toJsScoringConfig(),
-        'endpoints' => [
-            'expand' => url(config('scolta.route_prefix', 'api/scolta/v1') . '/expand-query'),
-            'summarize' => url(config('scolta.route_prefix', 'api/scolta/v1') . '/summarize'),
-            'followup' => url(config('scolta.route_prefix', 'api/scolta/v1') . '/followup'),
-        ],
-        'pagefindPath' => asset(ltrim($pagefindUrl, '/') . '/pagefind.js'),
-        'siteName' => $config->siteName ?: config('app.name', 'Laravel'),
-        'container' => '#scolta-search',
-        'allowedLinkDomains' => [],
-        'disclaimer' => '',
-    ]);
+    window.scolta = @json($scoltaConfig);
 </script>
 
 {{-- Search container --}}
