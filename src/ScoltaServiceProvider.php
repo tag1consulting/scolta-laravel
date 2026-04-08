@@ -10,8 +10,10 @@ use Illuminate\Support\ServiceProvider;
 use ReflectionClass;
 use Tag1\ScoltaLaravel\Commands\BuildCommand;
 use Tag1\ScoltaLaravel\Commands\ClearCacheCommand;
-use Tag1\ScoltaLaravel\Commands\StatusCommand;
 use Tag1\ScoltaLaravel\Commands\DownloadPagefindCommand;
+use Tag1\ScoltaLaravel\Commands\ExportCommand;
+use Tag1\ScoltaLaravel\Commands\RebuildIndexCommand;
+use Tag1\ScoltaLaravel\Commands\StatusCommand;
 use Tag1\ScoltaLaravel\Observers\ScoltaObserver;
 use Tag1\ScoltaLaravel\Services\ContentSource;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
@@ -203,8 +205,10 @@ class ScoltaServiceProvider extends ServiceProvider
         $this->commands([
             BuildCommand::class,
             ClearCacheCommand::class,
-            StatusCommand::class,
             DownloadPagefindCommand::class,
+            ExportCommand::class,
+            RebuildIndexCommand::class,
+            StatusCommand::class,
         ]);
     }
 }
