@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use ReflectionClass;
 use Tag1\ScoltaLaravel\Commands\BuildCommand;
+use Tag1\ScoltaLaravel\Commands\ClearCacheCommand;
 use Tag1\ScoltaLaravel\Commands\StatusCommand;
 use Tag1\ScoltaLaravel\Commands\DownloadPagefindCommand;
 use Tag1\ScoltaLaravel\Observers\ScoltaObserver;
@@ -201,6 +202,7 @@ class ScoltaServiceProvider extends ServiceProvider
     {
         $this->commands([
             BuildCommand::class,
+            ClearCacheCommand::class,
             StatusCommand::class,
             DownloadPagefindCommand::class,
         ]);
