@@ -204,14 +204,26 @@ resources/views/components/search.blade.php  # <x-scolta::search /> component
 
 ## Testing
 
+**Unit tests** (fast, no Laravel required — 314 tests):
+
 ```bash
-# Unit tests (no Laravel bootstrap)
 cd packages/scolta-laravel
 ./vendor/bin/phpunit
+```
 
-# Integration tests (requires DDEV with Laravel installed)
+**Integration tests** (requires DDEV — 38 tests):
+
+```bash
 cd test-laravel-12
 ddev exec php vendor/bin/phpunit --testsuite=Integration
+```
+
+**Coding standards:**
+
+```bash
+cd packages/scolta-laravel
+composer lint    # Laravel Pint
+composer format  # Auto-fix violations
 ```
 
 ## Troubleshooting
