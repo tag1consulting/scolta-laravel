@@ -165,6 +165,8 @@ class ScoltaServiceProvider extends ServiceProvider
 
         foreach ($models as $modelClass) {
             if (! class_exists($modelClass)) {
+                logger()->error("[scolta] Configured model '{$modelClass}' does not exist. Content from this model will not be tracked.");
+
                 continue;
             }
 

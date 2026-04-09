@@ -273,4 +273,31 @@ class ServiceProviderTest extends TestCase
         $this->assertStringContainsString('runningInConsole', $this->providerSource,
             'Commands should be conditionally loaded when running in console.');
     }
+
+    // -------------------------------------------------------------------
+    // Observer logging for missing models
+    // -------------------------------------------------------------------
+
+    public function test_logs_error_for_missing_model_class(): void
+    {
+        $this->assertStringContainsString(
+            "logger()->error",
+            $this->providerSource,
+            'Provider should log error when configured model class does not exist'
+        );
+        $this->assertStringContainsString(
+            'does not exist',
+            $this->providerSource,
+            'Error message should indicate the model does not exist'
+        );
+    }
+
+    public function test_logs_warning_for_missing_searchable_trait(): void
+    {
+        $this->assertStringContainsString(
+            "logger()->warning",
+            $this->providerSource,
+            'Provider should warn when model does not use Searchable trait'
+        );
+    }
 }
