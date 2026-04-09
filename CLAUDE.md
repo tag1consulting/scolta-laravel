@@ -33,3 +33,12 @@ The `version` field in `composer.json` is always either a tagged release (`0.2.0
 - Tests use plain PHPUnit (not Orchestra Testbench) for speed.
 - ConfigTest requires a minimal `Illuminate\Foundation\Application` for `storage_path()`/`public_path()`.
 - WASM-dependent tests are skipped when libextism is unavailable.
+
+## Documentation Rules
+
+Documentation follows code. When a PR changes behavior, the same PR must update the relevant docs.
+
+- **CHANGELOG.md**: Every PR that changes code (not docs-only) MUST add an entry under `## [Unreleased]`. CI enforces this.
+- **README.md**: Update if the change affects installation, Artisan commands, API endpoints, Searchable trait, or configuration.
+- **config/scolta.php**: Published config file MUST have inline comments explaining each setting.
+- **PHPDoc**: All public methods SHOULD have complete PHPDoc including `@since` and `@stability`.

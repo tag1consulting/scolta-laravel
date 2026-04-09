@@ -1,7 +1,6 @@
 # Scolta for Laravel
 
-<!-- TODO: Add CI badge once repo is on GitHub -->
-<!-- [![CI](https://github.com/tag1consulting/scolta-laravel/actions/workflows/ci.yml/badge.svg)](https://github.com/tag1consulting/scolta-laravel/actions/workflows/ci.yml) -->
+[![CI](https://github.com/tag1consulting/scolta-laravel/actions/workflows/ci.yml/badge.svg)](https://github.com/tag1consulting/scolta-laravel/actions/workflows/ci.yml)
 
 Laravel package providing AI-powered search with Pagefind. Delivers client-side search with optional AI query expansion, summarization, and follow-up conversations.
 
@@ -10,6 +9,22 @@ Laravel package providing AI-powered search with Pagefind. Delivers client-side 
 1. **Indexing** -- The `php artisan scolta:build` command exports Eloquent models as HTML files with Pagefind data attributes, then runs the Pagefind CLI to build a static search index.
 2. **Search** -- Entirely client-side. The browser loads `pagefind.js`, searches the static index, and scolta.js handles scoring, filtering, and result rendering.
 3. **AI features** -- Optional. When an API key is configured, the package provides API endpoints for query expansion, result summarization, and follow-up conversations powered by Anthropic or OpenAI.
+
+## Architecture
+
+Scolta is a multi-package system. This Laravel package is a platform adapter that sits on top of the shared PHP library:
+
+```
+scolta-laravel (this package)      scolta-php              scolta-core (WASM)
+  Artisan commands ──────────> ContentExporter ──────> cleanHtml()
+  ScoltaAiService ───────────> AiClient                buildPagefindHtml()
+  ScoltaServiceProvider ─────> ScoltaConfig ─────────> toJsScoringConfig()
+  Searchable trait ──────────> DefaultPrompts ───────> resolvePrompt()
+  ScoltaObserver ────────────> PagefindBinary           scoreResults()
+  LaravelCacheDriver ────────> CacheDriverInterface     mergeResults()
+```
+
+The Laravel package handles framework-specific concerns: Artisan commands, Eloquent model observation, Blade components, route registration, publishable config/migrations, and middleware. All scoring, HTML processing, and prompt logic lives in the WASM module, accessed through scolta-php. This package never depends on scolta-core directly.
 
 ## Requirements
 
