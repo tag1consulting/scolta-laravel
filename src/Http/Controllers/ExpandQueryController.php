@@ -37,6 +37,7 @@ class ExpandQueryController extends Controller
             $config->cacheTtl,
             $config->maxFollowUps,
             new EventDrivenEnricher($events),
+            $config->aiLanguages,
         );
 
         $result = $handler->handleExpandQuery($validated['query']);

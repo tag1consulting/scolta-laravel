@@ -36,6 +36,7 @@ class FollowUpController extends Controller
             0,
             $config->maxFollowUps,
             new EventDrivenEnricher($events),
+            $config->aiLanguages,
         );
 
         $result = $handler->handleFollowUp($validated['messages']);

@@ -8,6 +8,8 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ### Added
 
+- `ai_languages` config setting for multilingual AI response support, configurable via `SCOLTA_AI_LANGUAGES` env var (comma-separated)
+- All AI controllers now pass `aiLanguages` from config to `AiEndpointHandler`
 - `PromptEnrichEvent` Laravel event dispatched before AI prompts are sent to the LLM provider
 - `EventDrivenEnricher` bridging scolta-php's `PromptEnricherInterface` with Laravel's event system
 - All AI controllers now inject the event dispatcher and pass the enricher to `AiEndpointHandler`

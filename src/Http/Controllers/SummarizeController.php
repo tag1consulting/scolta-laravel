@@ -38,6 +38,7 @@ class SummarizeController extends Controller
             $config->cacheTtl,
             $config->maxFollowUps,
             new EventDrivenEnricher($events),
+            $config->aiLanguages,
         );
 
         $result = $handler->handleSummarize($validated['query'], $validated['context']);

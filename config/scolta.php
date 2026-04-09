@@ -43,6 +43,7 @@ return [
 
     'ai_expand_query' => env('SCOLTA_AI_EXPAND', true),
     'ai_summarize' => env('SCOLTA_AI_SUMMARIZE', true),
+    'ai_languages' => array_filter(array_map('trim', explode(',', env('SCOLTA_AI_LANGUAGES', 'en')))),
     'max_follow_ups' => env('SCOLTA_MAX_FOLLOWUPS', 3),
 
     /*
