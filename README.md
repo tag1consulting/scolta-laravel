@@ -2,7 +2,52 @@
 
 [![CI](https://github.com/tag1consulting/scolta-laravel/actions/workflows/ci.yml/badge.svg)](https://github.com/tag1consulting/scolta-laravel/actions/workflows/ci.yml)
 
-Laravel package providing AI-powered search with Pagefind. Delivers client-side search with optional AI query expansion, summarization, and follow-up conversations.
+Scolta adds AI-powered search to your Laravel site. Search runs entirely in the browser using Pagefind — no search server needed. Optional AI features handle query expansion, result summarization, and follow-up conversations. Works with any content type, any language.
+
+## Quickstart
+
+```bash
+# 1. Install
+composer require tag1/scolta-laravel tag1/scolta-php
+
+# 2. Publish config, migrations, and assets
+php artisan vendor:publish --tag=scolta-config --tag=scolta-migrations --tag=scolta-assets
+
+# 3. Run migrations
+php artisan migrate
+
+# 4. Add the Searchable trait to your models (see Setup section below)
+
+# 5. Verify prerequisites
+php artisan scolta:check-setup
+
+# 6. Build the search index
+php artisan scolta:build
+
+# 7. Add <x-scolta::search /> to your Blade template.
+```
+
+## Configuration
+
+Set the API key to enable AI features in `.env`:
+
+```
+SCOLTA_API_KEY=sk-ant-...
+```
+
+Key settings in `config/scolta.php`:
+
+| Key | Env Var | Default | Description |
+|-----|---------|---------|-------------|
+| `ai_provider` | `SCOLTA_AI_PROVIDER` | `anthropic` | AI provider (anthropic, openai, laravel) |
+| `ai_api_key` | `SCOLTA_API_KEY` | | API key for AI features |
+| `ai_model` | `SCOLTA_AI_MODEL` | `claude-sonnet-4-5-20250929` | Model identifier |
+
+See [CONFIG_REFERENCE.md](../../docs/CONFIG_REFERENCE.md) for the full list of settings.
+
+## Prompt Enrichment
+
+The built-in expand, summarize, and follow-up prompts can be customized in `config/scolta.php`. You can also set `site_name` and `site_description` to give the AI better context about your content. See [ENRICHMENT.md](../../docs/ENRICHMENT.md) for details on prompt customization.
 
 ## How It Works
 
@@ -134,7 +179,7 @@ php artisan scolta:check-setup
 
 This verifies PHP version, FFI extension, Extism library, WASM binary, Pagefind binary, AI provider configuration, and cache backend. Fix any items marked as failed before proceeding.
 
-## Configuration
+## Configuration Details
 
 All settings in `config/scolta.php` with `.env` overrides:
 
@@ -222,14 +267,14 @@ resources/views/components/search.blade.php  # <x-scolta::search /> component
 
 ## Testing
 
-**Unit tests** (fast, no Laravel required — 314 tests):
+**Unit tests** (fast, no Laravel required -- 314 tests):
 
 ```bash
 cd packages/scolta-laravel
 ./vendor/bin/phpunit
 ```
 
-**Integration tests** (requires DDEV — 38 tests):
+**Integration tests** (requires DDEV -- 38 tests):
 
 ```bash
 cd test-laravel-12
