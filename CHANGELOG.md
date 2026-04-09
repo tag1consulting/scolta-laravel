@@ -8,6 +8,12 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ### Added
 
+- `PromptEnrichEvent` Laravel event dispatched before AI prompts are sent to the LLM provider
+- `EventDrivenEnricher` bridging scolta-php's `PromptEnricherInterface` with Laravel's event system
+- All AI controllers now inject the event dispatcher and pass the enricher to `AiEndpointHandler`
+
+### Previously added
+
 - 7 Artisan commands: `scolta:build`, `scolta:export`, `scolta:rebuild-index`, `scolta:status`, `scolta:clear-cache`, `scolta:download-pagefind`, `scolta:check-setup`
 - `Searchable` trait for Eloquent models with `toSearchableContent()`, `scopeSearchable()`, `getSearchableType()`, and `shouldBeSearchable()` methods
 - Model observer (`ScoltaObserver`) for automatic content change tracking on create, update, delete, and restore

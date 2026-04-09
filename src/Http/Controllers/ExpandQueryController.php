@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tag1\ScoltaLaravel\Http\Controllers;
 
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -11,6 +12,7 @@ use Illuminate\Support\Facades\Cache;
 use Tag1\Scolta\Cache\NullCacheDriver;
 use Tag1\Scolta\Http\AiEndpointHandler;
 use Tag1\ScoltaLaravel\Cache\LaravelCacheDriver;
+use Tag1\ScoltaLaravel\Prompt\EventDrivenEnricher;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
 
 /**
@@ -20,7 +22,7 @@ use Tag1\ScoltaLaravel\Services\ScoltaAiService;
  */
 class ExpandQueryController extends Controller
 {
-    public function __invoke(Request $request, ScoltaAiService $ai): JsonResponse
+    public function __invoke(Request $request, ScoltaAiService $ai, Dispatcher $events): JsonResponse
     {
         $validated = $request->validate([
             'query' => 'required|string|min:1|max:500',
@@ -34,6 +36,7 @@ class ExpandQueryController extends Controller
             $generation,
             $config->cacheTtl,
             $config->maxFollowUps,
+            new EventDrivenEnricher($events),
         );
 
         $result = $handler->handleExpandQuery($validated['query']);

@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Tag1\ScoltaLaravel\Http\Controllers;
 
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Tag1\Scolta\Cache\NullCacheDriver;
 use Tag1\Scolta\Http\AiEndpointHandler;
+use Tag1\ScoltaLaravel\Prompt\EventDrivenEnricher;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
 
 /**
@@ -18,7 +20,7 @@ use Tag1\ScoltaLaravel\Services\ScoltaAiService;
  */
 class FollowUpController extends Controller
 {
-    public function __invoke(Request $request, ScoltaAiService $ai): JsonResponse
+    public function __invoke(Request $request, ScoltaAiService $ai, Dispatcher $events): JsonResponse
     {
         $validated = $request->validate([
             'messages' => 'required|array|min:1',
@@ -33,6 +35,7 @@ class FollowUpController extends Controller
             0,
             0,
             $config->maxFollowUps,
+            new EventDrivenEnricher($events),
         );
 
         $result = $handler->handleFollowUp($validated['messages']);
