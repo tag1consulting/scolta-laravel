@@ -26,7 +26,8 @@
     "scripts": {
         "test": "phpunit",
         "lint": "pint --test",
-        "format": "pint"
+        "format": "pint",
+        "validate-release": "php scripts/validate-release.php"
     },
     "autoload": {
         "psr-4": {
