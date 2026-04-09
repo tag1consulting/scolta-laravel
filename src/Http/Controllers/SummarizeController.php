@@ -8,14 +8,15 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Cache;
+use Tag1\Scolta\Cache\NullCacheDriver;
+use Tag1\Scolta\Http\AiEndpointHandler;
+use Tag1\ScoltaLaravel\Cache\LaravelCacheDriver;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
 
 /**
  * POST /api/scolta/v1/summarize
  *
- * Generates an AI summary of search results. Takes the user's query
- * and excerpts from the top results, returns a concise summary.
- * Caches responses using the same generation counter as expand-query.
+ * Generates an AI summary of search results.
  */
 class SummarizeController extends Controller
 {
@@ -27,40 +28,25 @@ class SummarizeController extends Controller
         ]);
 
         $config = $ai->getConfig();
-
-        // Cache lookup with generation counter.
         $generation = Cache::get('scolta_expand_generation', 0);
-        $cacheKey = 'scolta_summarize_'.$generation.'_'.hash('sha256', strtolower($validated['query']).'|'.$validated['context']);
-        if ($config->cacheTtl > 0) {
-            $cached = Cache::get($cacheKey);
-            if ($cached !== null) {
-                return response()->json($cached);
-            }
+        $handler = new AiEndpointHandler(
+            $ai,
+            $config->cacheTtl > 0 ? new LaravelCacheDriver() : new NullCacheDriver(),
+            $generation,
+            $config->cacheTtl,
+            $config->maxFollowUps,
+        );
+
+        $result = $handler->handleSummarize($validated['query'], $validated['context']);
+
+        if ($result['ok']) {
+            return response()->json($result['data']);
         }
 
-        $userMessage = "Search query: {$validated['query']}\n\nSearch result excerpts:\n{$validated['context']}";
-
-        try {
-            $summary = $ai->message(
-                $ai->getSummarizePrompt(),
-                $userMessage,
-                512,
-            );
-
-            $result = ['summary' => $summary];
-
-            if ($config->cacheTtl > 0) {
-                Cache::put($cacheKey, $result, $config->cacheTtl);
-            }
-
-            return response()->json($result);
-        } catch (\Exception $e) {
-            logger()->error('[scolta] Summarize failed', ['error' => $e->getMessage(), 'exception' => $e]);
-
-            return response()->json(
-                ['error' => 'Summarization unavailable'],
-                503
-            );
+        if (isset($result['exception'])) {
+            logger()->error('[scolta] Summarize failed', ['error' => $result['exception']->getMessage(), 'exception' => $result['exception']]);
         }
+
+        return response()->json(['error' => $result['error']], $result['status']);
     }
 }
