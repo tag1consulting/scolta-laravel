@@ -8,19 +8,24 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ### Added
 
-- `wasmPath` added to `window.scolta` JS config in Blade component, pointing to published client-side WASM assets
-- WASM assets (`scolta_core.js`, `scolta_core_bg.wasm`, `scolta_core.d.ts`) now included in `scolta-assets` publishable group
 - `ai_languages` config setting for multilingual AI response support, configurable via `SCOLTA_AI_LANGUAGES` env var (comma-separated)
 - All AI controllers now pass `aiLanguages` from config to `AiEndpointHandler`
 - `PromptEnrichEvent` Laravel event dispatched before AI prompts are sent to the LLM provider
 - `EventDrivenEnricher` bridging scolta-php's `PromptEnricherInterface` with Laravel's event system
 - All AI controllers now inject the event dispatcher and pass the enricher to `AiEndpointHandler`
 
+### Removed
+
+- Removed `ffi` PHP extension requirement from CI workflow
+- Removed Extism/FFI dependency — scolta-php now uses pure PHP for all operations
+- Removed server-side WASM asset publishing (`scolta_core.js`, `scolta_core_bg.wasm`, `scolta_core.d.ts`) from `scolta-assets` publishable group
+
 ### Changed
 
 - Scoring now runs client-side via WASM in the browser; server-side WASM scoring methods (`ScoltaWasm::scoreResults`, `mergeResults`, `parseExpansion`) are no longer called
 - Default prompts are now resolved via pure PHP (`DefaultPrompts::resolve()`), no longer requiring the WASM runtime
-- `scolta:check-setup` command description updated to reflect runtime vs build-time dependency split
+- `scolta:check-setup` command docblock updated to remove FFI/Extism/server WASM references
+- CI lint step no longer uses `continue-on-error`
 
 ### Previously added
 

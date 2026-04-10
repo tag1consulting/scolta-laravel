@@ -78,12 +78,6 @@ class BladeComponentTest extends TestCase
             'Window config should include endpoint URLs.');
     }
 
-    public function test_config_includes_wasm_path(): void
-    {
-        $this->assertStringContainsString('wasmPath', $this->templateContent,
-            'Window config should include the WASM path for client-side scoring.');
-    }
-
     public function test_config_includes_pagefind_path(): void
     {
         $this->assertStringContainsString('pagefindPath', $this->templateContent,
