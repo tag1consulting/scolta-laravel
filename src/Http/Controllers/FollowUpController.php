@@ -31,7 +31,7 @@ class FollowUpController extends Controller
         $config = $ai->getConfig();
         $handler = new AiEndpointHandler(
             $ai,
-            new NullCacheDriver(),
+            new NullCacheDriver,
             0,
             0,
             $config->maxFollowUps,

@@ -40,11 +40,11 @@ class HealthController extends Controller
 
         // Laravel-specific: index detail enrichment.
         if ($result['index_exists']) {
-            $indexFile = $outputDir . '/pagefind.js';
+            $indexFile = $outputDir.'/pagefind.js';
             $mtime = filemtime($indexFile);
             $result['index'] = [
                 'built' => true,
-                'fragments' => count(glob($outputDir . '/fragment/*') ?: []),
+                'fragments' => count(glob($outputDir.'/fragment/*') ?: []),
                 'last_build' => $mtime ? date('c', $mtime) : null,
             ];
         } else {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tag1\ScoltaLaravel\Tests;
 
+use Illuminate\Support\ServiceProvider;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use Tag1\ScoltaLaravel\ScoltaServiceProvider;
@@ -36,7 +37,7 @@ class ServiceProviderTest extends TestCase
     {
         $ref = new ReflectionClass(ScoltaServiceProvider::class);
         $this->assertTrue(
-            $ref->isSubclassOf(\Illuminate\Support\ServiceProvider::class),
+            $ref->isSubclassOf(ServiceProvider::class),
             'ScoltaServiceProvider should extend Illuminate\\Support\\ServiceProvider.'
         );
     }
@@ -281,7 +282,7 @@ class ServiceProviderTest extends TestCase
     public function test_logs_error_for_missing_model_class(): void
     {
         $this->assertStringContainsString(
-            "logger()->error",
+            'logger()->error',
             $this->providerSource,
             'Provider should log error when configured model class does not exist'
         );
@@ -295,7 +296,7 @@ class ServiceProviderTest extends TestCase
     public function test_logs_warning_for_missing_searchable_trait(): void
     {
         $this->assertStringContainsString(
-            "logger()->warning",
+            'logger()->warning',
             $this->providerSource,
             'Provider should warn when model does not use Searchable trait'
         );

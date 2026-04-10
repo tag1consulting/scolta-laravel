@@ -16,6 +16,7 @@ use Tag1\ScoltaLaravel\Events\PromptEnrichEvent;
  * inject site-specific context into AI prompts.
  *
  * @since 0.2.0
+ *
  * @stability experimental
  */
 class EventDrivenEnricher implements PromptEnricherInterface

@@ -4,11 +4,18 @@ declare(strict_types=1);
 
 namespace Tag1\ScoltaLaravel\Tests;
 
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Routing\Controller;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionNamedType;
+use Tag1\ScoltaLaravel\Http\Controllers\ExpandQueryController;
+use Tag1\ScoltaLaravel\Http\Controllers\FollowUpController;
+use Tag1\ScoltaLaravel\Http\Controllers\HealthController;
+use Tag1\ScoltaLaravel\Http\Controllers\SummarizeController;
 
 /**
  * Validate controller structure: existence, invokable pattern, parameter/return types.
@@ -16,10 +23,10 @@ use ReflectionNamedType;
 class ControllerStructureTest extends TestCase
 {
     private const CONTROLLERS = [
-        'ExpandQuery' => \Tag1\ScoltaLaravel\Http\Controllers\ExpandQueryController::class,
-        'Summarize' => \Tag1\ScoltaLaravel\Http\Controllers\SummarizeController::class,
-        'FollowUp' => \Tag1\ScoltaLaravel\Http\Controllers\FollowUpController::class,
-        'Health' => \Tag1\ScoltaLaravel\Http\Controllers\HealthController::class,
+        'ExpandQuery' => ExpandQueryController::class,
+        'Summarize' => SummarizeController::class,
+        'FollowUp' => FollowUpController::class,
+        'Health' => HealthController::class,
     ];
 
     // -------------------------------------------------------------------
@@ -73,7 +80,7 @@ class ControllerStructureTest extends TestCase
             "{$class}::__invoke() return type should be a named type."
         );
         $this->assertEquals(
-            \Illuminate\Http\JsonResponse::class,
+            JsonResponse::class,
             $returnType->getName(),
             "{$class}::__invoke() should return JsonResponse."
         );
@@ -96,7 +103,7 @@ class ControllerStructureTest extends TestCase
         $type = $firstParam->getType();
         $this->assertNotNull($type, "First parameter of {$class}::__invoke() should be typed.");
         $this->assertEquals(
-            \Illuminate\Http\Request::class,
+            Request::class,
             $type->getName(),
             "First parameter of {$class}::__invoke() should be Request."
         );
@@ -105,9 +112,9 @@ class ControllerStructureTest extends TestCase
     public static function postControllerProvider(): array
     {
         return [
-            'ExpandQuery' => [\Tag1\ScoltaLaravel\Http\Controllers\ExpandQueryController::class],
-            'Summarize' => [\Tag1\ScoltaLaravel\Http\Controllers\SummarizeController::class],
-            'FollowUp' => [\Tag1\ScoltaLaravel\Http\Controllers\FollowUpController::class],
+            'ExpandQuery' => [ExpandQueryController::class],
+            'Summarize' => [SummarizeController::class],
+            'FollowUp' => [FollowUpController::class],
         ];
     }
 
@@ -172,7 +179,7 @@ class ControllerStructureTest extends TestCase
     public function test_health_controller_does_not_require_request(): void
     {
         $method = new ReflectionMethod(
-            \Tag1\ScoltaLaravel\Http\Controllers\HealthController::class,
+            HealthController::class,
             '__invoke'
         );
         $params = $method->getParameters();
@@ -182,7 +189,7 @@ class ControllerStructureTest extends TestCase
         $hasRequestParam = false;
         foreach ($params as $param) {
             $type = $param->getType();
-            if ($type !== null && $type->getName() === \Illuminate\Http\Request::class) {
+            if ($type !== null && $type->getName() === Request::class) {
                 $hasRequestParam = true;
             }
         }
@@ -200,7 +207,7 @@ class ControllerStructureTest extends TestCase
     {
         $ref = new ReflectionClass($class);
         $this->assertTrue(
-            $ref->isSubclassOf(\Illuminate\Routing\Controller::class),
+            $ref->isSubclassOf(Controller::class),
             "{$class} should extend Illuminate\\Routing\\Controller."
         );
     }

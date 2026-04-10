@@ -1,8 +1,10 @@
 <?php
+
+declare(strict_types=1);
 /**
  * Validate scolta-laravel is ready for release.
  */
-$composer = json_decode(file_get_contents(__DIR__ . '/../composer.json'), true);
+$composer = json_decode(file_get_contents(__DIR__.'/../composer.json'), true);
 $version = $composer['version'] ?? 'MISSING';
 
 echo "composer.json version: {$version}\n";
@@ -19,7 +21,7 @@ if (str_ends_with($version, '-dev')) {
     $fail = true;
 }
 
-if (!$fail) {
+if (! $fail) {
     echo "PASS: Ready to release {$version}\n";
 } else {
     exit(1);

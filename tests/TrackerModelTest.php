@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tag1\ScoltaLaravel\Tests;
 
+use Illuminate\Database\Eloquent\Model;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use ReflectionMethod;
@@ -28,7 +29,7 @@ class TrackerModelTest extends TestCase
     {
         $ref = new ReflectionClass(ScoltaTracker::class);
         $this->assertTrue(
-            $ref->isSubclassOf(\Illuminate\Database\Eloquent\Model::class),
+            $ref->isSubclassOf(Model::class),
             'ScoltaTracker should extend Eloquent Model.'
         );
     }
@@ -41,7 +42,6 @@ class TrackerModelTest extends TestCase
     {
         $ref = new ReflectionClass(ScoltaTracker::class);
         $prop = $ref->getProperty('fillable');
-
 
         $fillable = $prop->getDefaultValue();
 
@@ -61,7 +61,6 @@ class TrackerModelTest extends TestCase
         $ref = new ReflectionClass(ScoltaTracker::class);
         $prop = $ref->getProperty('fillable');
 
-
         $fillable = $prop->getDefaultValue();
         $this->assertCount(4, $fillable,
             'ScoltaTracker should have exactly 4 fillable fields.');
@@ -76,7 +75,6 @@ class TrackerModelTest extends TestCase
         $ref = new ReflectionClass(ScoltaTracker::class);
         $prop = $ref->getProperty('timestamps');
 
-
         $this->assertFalse($prop->getDefaultValue(),
             'ScoltaTracker should have timestamps disabled.');
     }
@@ -89,7 +87,6 @@ class TrackerModelTest extends TestCase
     {
         $ref = new ReflectionClass(ScoltaTracker::class);
         $prop = $ref->getProperty('table');
-
 
         $this->assertEquals('scolta_tracker', $prop->getDefaultValue(),
             'Table name should be scolta_tracker.');

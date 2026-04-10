@@ -32,7 +32,7 @@ class ExpandQueryController extends Controller
         $generation = Cache::get('scolta_expand_generation', 0);
         $handler = new AiEndpointHandler(
             $ai,
-            $config->cacheTtl > 0 ? new LaravelCacheDriver() : new NullCacheDriver(),
+            $config->cacheTtl > 0 ? new LaravelCacheDriver : new NullCacheDriver,
             $generation,
             $config->cacheTtl,
             $config->maxFollowUps,

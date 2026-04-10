@@ -47,7 +47,6 @@ class SearchableTraitTest extends TestCase
         $this->assertEquals('test-1', $item->id);
         $this->assertEquals('Test Title', $item->title);
     }
-
 }
 
 /**

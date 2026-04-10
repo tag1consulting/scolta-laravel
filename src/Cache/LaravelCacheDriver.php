@@ -11,6 +11,7 @@ use Tag1\Scolta\Cache\CacheDriverInterface;
  * Laravel Cache facade adapter for AiEndpointHandler.
  *
  * @since 0.2.0
+ *
  * @stability experimental
  */
 class LaravelCacheDriver implements CacheDriverInterface

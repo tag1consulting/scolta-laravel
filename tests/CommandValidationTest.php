@@ -4,10 +4,18 @@ declare(strict_types=1);
 
 namespace Tag1\ScoltaLaravel\Tests;
 
+use Illuminate\Console\Command;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use ReflectionMethod;
+use Tag1\ScoltaLaravel\Commands\BuildCommand;
+use Tag1\ScoltaLaravel\Commands\CheckSetupCommand;
+use Tag1\ScoltaLaravel\Commands\ClearCacheCommand;
+use Tag1\ScoltaLaravel\Commands\DownloadPagefindCommand;
+use Tag1\ScoltaLaravel\Commands\ExportCommand;
+use Tag1\ScoltaLaravel\Commands\RebuildIndexCommand;
+use Tag1\ScoltaLaravel\Commands\StatusCommand;
 
 /**
  * Validate all 7 Artisan commands: existence, signatures, options, registration.
@@ -15,23 +23,23 @@ use ReflectionMethod;
 class CommandValidationTest extends TestCase
 {
     private const COMMAND_CLASSES = [
-        'BuildCommand' => \Tag1\ScoltaLaravel\Commands\BuildCommand::class,
-        'ExportCommand' => \Tag1\ScoltaLaravel\Commands\ExportCommand::class,
-        'RebuildIndexCommand' => \Tag1\ScoltaLaravel\Commands\RebuildIndexCommand::class,
-        'StatusCommand' => \Tag1\ScoltaLaravel\Commands\StatusCommand::class,
-        'ClearCacheCommand' => \Tag1\ScoltaLaravel\Commands\ClearCacheCommand::class,
-        'DownloadPagefindCommand' => \Tag1\ScoltaLaravel\Commands\DownloadPagefindCommand::class,
-        'CheckSetupCommand' => \Tag1\ScoltaLaravel\Commands\CheckSetupCommand::class,
+        'BuildCommand' => BuildCommand::class,
+        'ExportCommand' => ExportCommand::class,
+        'RebuildIndexCommand' => RebuildIndexCommand::class,
+        'StatusCommand' => StatusCommand::class,
+        'ClearCacheCommand' => ClearCacheCommand::class,
+        'DownloadPagefindCommand' => DownloadPagefindCommand::class,
+        'CheckSetupCommand' => CheckSetupCommand::class,
     ];
 
     private const EXPECTED_SIGNATURES = [
-        \Tag1\ScoltaLaravel\Commands\BuildCommand::class => 'scolta:build',
-        \Tag1\ScoltaLaravel\Commands\ExportCommand::class => 'scolta:export',
-        \Tag1\ScoltaLaravel\Commands\RebuildIndexCommand::class => 'scolta:rebuild-index',
-        \Tag1\ScoltaLaravel\Commands\StatusCommand::class => 'scolta:status',
-        \Tag1\ScoltaLaravel\Commands\ClearCacheCommand::class => 'scolta:clear-cache',
-        \Tag1\ScoltaLaravel\Commands\DownloadPagefindCommand::class => 'scolta:download-pagefind',
-        \Tag1\ScoltaLaravel\Commands\CheckSetupCommand::class => 'scolta:check-setup',
+        BuildCommand::class => 'scolta:build',
+        ExportCommand::class => 'scolta:export',
+        RebuildIndexCommand::class => 'scolta:rebuild-index',
+        StatusCommand::class => 'scolta:status',
+        ClearCacheCommand::class => 'scolta:clear-cache',
+        DownloadPagefindCommand::class => 'scolta:download-pagefind',
+        CheckSetupCommand::class => 'scolta:check-setup',
     ];
 
     // -------------------------------------------------------------------
@@ -149,7 +157,7 @@ class CommandValidationTest extends TestCase
 
     public function test_build_command_has_incremental_option(): void
     {
-        $ref = new ReflectionClass(\Tag1\ScoltaLaravel\Commands\BuildCommand::class);
+        $ref = new ReflectionClass(BuildCommand::class);
         $prop = $ref->getProperty('signature');
         $signature = $prop->getDefaultValue();
 
@@ -159,7 +167,7 @@ class CommandValidationTest extends TestCase
 
     public function test_build_command_has_skip_pagefind_option(): void
     {
-        $ref = new ReflectionClass(\Tag1\ScoltaLaravel\Commands\BuildCommand::class);
+        $ref = new ReflectionClass(BuildCommand::class);
         $prop = $ref->getProperty('signature');
         $signature = $prop->getDefaultValue();
 
@@ -173,7 +181,7 @@ class CommandValidationTest extends TestCase
 
     public function test_export_command_has_incremental_option(): void
     {
-        $ref = new ReflectionClass(\Tag1\ScoltaLaravel\Commands\ExportCommand::class);
+        $ref = new ReflectionClass(ExportCommand::class);
         $prop = $ref->getProperty('signature');
         $signature = $prop->getDefaultValue();
 
@@ -222,7 +230,7 @@ class CommandValidationTest extends TestCase
     {
         $ref = new ReflectionClass($class);
         $this->assertTrue(
-            $ref->isSubclassOf(\Illuminate\Console\Command::class),
+            $ref->isSubclassOf(Command::class),
             "{$class} should extend Illuminate\\Console\\Command."
         );
     }

@@ -14,6 +14,7 @@ use Illuminate\Foundation\Events\Dispatchable;
  * prompt text sent to the AI provider.
  *
  * @since 0.2.0
+ *
  * @stability experimental
  */
 class PromptEnrichEvent
@@ -21,9 +22,9 @@ class PromptEnrichEvent
     use Dispatchable;
 
     /**
-     * @param string $resolvedPrompt The prompt text after template resolution.
-     * @param string $promptName     The prompt identifier ('expand_query', 'summarize', or 'follow_up').
-     * @param array  $context        Additional context (e.g., query, search results, messages).
+     * @param  string  $resolvedPrompt  The prompt text after template resolution.
+     * @param  string  $promptName  The prompt identifier ('expand_query', 'summarize', or 'follow_up').
+     * @param  array  $context  Additional context (e.g., query, search results, messages).
      */
     public function __construct(
         public string $resolvedPrompt,
