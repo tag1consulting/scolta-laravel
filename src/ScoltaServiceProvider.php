@@ -114,10 +114,20 @@ class ScoltaServiceProvider extends ServiceProvider
                 $assetsPath = $corePath.'/assets';
 
                 if (is_dir($assetsPath)) {
-                    $this->publishes([
+                    $publishable = [
                         $assetsPath.'/js/scolta.js' => public_path('vendor/scolta/scolta.js'),
                         $assetsPath.'/css/scolta.css' => public_path('vendor/scolta/scolta.css'),
-                    ], 'scolta-assets');
+                    ];
+
+                    // Client-side WASM assets for scoring.
+                    $wasmDir = $assetsPath.'/wasm';
+                    if (is_dir($wasmDir)) {
+                        $publishable[$wasmDir.'/scolta_core.js'] = public_path('vendor/scolta/wasm/scolta_core.js');
+                        $publishable[$wasmDir.'/scolta_core_bg.wasm'] = public_path('vendor/scolta/wasm/scolta_core_bg.wasm');
+                        $publishable[$wasmDir.'/scolta_core.d.ts'] = public_path('vendor/scolta/wasm/scolta_core.d.ts');
+                    }
+
+                    $this->publishes($publishable, 'scolta-assets');
                 }
             } catch (\ReflectionException $e) {
                 // scolta-php not installed — skip asset publishing.

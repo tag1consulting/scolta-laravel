@@ -199,7 +199,7 @@ return [
     | Prompt Overrides
     |--------------------------------------------------------------------------
     |
-    | Leave empty to use Scolta's built-in prompts (from the WASM module).
+    | Leave empty to use Scolta's built-in prompts.
     | Set a string to override with your own system prompt for that feature.
     | Supports {SITE_NAME} and {SITE_DESCRIPTION} placeholders.
     |

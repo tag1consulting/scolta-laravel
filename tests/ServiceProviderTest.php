@@ -164,6 +164,14 @@ class ServiceProviderTest extends TestCase
             'Provider should publish views with scolta-views tag.');
     }
 
+    public function test_publishes_wasm_assets(): void
+    {
+        $this->assertStringContainsString('vendor/scolta/wasm/scolta_core.js', $this->providerSource,
+            'Provider should publish WASM JS loader to vendor/scolta/wasm/.');
+        $this->assertStringContainsString('vendor/scolta/wasm/scolta_core_bg.wasm', $this->providerSource,
+            'Provider should publish WASM binary to vendor/scolta/wasm/.');
+    }
+
     // -------------------------------------------------------------------
     // Model observer registration
     // -------------------------------------------------------------------

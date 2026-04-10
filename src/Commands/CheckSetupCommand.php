@@ -10,8 +10,9 @@ use Tag1\Scolta\SetupCheck;
 /**
  * Verify Scolta dependencies and configuration.
  *
- * Checks PHP, FFI, Extism, WASM binary, Pagefind, and AI key
- * in one pass so developers can see exactly what's missing.
+ * Checks PHP, Pagefind, AI key, browser WASM assets, and build
+ * dependencies (FFI, Extism, server WASM) in one pass so
+ * developers can see exactly what's missing.
  */
 class CheckSetupCommand extends Command
 {

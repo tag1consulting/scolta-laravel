@@ -180,15 +180,11 @@ class AiServiceTest extends TestCase
         $this->assertEquals('Custom follow-up', $service->getFollowUpPrompt());
     }
 
-    public function test_default_prompt_delegates_to_wasm(): void
+    public function test_default_prompt_contains_site_name(): void
     {
         $service = $this->createService();
-        try {
-            $prompt = $service->getExpandPrompt();
-            $this->assertStringContainsString('Test Site', $prompt);
-        } catch (\RuntimeException $e) {
-            $this->markTestSkipped('Extism runtime not available');
-        }
+        $prompt = $service->getExpandPrompt();
+        $this->assertStringContainsString('Test Site', $prompt);
     }
 
     // -------------------------------------------------------------------

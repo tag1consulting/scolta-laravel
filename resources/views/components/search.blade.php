@@ -34,6 +34,7 @@
             'summarize' => url($routePrefix . '/summarize'),
             'followup' => url($routePrefix . '/followup'),
         ],
+        'wasmPath' => asset('vendor/scolta/wasm/scolta_core.js'),
         'pagefindPath' => asset(ltrim($pagefindUrl, '/') . '/pagefind.js'),
         'siteName' => $config->siteName ?: config('app.name', 'Laravel'),
         'container' => '#scolta-search',
