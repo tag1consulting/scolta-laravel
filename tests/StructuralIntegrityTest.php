@@ -114,9 +114,15 @@ class StructuralIntegrityTest extends TestCase
 
     public function test_scolta_php_imports_exist(): void
     {
-        $scoltaPhpSrc = $this->root.'/../scolta-php/src/';
-        if (! is_dir($scoltaPhpSrc)) {
-            $this->markTestSkipped('scolta-php not available at sibling path');
+        $scoltaPhpSrc = null;
+        foreach ([$this->root.'/../scolta-php/src/', $this->root.'/vendor/tag1/scolta-php/src/'] as $candidate) {
+            if (is_dir($candidate)) {
+                $scoltaPhpSrc = $candidate;
+                break;
+            }
+        }
+        if ($scoltaPhpSrc === null) {
+            $this->markTestSkipped('scolta-php not available at sibling or vendor path');
         }
 
         $it = new \RecursiveIteratorIterator(
