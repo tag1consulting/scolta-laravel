@@ -8,6 +8,12 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ### Added
 
+- PHP indexer integration in `scolta:build` command — pure-PHP alternative to the Pagefind binary pipeline
+- `--indexer` option on `scolta:build` to choose backend (`php`, `binary`, or `auto`), overriding config
+- `--force` option on `scolta:build` to skip fingerprint check and force a full rebuild
+- `indexer` config key (`SCOLTA_INDEXER` env var) with `auto` default: prefers binary, falls back to PHP
+- CLI routing logic: when indexer is `php` (or `auto` without binary), gathers content directly from Eloquent models via `PhpIndexer`
+- Content gathering from configured models with progress bar output during PHP indexer builds
 - `ai_languages` config setting for multilingual AI response support, configurable via `SCOLTA_AI_LANGUAGES` env var (comma-separated)
 - All AI controllers now pass `aiLanguages` from config to `AiEndpointHandler`
 - `PromptEnrichEvent` Laravel event dispatched before AI prompts are sent to the LLM provider

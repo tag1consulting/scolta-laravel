@@ -90,6 +90,24 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Indexer
+    |--------------------------------------------------------------------------
+    |
+    | Controls which indexing backend is used when running `scolta:build`.
+    |
+    | - 'auto'   (default) Use the Pagefind binary if available, otherwise
+    |             fall back to the pure-PHP indexer.
+    | - 'php'    Always use the pure-PHP indexer (no external binary needed).
+    | - 'binary' Always use the Pagefind CLI binary (fails if not found).
+    |
+    | Can be overridden per-invocation with `--indexer=php|binary|auto`.
+    |
+    */
+
+    'indexer' => env('SCOLTA_INDEXER', 'auto'),
+
     'pagefind' => [
         'binary' => env('SCOLTA_PAGEFIND_BINARY', 'pagefind'),
         'build_dir' => env('SCOLTA_BUILD_DIR', storage_path('scolta/build')),
