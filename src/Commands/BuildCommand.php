@@ -39,6 +39,7 @@ use Tag1\ScoltaLaravel\Services\ScoltaAiService;
  * for running the Pagefind binary. Much cleaner than shell_exec().
  *
  * @since 0.2.0
+ *
  * @stability experimental
  */
 class BuildCommand extends Command
@@ -73,6 +74,7 @@ class BuildCommand extends Command
      * When 'auto', prefer the binary if available, fall back to PHP.
      *
      * @since 0.2.0
+     *
      * @stability experimental
      */
     private function resolveIndexer(ScoltaConfig $config): string
@@ -109,6 +111,7 @@ class BuildCommand extends Command
      * and runs them through PhpIndexer::processChunk() / finalize().
      *
      * @since 0.2.0
+     *
      * @stability experimental
      */
     private function buildWithPhpIndexer(string $outputDir): int
@@ -125,7 +128,7 @@ class BuildCommand extends Command
             return self::SUCCESS;
         }
 
-        $this->info('  Found ' . count($items) . ' content items.');
+        $this->info('  Found '.count($items).' content items.');
 
         // Step 2: Fingerprint check (unless --force).
         $stateDir = storage_path('scolta/state');
@@ -151,7 +154,7 @@ class BuildCommand extends Command
         $chunks = array_chunk($items, $chunkSize);
         $totalPages = count($items);
 
-        $this->info('Step 2: Indexing content (' . count($chunks) . ' chunks)...');
+        $this->info('Step 2: Indexing content ('.count($chunks).' chunks)...');
 
         $bar = $this->output->createProgressBar(count($chunks));
         $bar->start();
@@ -171,14 +174,14 @@ class BuildCommand extends Command
         $result = $indexer->finalize();
 
         if (! $result->success) {
-            $this->error('Index build failed: ' . ($result->error ?? $result->message));
+            $this->error('Index build failed: '.($result->error ?? $result->message));
 
             return self::FAILURE;
         }
 
         // Write fingerprint state file for next run's shouldBuild() check.
         $fingerprint = PhpIndexer::computeFingerprint($items);
-        $stateFile = $outputDir . '/.scolta-state';
+        $stateFile = $outputDir.'/.scolta-state';
         if (! is_dir(dirname($stateFile))) {
             mkdir(dirname($stateFile), 0755, true);
         }
@@ -203,6 +206,7 @@ class BuildCommand extends Command
      * Three-step pipeline: mark content, export HTML, run Pagefind CLI.
      *
      * @since 0.1.0
+     *
      * @stability experimental
      */
     private function buildWithBinary(ContentSource $source, string $outputDir): int
@@ -239,13 +243,13 @@ class BuildCommand extends Command
         // Handle deletions first.
         $deletedIds = $source->getDeletedIds();
         foreach ($deletedIds as $id) {
-            $filepath = rtrim($buildDir, '/') . '/' . $id . '.html';
+            $filepath = rtrim($buildDir, '/').'/'.$id.'.html';
             if (file_exists($filepath)) {
                 unlink($filepath);
             }
         }
         if (count($deletedIds) > 0) {
-            $this->info('  Removed ' . count($deletedIds) . ' deleted items.');
+            $this->info('  Removed '.count($deletedIds).' deleted items.');
         }
 
         // Export new/changed content.
@@ -318,6 +322,7 @@ class BuildCommand extends Command
      * @return ContentItem[]
      *
      * @since 0.2.0
+     *
      * @stability experimental
      */
     private function gatherContentItems(): array
@@ -343,7 +348,7 @@ class BuildCommand extends Command
                     } else {
                         // Fallback for models returning an array.
                         $items[] = new ContentItem(
-                            id: $modelClass . '-' . $model->getKey(),
+                            id: $modelClass.'-'.$model->getKey(),
                             title: $content['title'] ?? '',
                             bodyHtml: $content['body'] ?? '',
                             url: $content['url'] ?? '',
@@ -372,7 +377,7 @@ class BuildCommand extends Command
             return self::FAILURE;
         }
 
-        $htmlCount = count(glob($buildDir . '/*.html') ?: []);
+        $htmlCount = count(glob($buildDir.'/*.html') ?: []);
         if ($htmlCount === 0) {
             $this->error("No HTML files in {$buildDir}. Export content first.");
 
@@ -384,15 +389,15 @@ class BuildCommand extends Command
         }
 
         $cmd = escapeshellcmd($binary)
-            . ' --site ' . escapeshellarg($buildDir)
-            . ' --output-path ' . escapeshellarg($outputDir);
+            .' --site '.escapeshellarg($buildDir)
+            .' --output-path '.escapeshellarg($outputDir);
 
         $this->line("  Running: {$cmd}");
 
         $result = Process::timeout(300)->run($cmd);
 
-        if ($result->successful() && file_exists($outputDir . '/pagefind.js')) {
-            $fragmentCount = count(glob($outputDir . '/fragment/*') ?: []);
+        if ($result->successful() && file_exists($outputDir.'/pagefind.js')) {
+            $fragmentCount = count(glob($outputDir.'/fragment/*') ?: []);
             $this->info("Pagefind index built: {$htmlCount} files, {$fragmentCount} fragments.");
             Cache::increment('scolta_expand_generation');
 
