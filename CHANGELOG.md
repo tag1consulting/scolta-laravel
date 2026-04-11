@@ -8,6 +8,14 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ### Added
 
+- Queue/job integration for asynchronous index building via Laravel's queue system
+- `ProcessIndexChunk` job — processes a single chunk of content through PhpIndexer as a queue job
+- `FinalizeIndex` job — merges partial indexes and writes final Pagefind format after all chunks complete
+- `TriggerRebuild` job — gathers content from models and dispatches chunk/finalize chain, used for auto-rebuild
+- `--sync` flag on `scolta:build` command — runs synchronously (previous behavior); default now dispatches to queue when using PHP indexer
+- Auto-rebuild support: `ScoltaObserver` dispatches debounced `TriggerRebuild` jobs on content changes when `auto_rebuild` config is enabled
+- `auto_rebuild` config key (`SCOLTA_AUTO_REBUILD` env var, default `false`) — enables automatic queue-based rebuild on content changes
+- `auto_rebuild_delay` config key (`SCOLTA_AUTO_REBUILD_DELAY` env var, default `300`) — debounce delay in seconds for auto-rebuild
 - PHP indexer integration in `scolta:build` command — pure-PHP alternative to the Pagefind binary pipeline
 - `--indexer` option on `scolta:build` to choose backend (`php`, `binary`, or `auto`), overriding config
 - `--force` option on `scolta:build` to skip fingerprint check and force a full rebuild

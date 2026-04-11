@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel\Observers;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
+use Tag1\ScoltaLaravel\Jobs\TriggerRebuild;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 
 /**
@@ -60,6 +62,8 @@ class ScoltaObserver
             $this->getContentType($model),
             'delete'
         );
+
+        $this->maybeDispatchRebuild();
     }
 
     /**
@@ -87,6 +91,8 @@ class ScoltaObserver
             $this->getContentType($model),
             'delete'
         );
+
+        $this->maybeDispatchRebuild();
     }
 
     /**
@@ -107,6 +113,40 @@ class ScoltaObserver
             $this->getContentType($model),
             $shouldIndex ? 'index' : 'delete'
         );
+
+        $this->maybeDispatchRebuild();
+    }
+
+    /**
+     * Dispatch a debounced rebuild if auto-rebuild is enabled.
+     *
+     * Uses cache-based debouncing so that multiple content changes
+     * within the delay window result in a single rebuild. The delay
+     * defaults to 300 seconds (5 minutes), configurable via
+     * config('scolta.auto_rebuild_delay').
+     *
+     * @since 0.2.0
+     *
+     * @stability experimental
+     */
+    private function maybeDispatchRebuild(): void
+    {
+        if (! config('scolta.auto_rebuild', false)) {
+            return;
+        }
+
+        $delay = (int) config('scolta.auto_rebuild_delay', 300);
+
+        // Use cache to debounce — if a rebuild is already scheduled, skip.
+        $cacheKey = 'scolta_rebuild_scheduled';
+        if (Cache::has($cacheKey)) {
+            return;
+        }
+
+        Cache::put($cacheKey, true, $delay);
+
+        TriggerRebuild::dispatch()
+            ->delay(now()->addSeconds($delay));
     }
 
     /**

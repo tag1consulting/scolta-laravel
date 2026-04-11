@@ -108,6 +108,24 @@ return [
 
     'indexer' => env('SCOLTA_INDEXER', 'auto'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Auto Rebuild
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, content changes detected by the model observer will
+    | automatically dispatch a debounced rebuild to the queue. The delay
+    | (in seconds) prevents excessive rebuilds when multiple items are
+    | edited in quick succession.
+    |
+    | Requires a queue worker to be running. Set to false to only rebuild
+    | manually via `artisan scolta:build`.
+    |
+    */
+
+    'auto_rebuild' => env('SCOLTA_AUTO_REBUILD', false),
+    'auto_rebuild_delay' => env('SCOLTA_AUTO_REBUILD_DELAY', 300),
+
     'pagefind' => [
         'binary' => env('SCOLTA_PAGEFIND_BINARY', 'pagefind'),
         'build_dir' => env('SCOLTA_BUILD_DIR', storage_path('scolta/build')),

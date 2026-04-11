@@ -12,6 +12,8 @@ use Tag1\Scolta\Config\ScoltaConfig;
 use Tag1\Scolta\Export\ContentExporter;
 use Tag1\Scolta\Export\ContentItem;
 use Tag1\Scolta\Index\PhpIndexer;
+use Tag1\ScoltaLaravel\Jobs\FinalizeIndex;
+use Tag1\ScoltaLaravel\Jobs\ProcessIndexChunk;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 use Tag1\ScoltaLaravel\Services\ContentSource;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
@@ -48,7 +50,8 @@ class BuildCommand extends Command
         {--incremental : Only process content that changed since the last build}
         {--skip-pagefind : Export HTML files but don\'t run the Pagefind CLI}
         {--indexer=  : Indexer backend: php, binary, or auto (overrides config)}
-        {--force : Skip fingerprint check and force a full rebuild}';
+        {--force : Skip fingerprint check and force a full rebuild}
+        {--sync : Run synchronously instead of dispatching to queue}';
 
     protected $description = 'Build or rebuild the Scolta search index';
 
@@ -61,7 +64,11 @@ class BuildCommand extends Command
         $indexer = $this->resolveIndexer($config);
 
         if ($indexer === 'php') {
-            return $this->buildWithPhpIndexer($outputDir);
+            if ($this->option('sync')) {
+                return $this->buildWithPhpIndexer($outputDir);
+            }
+
+            return $this->dispatchToQueue($outputDir);
         }
 
         return $this->buildWithBinary($source, $outputDir);
@@ -196,6 +203,80 @@ class BuildCommand extends Command
             $result->fileCount,
             $result->elapsedSeconds,
         ));
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Dispatch index build to the queue.
+     *
+     * Gathers content from Eloquent models, checks the fingerprint,
+     * chunks the items, and dispatches ProcessIndexChunk + FinalizeIndex
+     * jobs via Bus::chain(). Each chunk runs as an independent queue job,
+     * enabling parallel processing across workers.
+     *
+     * @since 0.2.0
+     *
+     * @stability experimental
+     */
+    private function dispatchToQueue(string $outputDir): int
+    {
+        $this->info('Dispatching index build to queue...');
+
+        $items = $this->gatherContentItems();
+
+        if (count($items) === 0) {
+            $this->warn('No searchable content found. Check scolta.models config.');
+
+            return self::SUCCESS;
+        }
+
+        $this->info('  Found '.count($items).' content items.');
+
+        $stateDir = storage_path('scolta/state');
+        $hmacSecret = config('app.key');
+        $language = config('scolta.ai_languages.0', 'en');
+        $fingerprint = null;
+
+        if (! $this->option('force')) {
+            $indexer = new PhpIndexer($stateDir, $outputDir, $hmacSecret, $language);
+            $fingerprint = $indexer->shouldBuild($items);
+            if ($fingerprint === null) {
+                $this->info('Content unchanged. Index is up to date (use --force to rebuild).');
+
+                return self::SUCCESS;
+            }
+        } else {
+            $fingerprint = PhpIndexer::computeFingerprint($items);
+        }
+
+        $chunkSize = 50;
+        $chunks = array_chunk($items, $chunkSize);
+        $jobs = [];
+
+        foreach ($chunks as $idx => $chunk) {
+            $jobs[] = new ProcessIndexChunk(
+                $idx,
+                $chunk,
+                count($items),
+                $stateDir,
+                $outputDir,
+                $hmacSecret,
+                $language,
+            );
+        }
+
+        $jobs[] = new FinalizeIndex(
+            $stateDir,
+            $outputDir,
+            $hmacSecret,
+            $language,
+            $fingerprint,
+        );
+
+        \Illuminate\Support\Facades\Bus::chain($jobs)->dispatch();
+
+        $this->info('Rebuild dispatched to queue ('.count($chunks).' chunk(s) + finalize).');
 
         return self::SUCCESS;
     }
