@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Process;
 use Tag1\Scolta\Binary\PagefindBinary;
@@ -274,7 +275,7 @@ class BuildCommand extends Command
             $fingerprint,
         );
 
-        \Illuminate\Support\Facades\Bus::chain($jobs)->dispatch();
+        Bus::chain($jobs)->dispatch();
 
         $this->info('Rebuild dispatched to queue ('.count($chunks).' chunk(s) + finalize).');
 
