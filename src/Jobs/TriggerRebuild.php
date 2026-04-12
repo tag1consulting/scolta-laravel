@@ -34,6 +34,29 @@ class TriggerRebuild implements ShouldQueue
     use Dispatchable, InteractsWithQueue;
 
     /**
+     * Whether to force a full rebuild, bypassing the fingerprint check.
+     *
+     * @since 0.2.0
+     *
+     * @stability experimental
+     */
+    public bool $force;
+
+    /**
+     * Create a new TriggerRebuild job instance.
+     *
+     * @param  bool  $force  Skip fingerprint check and force a full rebuild.
+     *
+     * @since 0.2.0
+     *
+     * @stability experimental
+     */
+    public function __construct(bool $force = false)
+    {
+        $this->force = $force;
+    }
+
+    /**
      * Execute the rebuild.
      *
      * Clears the debounce flag, gathers content, checks fingerprint,
@@ -66,11 +89,15 @@ class TriggerRebuild implements ShouldQueue
             return;
         }
 
-        // Check fingerprint — skip if nothing changed.
+        // Check fingerprint — skip if nothing changed (unless forced).
         $indexer = new PhpIndexer($stateDir, $outputDir, $hmacSecret, $language);
         $fingerprint = $indexer->shouldBuild($items);
-        if ($fingerprint === null) {
+        if ($fingerprint === null && !$this->force) {
             return;
+        }
+        // When forced but fingerprint is null, compute one for finalization.
+        if ($fingerprint === null) {
+            $fingerprint = md5(serialize($items));
         }
 
         // Chunk and dispatch.

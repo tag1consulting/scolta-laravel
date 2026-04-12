@@ -8,6 +8,11 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ### Added
 
+- First-run auto-build detection in `ScoltaServiceProvider::boot()` — dispatches `TriggerRebuild` job when no index exists and `auto_rebuild` is enabled
+- `GET /build-progress` endpoint — returns current build status from cache (requires `auth:sanctum`)
+- `POST /rebuild-now` endpoint — dispatches a rebuild with optional `force` parameter, protected by cache lock to prevent concurrent builds (requires `auth:sanctum`)
+- `$force` constructor parameter on `TriggerRebuild` job — bypasses fingerprint check when true
+- Index-missing validation in Blade search component — shows admin-only warning with build instructions when search index has not been built yet
 - Queue/job integration for asynchronous index building via Laravel's queue system
 - `ProcessIndexChunk` job — processes a single chunk of content through PhpIndexer as a queue job
 - `FinalizeIndex` job — merges partial indexes and writes final Pagefind format after all chunks complete

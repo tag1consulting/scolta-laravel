@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel;
 
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use ReflectionClass;
@@ -16,6 +17,7 @@ use Tag1\ScoltaLaravel\Commands\DownloadPagefindCommand;
 use Tag1\ScoltaLaravel\Commands\ExportCommand;
 use Tag1\ScoltaLaravel\Commands\RebuildIndexCommand;
 use Tag1\ScoltaLaravel\Commands\StatusCommand;
+use Tag1\ScoltaLaravel\Jobs\TriggerRebuild;
 use Tag1\ScoltaLaravel\Observers\ScoltaObserver;
 use Tag1\ScoltaLaravel\Services\ContentSource;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
@@ -77,6 +79,19 @@ class ScoltaServiceProvider extends ServiceProvider
 
         if ($this->app->runningInConsole()) {
             $this->registerCommands();
+        }
+
+        // First-run auto-build: if no index exists and auto_rebuild is enabled,
+        // dispatch a one-time build so the search UI works on first visit.
+        if (!$this->app->runningInConsole()) {
+            $outputDir = config('scolta.pagefind.output_dir', public_path('scolta-pagefind'));
+            if (!file_exists($outputDir . '/pagefind/pagefind-entry.json')) {
+                $cacheKey = 'scolta_initial_build_queued';
+                if (!Cache::has($cacheKey) && config('scolta.auto_rebuild', true)) {
+                    Cache::put($cacheKey, true, 3600);
+                    TriggerRebuild::dispatch();
+                }
+            }
         }
     }
 
