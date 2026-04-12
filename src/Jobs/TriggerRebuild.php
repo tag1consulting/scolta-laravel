@@ -92,7 +92,7 @@ class TriggerRebuild implements ShouldQueue
         // Check fingerprint — skip if nothing changed (unless forced).
         $indexer = new PhpIndexer($stateDir, $outputDir, $hmacSecret, $language);
         $fingerprint = $indexer->shouldBuild($items);
-        if ($fingerprint === null && !$this->force) {
+        if ($fingerprint === null && ! $this->force) {
             return;
         }
         // When forced but fingerprint is null, compute one for finalization.

@@ -83,11 +83,11 @@ class ScoltaServiceProvider extends ServiceProvider
 
         // First-run auto-build: if no index exists and auto_rebuild is enabled,
         // dispatch a one-time build so the search UI works on first visit.
-        if (!$this->app->runningInConsole()) {
+        if (! $this->app->runningInConsole()) {
             $outputDir = config('scolta.pagefind.output_dir', public_path('scolta-pagefind'));
-            if (!file_exists($outputDir . '/pagefind/pagefind-entry.json')) {
+            if (! file_exists($outputDir.'/pagefind/pagefind-entry.json')) {
                 $cacheKey = 'scolta_initial_build_queued';
-                if (!Cache::has($cacheKey) && config('scolta.auto_rebuild', true)) {
+                if (! Cache::has($cacheKey) && config('scolta.auto_rebuild', true)) {
                     Cache::put($cacheKey, true, 3600);
                     TriggerRebuild::dispatch();
                 }

@@ -64,7 +64,7 @@ Route::group([
 
     Route::post('/rebuild-now', function (Request $request) {
         $lock = Cache::lock('scolta_build', 3600);
-        if (!$lock->get()) {
+        if (! $lock->get()) {
             return response()->json(['error' => 'Build already in progress'], 409);
         }
         $lock->release();
