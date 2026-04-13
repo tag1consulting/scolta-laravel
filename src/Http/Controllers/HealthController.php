@@ -42,11 +42,41 @@ class HealthController extends Controller
         if ($result['index_exists']) {
             $indexFile = $outputDir.'/pagefind.js';
             $mtime = filemtime($indexFile);
+            $fragments = glob($outputDir.'/fragment/*') ?: [];
             $result['index'] = [
                 'built' => true,
-                'fragments' => count(glob($outputDir.'/fragment/*') ?: []),
+                'fragments' => count($fragments),
                 'last_build' => $mtime ? date('c', $mtime) : null,
             ];
+
+            // Validate index integrity: check that pagefind.js is non-empty
+            // and at least one fragment file exists and is readable.
+            $integrity = ['valid' => true, 'issues' => []];
+
+            $jsSize = filesize($indexFile);
+            if ($jsSize === false || $jsSize === 0) {
+                $integrity['valid'] = false;
+                $integrity['issues'][] = 'pagefind.js is empty or unreadable';
+            }
+
+            if (count($fragments) > 0) {
+                // Spot-check first fragment is readable and non-empty.
+                $firstFragment = $fragments[0];
+                $fragSize = filesize($firstFragment);
+                if ($fragSize === false || $fragSize === 0) {
+                    $integrity['valid'] = false;
+                    $integrity['issues'][] = 'Fragment file is empty or corrupt';
+                }
+            } else {
+                $integrity['valid'] = false;
+                $integrity['issues'][] = 'No fragment files found';
+            }
+
+            $result['index']['integrity'] = $integrity;
+
+            if (! $integrity['valid']) {
+                $result['status'] = 'degraded';
+            }
         } else {
             $result['index'] = ['built' => false];
         }

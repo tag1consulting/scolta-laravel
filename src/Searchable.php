@@ -56,7 +56,12 @@ trait Searchable
      *
      * Default column resolution order:
      *   title    → title, name, subject (first non-null)
-     *   body     → body, content, description (first non-null, treated as plain text)
+     *   body     → body, content, description (first non-null, treated as PLAIN TEXT)
+     *
+     *   WARNING: If your model stores HTML in body/content/description columns,
+     *   you MUST override this method. The default escapes HTML entities, which
+     *   will produce garbled search index content. See the usage example above.
+     *
      *   url      → /models/{primary-key}  (always override this)
      *   date     → updated_at, created_at, published_at (first non-null date column)
      *   siteName → config('scolta.site_name') or config('app.name')

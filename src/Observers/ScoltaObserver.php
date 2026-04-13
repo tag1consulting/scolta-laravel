@@ -118,6 +118,34 @@ class ScoltaObserver
     }
 
     /**
+     * Mark that a bulk update occurred and a rebuild is needed.
+     *
+     * Call this after query builder mass updates that bypass Eloquent events:
+     *
+     *     Post::where('category', 'news')->update(['featured' => true]);
+     *     ScoltaObserver::afterBulkUpdate();
+     *
+     * This is a convenience wrapper — it's equivalent to running
+     * `artisan scolta:build`, but can be called from application code.
+     *
+     * @since 0.2.0
+     */
+    public static function afterBulkUpdate(): void
+    {
+        if (! config('scolta.auto_rebuild', false)) {
+            return;
+        }
+
+        $delay = (int) config('scolta.auto_rebuild_delay', 300);
+        $cacheKey = 'scolta_rebuild_scheduled';
+
+        if (! Cache::has($cacheKey)) {
+            Cache::put($cacheKey, true, $delay);
+            TriggerRebuild::dispatch()->delay(now()->addSeconds($delay));
+        }
+    }
+
+    /**
      * Dispatch a debounced rebuild if auto-rebuild is enabled.
      *
      * Uses cache-based debouncing so that multiple content changes
