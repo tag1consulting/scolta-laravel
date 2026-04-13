@@ -83,18 +83,30 @@ class StatusCommand extends Command
             $this->line("  Path: {$outputDir} (no index built yet)");
         }
 
-        // Pagefind binary.
-        $this->info('--- Pagefind Binary ---');
+        // Pagefind binary / active indexer.
+        $this->info('--- Indexer ---');
         $resolver = new PagefindBinary(
             configuredPath: config('scolta.pagefind.binary'),
             projectDir: base_path(),
         );
         $binaryStatus = $resolver->status();
-        if ($binaryStatus['available']) {
-            $this->line("  {$binaryStatus['message']}");
+        $indexerSetting = config('scolta.indexer', 'auto');
+        if ($indexerSetting === 'php') {
+            $activeIndexer = 'php (forced)';
+        } elseif ($indexerSetting === 'binary') {
+            $activeIndexer = $binaryStatus['available'] ? 'binary' : 'binary (not found — check path)';
         } else {
-            $this->warn('  Pagefind: NOT AVAILABLE');
-            $this->line($binaryStatus['message']);
+            $activeIndexer = $binaryStatus['available'] ? 'binary (auto-detected)' : 'php (binary not found)';
+        }
+        $this->line("  Active indexer: {$activeIndexer}");
+        if ($binaryStatus['available']) {
+            $this->line("  Binary:         {$binaryStatus['message']}");
+        } else {
+            $this->warn('  Binary:         NOT AVAILABLE');
+            $this->line("  {$binaryStatus['message']}");
+            if ($activeIndexer !== 'php (forced)') {
+                $this->warn('  To upgrade: npm install -g pagefind  OR  php artisan scolta:download-pagefind');
+            }
         }
 
         // AI provider.

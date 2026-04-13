@@ -31,14 +31,14 @@ php artisan scolta:build
 
 Set the API key to enable AI features in `.env`:
 
-```
+```env
 SCOLTA_API_KEY=sk-ant-...
 ```
 
 Key settings in `config/scolta.php`:
 
 | Key | Env Var | Default | Description |
-|-----|---------|---------|-------------|
+| --- | ------- | ------- | ----------- |
 | `ai_provider` | `SCOLTA_AI_PROVIDER` | `anthropic` | AI provider (anthropic, openai, laravel) |
 | `ai_api_key` | `SCOLTA_API_KEY` | | API key for AI features |
 | `ai_model` | `SCOLTA_AI_MODEL` | `claude-sonnet-4-5-20250929` | Model identifier |
@@ -59,7 +59,7 @@ The built-in expand, summarize, and follow-up prompts can be customized in `conf
 
 Scolta is a multi-package system. This Laravel package is a platform adapter that sits on top of the shared PHP library:
 
-```
+```text
 scolta-laravel (this package)      scolta-php              scolta-core (WASM)
   Artisan commands ──────────> ContentExporter ──────> cleanHtml()
   ScoltaAiService ───────────> AiClient                buildPagefindHtml()
@@ -75,9 +75,7 @@ The Laravel package handles framework-specific concerns: Artisan commands, Eloqu
 
 - Laravel 11 or 12
 - PHP 8.1+
-- [Extism](https://extism.org) shared library (for WASM scoring)
-- PHP FFI enabled (`ffi.enable=true`)
-- Pagefind CLI (`npm install -g pagefind`)
+- Pagefind CLI (`npm install -g pagefind`) — optional, see Indexer section below
 
 ## Installation
 
@@ -92,14 +90,6 @@ php artisan vendor:publish --tag=scolta-config
 php artisan vendor:publish --tag=scolta-migrations
 php artisan vendor:publish --tag=scolta-assets
 php artisan migrate
-```
-
-### Install Extism (if not already present)
-
-```bash
-curl -s https://get.extism.org/cli | bash -s -- -y
-sudo extism lib install --version latest
-sudo ldconfig  # Linux only
 ```
 
 ## Setup
@@ -151,7 +141,7 @@ In `config/scolta.php`:
 
 In `.env`:
 
-```
+```env
 SCOLTA_API_KEY=sk-ant-...
 ```
 
@@ -177,14 +167,14 @@ After installation, run the setup check to verify all prerequisites:
 php artisan scolta:check-setup
 ```
 
-This verifies PHP version, FFI extension, Extism library, WASM binary, Pagefind binary, AI provider configuration, and cache backend. Fix any items marked as failed before proceeding.
+This verifies PHP version, Pagefind binary, AI provider configuration, and cache backend. Fix any items marked as failed before proceeding.
 
 ## Configuration Details
 
 All settings in `config/scolta.php` with `.env` overrides:
 
 | Key | Env Var | Default | Description |
-|-----|---------|---------|-------------|
+| --- | ------- | ------- | ----------- |
 | `ai_provider` | `SCOLTA_AI_PROVIDER` | `anthropic` | AI provider (anthropic, openai, laravel) |
 | `ai_api_key` | `SCOLTA_API_KEY` | | API key for AI features |
 | `ai_model` | `SCOLTA_AI_MODEL` | `claude-sonnet-4-5-20250929` | Model identifier |
@@ -200,7 +190,7 @@ Scoring parameters are nested under `scoring`, display under `display`, and Page
 ## API Endpoints
 
 | Method | Path | Middleware | Description |
-|--------|------|------------|-------------|
+| ------ | ---- | ---------- | ----------- |
 | POST | `/api/scolta/v1/expand-query` | api, throttle:scolta | Expand a search query |
 | POST | `/api/scolta/v1/summarize` | api, throttle:scolta | Summarize search results |
 | POST | `/api/scolta/v1/followup` | api, throttle:scolta | Continue a conversation |
@@ -218,9 +208,10 @@ php artisan scolta:export                   # Export content to HTML only
 php artisan scolta:export --incremental     # Only export tracked changes
 php artisan scolta:rebuild-index            # Rebuild Pagefind index from existing HTML
 php artisan scolta:status                   # Show tracker, content, index, AI status
+php artisan scolta:discover                 # Find Searchable models not yet in config
 php artisan scolta:clear-cache              # Clear Scolta AI response caches
 php artisan scolta:download-pagefind        # Download Pagefind binary for your platform
-php artisan scolta:check-setup              # Verify PHP, Extism, Pagefind, and configuration
+php artisan scolta:check-setup              # Verify PHP, Pagefind, and configuration
 ```
 
 ## Content Tracking
@@ -236,20 +227,21 @@ The tracker table (`scolta_tracker`) is cleaned after each successful build.
 ## Searchable Trait API
 
 | Method | Default | Description |
-|--------|---------|-------------|
-| `toSearchableContent()` | *abstract* | Return a `ContentItem` for indexing |
+| ------ | ------- | ----------- |
+| `toSearchableContent()` | column heuristic | Return a `ContentItem` for indexing |
 | `scopeSearchable($query)` | all records | Filter which records to index |
 | `getSearchableType()` | class name | Content type identifier for tracking |
 | `shouldBeSearchable()` | `true` | Whether this instance should be indexed |
 
 ## Package Structure
 
-```
+```text
 src/
   ScoltaServiceProvider.php              # Service provider (auto-discovered)
   Searchable.php                         # Trait for Eloquent models
   Commands/BuildCommand.php              # artisan scolta:build
   Commands/StatusCommand.php             # artisan scolta:status
+  Commands/DiscoverCommand.php           # artisan scolta:discover
   Commands/DownloadPagefindCommand.php   # artisan scolta:download-pagefind
   Http/Controllers/ExpandQueryController.php
   Http/Controllers/SummarizeController.php
@@ -289,22 +281,87 @@ composer lint    # Laravel Pint
 composer format  # Auto-fix violations
 ```
 
+## Indexer
+
+Scolta auto-detects the best available indexer (`indexer: auto` default). See [scolta-php README](../scolta-php/README.md) for the full comparison table.
+
+| Feature | PHP Indexer | Pagefind Binary |
+| ------- | ----------- | --------------- |
+| Languages with stemming | 15 (Snowball) | 33+ |
+| Speed (1 000 pages) | ~3–4 seconds | ~0.3–0.5 seconds |
+| Shared / managed hosting | Yes | Only if binary installable |
+
+**To upgrade to the binary indexer:**
+
+```bash
+npm install -g pagefind
+# or:
+php artisan scolta:download-pagefind
+```
+
+Verify: `php artisan scolta:check-setup` — the health endpoint also reports `indexer_active`.
+
+## Migrating from Laravel Scout
+
+Scolta and Scout solve different problems. Scout is a driver-based full-text search adapter (Algolia, Meilisearch, Typesense, database). Scolta is a static, browser-side search engine with optional AI features — no search server required.
+
+### Side-by-side comparison
+
+| | Laravel Scout | Scolta |
+| - | ------------- | ------ |
+| Search runs on | Search server | Browser (WASM) |
+| Infrastructure | External service or DB | Static files only |
+| AI features | No | Yes (expand, summarize, follow-up) |
+| Real-time updates | Yes (observer-driven) | Near-real-time (incremental build) |
+| Full-text languages | Depends on driver | 15 (PHP) / 33+ (binary) |
+
+### Migration steps
+
+1. **Keep the `Searchable` trait pattern** — Scolta uses the same trait-on-model convention as Scout.
+
+2. **Replace `toSearchArray()` with `toSearchableContent()`**:
+
+   ```php
+   // Before (Scout)
+   public function toSearchArray(): array
+   {
+       return ['title' => $this->title, 'body' => $this->body];
+   }
+
+   // After (Scolta)
+   public function toSearchableContent(): ContentItem
+   {
+       return new ContentItem(
+           id: "post-{$this->id}",
+           title: $this->title,
+           bodyHtml: $this->body,
+           url: route('posts.show', $this),
+           date: $this->updated_at->format('Y-m-d'),
+           siteName: config('scolta.site_name', config('app.name')),
+       );
+   }
+   ```
+
+3. **Replace `scopeSearch()` with `scopeSearchable()`** (optional — both filter which records are indexed).
+
+4. **Remove Scout from `composer.json`** and run `composer require tag1/scolta-laravel tag1/scolta-php`.
+
+5. **Publish and migrate**: follow the Installation steps above.
+
+6. **Replace the search UI**: remove Scout's search calls and add `<x-scolta::search />` to your Blade template.
+
+### What you gain
+
+- No Algolia/Meilisearch bill or server to maintain.
+- AI query expansion and result summarization out of the box.
+- Works on shared/managed hosting (PHP indexer fallback).
+
+### What you give up
+
+- Scout's real-time per-record index updates (Scolta uses a background build step).
+- Driver flexibility — Scolta only produces Pagefind-compatible indexes.
+
 ## Troubleshooting
-
-### "FFI not enabled" or WASM load failure
-
-```bash
-php -r "echo extension_loaded('ffi') ? 'OK' : 'MISSING';"
-php -r "echo class_exists('\Extism\Plugin') ? 'OK' : 'MISSING';"
-```
-
-Install Extism if missing:
-
-```bash
-curl -s https://get.extism.org/cli | bash -s -- -y
-sudo extism lib install --version latest
-sudo ldconfig  # Linux only
-```
 
 ### "Pagefind binary not found"
 

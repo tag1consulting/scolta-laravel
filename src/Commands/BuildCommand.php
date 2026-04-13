@@ -100,7 +100,10 @@ class BuildCommand extends Command
             $binary = $resolver->resolve();
 
             if ($binary === null) {
-                $this->info('Pagefind binary not found; using PHP indexer.');
+                $message = 'Pagefind binary not found. Using PHP indexer (slower, English-only). '
+                    .'For 10× faster indexing and 15-language support: npm install -g pagefind';
+                $this->warn($message);
+                \Illuminate\Support\Facades\Log::info('[scolta] '.$message);
 
                 return 'php';
             }

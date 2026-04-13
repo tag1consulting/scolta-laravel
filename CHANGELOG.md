@@ -6,6 +6,10 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased] (0.2.0-dev)
 
+### Fixed
+
+- **UX:** `scolta:build` now emits a `warn`-level CLI message and an `info`-level log entry via Laravel's `Log` facade when the Pagefind binary is not found and the PHP indexer fallback is used, including the install command.
+
 ### Added
 
 - First-run auto-build detection in `ScoltaServiceProvider::boot()` — dispatches `TriggerRebuild` job when no index exists and `auto_rebuild` is enabled

@@ -12,13 +12,14 @@ use ReflectionMethod;
 use Tag1\ScoltaLaravel\Commands\BuildCommand;
 use Tag1\ScoltaLaravel\Commands\CheckSetupCommand;
 use Tag1\ScoltaLaravel\Commands\ClearCacheCommand;
+use Tag1\ScoltaLaravel\Commands\DiscoverCommand;
 use Tag1\ScoltaLaravel\Commands\DownloadPagefindCommand;
 use Tag1\ScoltaLaravel\Commands\ExportCommand;
 use Tag1\ScoltaLaravel\Commands\RebuildIndexCommand;
 use Tag1\ScoltaLaravel\Commands\StatusCommand;
 
 /**
- * Validate all 7 Artisan commands: existence, signatures, options, registration.
+ * Validate all 8 Artisan commands: existence, signatures, options, registration.
  */
 class CommandValidationTest extends TestCase
 {
@@ -28,6 +29,7 @@ class CommandValidationTest extends TestCase
         'RebuildIndexCommand' => RebuildIndexCommand::class,
         'StatusCommand' => StatusCommand::class,
         'ClearCacheCommand' => ClearCacheCommand::class,
+        'DiscoverCommand' => DiscoverCommand::class,
         'DownloadPagefindCommand' => DownloadPagefindCommand::class,
         'CheckSetupCommand' => CheckSetupCommand::class,
     ];
@@ -38,6 +40,7 @@ class CommandValidationTest extends TestCase
         RebuildIndexCommand::class => 'scolta:rebuild-index',
         StatusCommand::class => 'scolta:status',
         ClearCacheCommand::class => 'scolta:clear-cache',
+        DiscoverCommand::class => 'scolta:discover',
         DownloadPagefindCommand::class => 'scolta:download-pagefind',
         CheckSetupCommand::class => 'scolta:check-setup',
     ];
@@ -209,7 +212,7 @@ class CommandValidationTest extends TestCase
         }
     }
 
-    public function test_service_provider_registers_exactly_seven_commands(): void
+    public function test_service_provider_registers_exactly_eight_commands(): void
     {
         $providerSource = file_get_contents(
             dirname(__DIR__).'/src/ScoltaServiceProvider.php'
@@ -217,8 +220,8 @@ class CommandValidationTest extends TestCase
 
         // Count Command::class references in the $this->commands([...]) block.
         preg_match_all('/Command::class/', $providerSource, $matches);
-        $this->assertCount(7, $matches[0],
-            'ServiceProvider should register exactly 7 commands.');
+        $this->assertCount(8, $matches[0],
+            'ServiceProvider should register exactly 8 commands.');
     }
 
     // -------------------------------------------------------------------
