@@ -81,6 +81,7 @@ trait Searchable
      *     }
      *
      * @since 0.3.0
+     *
      * @stability experimental
      */
     public function toSearchableContent(): ContentItem
@@ -88,11 +89,11 @@ trait Searchable
         $title = $this->title ?? $this->name ?? $this->subject ?? '';
 
         $bodyText = $this->body ?? $this->content ?? $this->description ?? '';
-        $bodyHtml = $bodyText !== '' ? '<p>' . e((string) $bodyText) . '</p>' : '';
+        $bodyHtml = $bodyText !== '' ? '<p>'.e((string) $bodyText).'</p>' : '';
 
         $pk = $this->getKey();
         $table = $this->getTable();
-        $url = '/' . $table . '/' . $pk;
+        $url = '/'.$table.'/'.$pk;
 
         $dateColumn = $this->updated_at ?? $this->created_at ?? $this->published_at ?? null;
         $date = $dateColumn ? $dateColumn->format('Y-m-d') : date('Y-m-d');
@@ -100,7 +101,7 @@ trait Searchable
         $siteName = config('scolta.site_name', config('app.name', ''));
 
         return new ContentItem(
-            id: $table . '-' . $pk,
+            id: $table.'-'.$pk,
             title: (string) $title,
             bodyHtml: $bodyHtml,
             url: $url,

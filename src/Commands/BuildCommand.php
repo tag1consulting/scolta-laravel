@@ -7,6 +7,7 @@ namespace Tag1\ScoltaLaravel\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use Tag1\Scolta\Binary\PagefindBinary;
 use Tag1\Scolta\Config\ScoltaConfig;
@@ -103,7 +104,7 @@ class BuildCommand extends Command
                 $message = 'Pagefind binary not found. Using PHP indexer (slower, English-only). '
                     .'For 10× faster indexing and 15-language support: npm install -g pagefind';
                 $this->warn($message);
-                \Illuminate\Support\Facades\Log::info('[scolta] '.$message);
+                Log::info('[scolta] '.$message);
 
                 return 'php';
             }

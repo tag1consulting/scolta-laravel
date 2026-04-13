@@ -30,7 +30,7 @@ class SearchableDefaultsTest extends TestCase
         Container::setInstance($app);
         $app->instance('config', new ConfigRepository([
             'scolta' => ['site_name' => 'Scolta Test'],
-            'app'    => ['name' => 'Laravel Test App'],
+            'app' => ['name' => 'Laravel Test App'],
         ]));
     }
 
@@ -182,8 +182,8 @@ class SearchableDefaultsTest extends TestCase
     public function test_updated_at_used_as_date(): void
     {
         $model = new FakeSearchableModel([
-            'updated_at'  => Carbon::parse('2025-06-15'),
-            'created_at'  => Carbon::parse('2025-01-01'),
+            'updated_at' => Carbon::parse('2025-06-15'),
+            'created_at' => Carbon::parse('2025-01-01'),
         ]);
         $item = $model->toSearchableContent();
 
@@ -241,7 +241,7 @@ class SearchableDefaultsTest extends TestCase
         $app = Container::getInstance();
         $app->instance('config', new ConfigRepository([
             'scolta' => [],
-            'app'    => ['name' => 'My App'],
+            'app' => ['name' => 'My App'],
         ]));
 
         $model = new FakeSearchableModel([]);
@@ -276,7 +276,7 @@ class SearchableDefaultsTest extends TestCase
 
     public function test_override_replaces_defaults(): void
     {
-        $model = new FakeSearchableModelWithOverride();
+        $model = new FakeSearchableModelWithOverride;
         $item = $model->toSearchableContent();
 
         $this->assertEquals('custom-1', $item->id);
@@ -299,7 +299,9 @@ class FakeSearchableModel
     use Searchable;
 
     private array $attributes;
+
     private int|string $primaryKey;
+
     private string $tableName;
 
     public function __construct(
@@ -309,7 +311,7 @@ class FakeSearchableModel
     ) {
         $this->attributes = $attributes;
         $this->primaryKey = $primaryKey;
-        $this->tableName  = $table;
+        $this->tableName = $table;
     }
 
     /** Simulates Eloquent magic property access. */
@@ -338,9 +340,9 @@ class FakeSearchableModelWithOverride
 {
     use Searchable;
 
-    public function toSearchableContent(): \Tag1\Scolta\Export\ContentItem
+    public function toSearchableContent(): ContentItem
     {
-        return new \Tag1\Scolta\Export\ContentItem(
+        return new ContentItem(
             id: 'custom-1',
             title: 'Custom Title',
             bodyHtml: '<p>Custom body</p>',

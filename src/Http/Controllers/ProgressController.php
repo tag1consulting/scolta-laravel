@@ -17,12 +17,14 @@ use Tag1\Scolta\Index\BuildState;
  * This endpoint requires auth:sanctum — it is admin-only.
  *
  * @since 0.2.0
+ *
  * @stability experimental
  */
 class ProgressController
 {
     /**
      * @since 0.2.0
+     *
      * @stability experimental
      */
     public function __invoke(): JsonResponse
@@ -32,16 +34,16 @@ class ProgressController
 
         if (! $state->isRunning()) {
             return response()->json([
-                'status'     => 'idle',
+                'status' => 'idle',
                 'last_build' => $state->getLastBuildTime(),
             ]);
         }
 
         return response()->json([
-            'status'           => 'building',
-            'progress'         => $state->getProgress(),
-            'started_at'       => $state->getStartTime(),
-            'pages_processed'  => $state->getPagesProcessed(),
+            'status' => 'building',
+            'progress' => $state->getProgress(),
+            'started_at' => $state->getStartTime(),
+            'pages_processed' => $state->getPagesProcessed(),
         ]);
     }
 }

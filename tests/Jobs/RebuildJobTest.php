@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 use PHPUnit\Framework\TestCase;
+use Tag1\ScoltaLaravel\Jobs\FinalizeIndex;
+use Tag1\ScoltaLaravel\Jobs\ProcessIndexChunk;
+use Tag1\ScoltaLaravel\Jobs\TriggerRebuild;
 
 /**
  * Structural tests for TriggerRebuild, ProcessIndexChunk, and FinalizeIndex.
@@ -15,14 +18,15 @@ use PHPUnit\Framework\TestCase;
  * Laravel application; these tests cover the structural contracts that
  * can be verified without a framework bootstrap.
  */
-class RebuildJobTest extends TestCase {
-
+class RebuildJobTest extends TestCase
+{
     // -------------------------------------------------------------------
     // TriggerRebuild
     // -------------------------------------------------------------------
 
-    public function test_trigger_rebuild_implements_should_queue(): void {
-        $reflection = new ReflectionClass(\Tag1\ScoltaLaravel\Jobs\TriggerRebuild::class);
+    public function test_trigger_rebuild_implements_should_queue(): void
+    {
+        $reflection = new ReflectionClass(TriggerRebuild::class);
 
         $interfaces = $reflection->getInterfaceNames();
         $this->assertContains(
@@ -32,20 +36,22 @@ class RebuildJobTest extends TestCase {
         );
     }
 
-    public function test_trigger_rebuild_constructor_accepts_force_flag(): void {
-        $reflection = new ReflectionClass(\Tag1\ScoltaLaravel\Jobs\TriggerRebuild::class);
+    public function test_trigger_rebuild_constructor_accepts_force_flag(): void
+    {
+        $reflection = new ReflectionClass(TriggerRebuild::class);
         $constructor = $reflection->getConstructor();
 
         $this->assertNotNull($constructor, 'TriggerRebuild must have a constructor');
 
         $params = $constructor->getParameters();
-        $paramNames = array_map(fn($p) => $p->getName(), $params);
+        $paramNames = array_map(fn ($p) => $p->getName(), $params);
 
         $this->assertContains('force', $paramNames, 'TriggerRebuild constructor must accept $force parameter');
     }
 
-    public function test_trigger_rebuild_force_defaults_to_false(): void {
-        $reflection = new ReflectionClass(\Tag1\ScoltaLaravel\Jobs\TriggerRebuild::class);
+    public function test_trigger_rebuild_force_defaults_to_false(): void
+    {
+        $reflection = new ReflectionClass(TriggerRebuild::class);
         $constructor = $reflection->getConstructor();
         $params = $constructor->getParameters();
 
@@ -53,6 +59,7 @@ class RebuildJobTest extends TestCase {
             if ($param->getName() === 'force') {
                 $this->assertTrue($param->isOptional(), '$force must be optional');
                 $this->assertFalse($param->getDefaultValue(), '$force must default to false');
+
                 return;
             }
         }
@@ -64,8 +71,9 @@ class RebuildJobTest extends TestCase {
     // ProcessIndexChunk
     // -------------------------------------------------------------------
 
-    public function test_process_index_chunk_implements_should_queue(): void {
-        $reflection = new ReflectionClass(\Tag1\ScoltaLaravel\Jobs\ProcessIndexChunk::class);
+    public function test_process_index_chunk_implements_should_queue(): void
+    {
+        $reflection = new ReflectionClass(ProcessIndexChunk::class);
 
         $this->assertContains(
             'Illuminate\Contracts\Queue\ShouldQueue',
@@ -78,8 +86,9 @@ class RebuildJobTest extends TestCase {
     // FinalizeIndex
     // -------------------------------------------------------------------
 
-    public function test_finalize_index_implements_should_queue(): void {
-        $reflection = new ReflectionClass(\Tag1\ScoltaLaravel\Jobs\FinalizeIndex::class);
+    public function test_finalize_index_implements_should_queue(): void
+    {
+        $reflection = new ReflectionClass(FinalizeIndex::class);
 
         $this->assertContains(
             'Illuminate\Contracts\Queue\ShouldQueue',
@@ -92,9 +101,10 @@ class RebuildJobTest extends TestCase {
     // ScoltaObserver dispatches TriggerRebuild
     // -------------------------------------------------------------------
 
-    public function test_observer_source_dispatches_trigger_rebuild(): void {
+    public function test_observer_source_dispatches_trigger_rebuild(): void
+    {
         $source = file_get_contents(
-            dirname(__DIR__, 2) . '/src/Observers/ScoltaObserver.php'
+            dirname(__DIR__, 2).'/src/Observers/ScoltaObserver.php'
         );
 
         $this->assertStringContainsString(
@@ -104,9 +114,10 @@ class RebuildJobTest extends TestCase {
         );
     }
 
-    public function test_observer_source_guards_with_auto_rebuild_config(): void {
+    public function test_observer_source_guards_with_auto_rebuild_config(): void
+    {
         $source = file_get_contents(
-            dirname(__DIR__, 2) . '/src/Observers/ScoltaObserver.php'
+            dirname(__DIR__, 2).'/src/Observers/ScoltaObserver.php'
         );
 
         $this->assertStringContainsString(
@@ -116,9 +127,10 @@ class RebuildJobTest extends TestCase {
         );
     }
 
-    public function test_observer_uses_cache_based_debounce(): void {
+    public function test_observer_uses_cache_based_debounce(): void
+    {
         $source = file_get_contents(
-            dirname(__DIR__, 2) . '/src/Observers/ScoltaObserver.php'
+            dirname(__DIR__, 2).'/src/Observers/ScoltaObserver.php'
         );
 
         $this->assertStringContainsString(
@@ -132,9 +144,10 @@ class RebuildJobTest extends TestCase {
     // ScoltaServiceProvider registers TriggerRebuild dispatch
     // -------------------------------------------------------------------
 
-    public function test_service_provider_dispatches_trigger_rebuild_on_first_run(): void {
+    public function test_service_provider_dispatches_trigger_rebuild_on_first_run(): void
+    {
         $source = file_get_contents(
-            dirname(__DIR__, 2) . '/src/ScoltaServiceProvider.php'
+            dirname(__DIR__, 2).'/src/ScoltaServiceProvider.php'
         );
 
         $this->assertStringContainsString(

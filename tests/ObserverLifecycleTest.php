@@ -116,7 +116,7 @@ class ObserverLifecycleTest extends TestCase
         $this->assertStringNotContainsString(
             'trackForIndex',
             $body,
-            "deleted() must NOT delegate to trackForIndex() — it should always delete regardless of shouldBeSearchable()."
+            'deleted() must NOT delegate to trackForIndex() — it should always delete regardless of shouldBeSearchable().'
         );
     }
 
@@ -147,7 +147,7 @@ class ObserverLifecycleTest extends TestCase
         $body = $match[1] ?? '';
 
         $this->assertStringNotContainsString('trackForIndex', $body,
-            "forceDeleted() must NOT delegate to trackForIndex().");
+            'forceDeleted() must NOT delegate to trackForIndex().');
     }
 
     public function test_force_deleted_tracks_as_delete_unconditionally(): void
@@ -177,7 +177,7 @@ class ObserverLifecycleTest extends TestCase
         $body = $match[1] ?? '';
 
         $this->assertStringContainsString('trackForIndex', $body,
-            "restored() must delegate to trackForIndex() so shouldBeSearchable() is respected on restore.");
+            'restored() must delegate to trackForIndex() so shouldBeSearchable() is respected on restore.');
     }
 
     // -------------------------------------------------------------------
@@ -188,13 +188,13 @@ class ObserverLifecycleTest extends TestCase
     {
         // The class comment must acknowledge both soft and force deletes.
         $this->assertStringContainsString('Soft delete', $this->source,
-            "Observer source should document soft-delete vs force-delete distinction.");
+            'Observer source should document soft-delete vs force-delete distinction.');
     }
 
     public function test_restore_comment_exists(): void
     {
         $this->assertStringContainsString('restored', $this->source,
-            "Observer source should mention restored events.");
+            'Observer source should mention restored events.');
     }
 
     // -------------------------------------------------------------------
@@ -225,7 +225,7 @@ class ObserverLifecycleTest extends TestCase
 
         // Must have an early return when auto_rebuild is falsy.
         $this->assertStringContainsString('return', $body,
-            "maybeDispatchRebuild() must return early when auto_rebuild is false.");
+            'maybeDispatchRebuild() must return early when auto_rebuild is false.');
     }
 
     public function test_maybe_dispatch_rebuild_uses_cache_debounce(): void
@@ -233,7 +233,7 @@ class ObserverLifecycleTest extends TestCase
         $this->assertStringContainsString(
             'scolta_rebuild_scheduled',
             $this->source,
-            "maybeDispatchRebuild() must use a cache key to debounce rapid triggers."
+            'maybeDispatchRebuild() must use a cache key to debounce rapid triggers.'
         );
     }
 
@@ -259,7 +259,7 @@ class ObserverLifecycleTest extends TestCase
         $this->assertStringContainsString(
             'getSearchableType',
             $this->source,
-            "getContentType() must call getSearchableType() when available."
+            'getContentType() must call getSearchableType() when available.'
         );
     }
 
@@ -268,7 +268,7 @@ class ObserverLifecycleTest extends TestCase
         $this->assertStringContainsString(
             'get_class(',
             $this->source,
-            "getContentType() must fall back to get_class() for models without getSearchableType()."
+            'getContentType() must fall back to get_class() for models without getSearchableType().'
         );
     }
 
@@ -281,7 +281,7 @@ class ObserverLifecycleTest extends TestCase
         $this->assertStringContainsString(
             'Mass update',
             $this->source,
-            "Observer class comment must acknowledge the mass-update limitation."
+            'Observer class comment must acknowledge the mass-update limitation.'
         );
     }
 

@@ -19,6 +19,7 @@ use Tag1\ScoltaLaravel\Searchable;
  * searchable without forcing the developer to grep for it.
  *
  * @since 0.3.0
+ *
  * @stability experimental
  */
 class DiscoverCommand extends Command
@@ -165,6 +166,7 @@ class DiscoverCommand extends Command
 
             if (! is_array($token)) {
                 $i++;
+
                 continue;
             }
 

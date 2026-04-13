@@ -16,6 +16,7 @@ use Tag1\Scolta\Index\BuildState;
  * with --dry-run to show what would be removed without deleting.
  *
  * @since 0.2.0
+ *
  * @stability experimental
  */
 class CleanupCommand extends Command
@@ -27,18 +28,19 @@ class CleanupCommand extends Command
 
     /**
      * @since 0.2.0
+     *
      * @stability experimental
      */
     public function handle(): int
     {
-        $stateDir  = config('scolta.state_dir', storage_path('app/scolta'));
+        $stateDir = config('scolta.state_dir', storage_path('app/scolta'));
         $outputDir = config('scolta.pagefind.output_dir', public_path('scolta-pagefind'));
-        $dryRun    = (bool) $this->option('dry-run');
+        $dryRun = (bool) $this->option('dry-run');
 
         $removed = 0;
 
         // --- 1. Stale lock file (older than 1 hour) ---
-        $lockFile = $stateDir . '/lock';
+        $lockFile = $stateDir.'/lock';
         if (file_exists($lockFile)) {
             $age = time() - (int) @filemtime($lockFile);
             if ($age > 3600) {
@@ -59,9 +61,9 @@ class CleanupCommand extends Command
             // getChunkFiles() returns the chunks the manifest knows about.
             $knownChunks = array_flip($state->getChunkFiles());
 
-            $allChunks = glob($stateDir . '/chunk-*.dat') ?: [];
+            $allChunks = glob($stateDir.'/chunk-*.dat') ?: [];
             foreach ($allChunks as $chunkFile) {
-                if (!array_key_exists($chunkFile, $knownChunks)) {
+                if (! array_key_exists($chunkFile, $knownChunks)) {
                     if ($dryRun) {
                         $this->line("[dry-run] Would remove orphaned chunk: {$chunkFile}");
                     } else {
@@ -77,11 +79,11 @@ class CleanupCommand extends Command
         // A fragment is orphaned when the output directory exists but the
         // pagefind entry file is gone — the index was partially built.
         if (is_dir($outputDir)) {
-            $entryFile = $outputDir . '/pagefind.js';
-            if (!file_exists($entryFile)) {
+            $entryFile = $outputDir.'/pagefind.js';
+            if (! file_exists($entryFile)) {
                 $orphans = array_merge(
-                    glob($outputDir . '/fragment/*.pf_fragment') ?: [],
-                    glob($outputDir . '/index/*.pf_index') ?: [],
+                    glob($outputDir.'/fragment/*.pf_fragment') ?: [],
+                    glob($outputDir.'/index/*.pf_index') ?: [],
                 );
 
                 foreach ($orphans as $orphan) {
