@@ -13,6 +13,7 @@ use Tag1\Scolta\Config\ScoltaConfig;
 use Tag1\ScoltaLaravel\Commands\BuildCommand;
 use Tag1\ScoltaLaravel\Commands\CheckSetupCommand;
 use Tag1\ScoltaLaravel\Commands\ClearCacheCommand;
+use Tag1\ScoltaLaravel\Commands\CleanupCommand;
 use Tag1\ScoltaLaravel\Commands\DiscoverCommand;
 use Tag1\ScoltaLaravel\Commands\DownloadPagefindCommand;
 use Tag1\ScoltaLaravel\Commands\ExportCommand;
@@ -236,6 +237,7 @@ class ScoltaServiceProvider extends ServiceProvider
             BuildCommand::class,
             CheckSetupCommand::class,
             ClearCacheCommand::class,
+            CleanupCommand::class,
             DiscoverCommand::class,
             DownloadPagefindCommand::class,
             ExportCommand::class,

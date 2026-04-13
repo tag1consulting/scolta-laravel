@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Route;
 use Tag1\ScoltaLaravel\Http\Controllers\ExpandQueryController;
 use Tag1\ScoltaLaravel\Http\Controllers\FollowUpController;
 use Tag1\ScoltaLaravel\Http\Controllers\HealthController;
+use Tag1\ScoltaLaravel\Http\Controllers\ProgressController;
 use Tag1\ScoltaLaravel\Http\Controllers\SummarizeController;
 use Tag1\ScoltaLaravel\Jobs\TriggerRebuild;
 
@@ -56,11 +57,7 @@ Route::group([
         ['auth:sanctum'],
     ),
 ], function () {
-    Route::get('/build-progress', function () {
-        $status = Cache::get('scolta_build_status', ['status' => 'idle']);
-
-        return response()->json($status);
-    })->name('scolta.build-progress');
+    Route::get('/build-progress', ProgressController::class)->name('scolta.build-progress');
 
     Route::post('/rebuild-now', function (Request $request) {
         $lock = Cache::lock('scolta_build', 3600);

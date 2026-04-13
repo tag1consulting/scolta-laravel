@@ -361,6 +361,11 @@ Scolta and Scout solve different problems. Scout is a driver-based full-text sea
 - Scout's real-time per-record index updates (Scolta uses a background build step).
 - Driver flexibility — Scolta only produces Pagefind-compatible indexes.
 
+## Hosting
+
+See the [Scolta Hosting Guide](../scolta-php/HOSTING.md) for platform-specific
+deployment guidance, indexer selection, and ephemeral filesystem handling.
+
 ## Troubleshooting
 
 ### "Pagefind binary not found"
