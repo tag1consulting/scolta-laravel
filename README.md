@@ -313,7 +313,7 @@ Scolta and Scout solve different problems. Scout is a driver-based full-text sea
 | Infrastructure | External service or DB | Static files only |
 | AI features | No | Yes (expand, summarize, follow-up) |
 | Real-time updates | Yes (observer-driven) | Near-real-time (incremental build) |
-| Full-text languages | Depends on driver | 15 (PHP) / 33+ (binary) |
+| Full-text languages | Depends on driver | 14 (PHP) / 33+ (binary) |
 
 ### Migration steps
 

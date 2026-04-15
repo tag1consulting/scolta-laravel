@@ -32,7 +32,7 @@ The `version` field in `composer.json` is always either a tagged release (`0.2.0
 - Run: `./vendor/bin/phpunit`
 - Tests use plain PHPUnit (not Orchestra Testbench) for speed.
 - ConfigTest requires a minimal `Illuminate\Foundation\Application` for `storage_path()`/`public_path()`.
-- WASM-dependent tests are skipped when libextism is unavailable.
+- All tests should pass in CI without any native runtime.
 
 ## Documentation Rules
 
