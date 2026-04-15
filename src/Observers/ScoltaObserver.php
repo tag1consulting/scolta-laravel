@@ -139,8 +139,7 @@ class ScoltaObserver
         $delay = (int) config('scolta.auto_rebuild_delay', 300);
         $cacheKey = 'scolta_rebuild_scheduled';
 
-        if (! Cache::has($cacheKey)) {
-            Cache::put($cacheKey, true, $delay);
+        if (Cache::add($cacheKey, true, $delay)) {
             TriggerRebuild::dispatch()->delay(now()->addSeconds($delay));
         }
     }
@@ -165,16 +164,15 @@ class ScoltaObserver
 
         $delay = (int) config('scolta.auto_rebuild_delay', 300);
 
-        // Use cache to debounce — if a rebuild is already scheduled, skip.
+        // Use atomic Cache::add() for debounce — sets and dispatches only if
+        // the key was not already present, eliminating the TOCTOU race between
+        // a Cache::has() check and a subsequent Cache::put().
         $cacheKey = 'scolta_rebuild_scheduled';
-        if (Cache::has($cacheKey)) {
-            return;
+
+        if (Cache::add($cacheKey, true, $delay)) {
+            TriggerRebuild::dispatch()
+                ->delay(now()->addSeconds($delay));
         }
-
-        Cache::put($cacheKey, true, $delay);
-
-        TriggerRebuild::dispatch()
-            ->delay(now()->addSeconds($delay));
     }
 
     /**
