@@ -6,6 +6,14 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-04-15
+
+### Fixed
+
+- **Security:** Replace `Cache::has()` + `Cache::put()` rebuild debounce with atomic `Cache::add()` in `ScoltaObserver` to eliminate TOCTOU race that could trigger duplicate concurrent rebuilds
+- **Correctness:** `Searchable::toSearchableContent()` now uses `strip_tags()` instead of `e()` to remove HTML tags from body content; HTML entities in body text are no longer double-encoded
+- **UX:** Pagefind fallback notice corrected — "14 languages (Snowball)" instead of "English-only"; binary install command updated
+
 ## [0.2.0] - 2026-04-13
 
 ### Fixed
