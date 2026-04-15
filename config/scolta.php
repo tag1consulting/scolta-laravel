@@ -152,6 +152,23 @@ return [
         'recency_penalty_after_days' => 1825,
         'recency_max_penalty' => 0.3,
         'expand_primary_weight' => 0.7,
+
+        // Language-aware stop words (0.2.2+)
+        // ISO 639-1 code for stop word filtering. Supported: ar, ca, da, de, el,
+        // en, es, et, eu, fi, fr, ga, hi, hu, hy, id, it, lt, ne, nl, no, pl,
+        // pt, ro, ru, sr, sv, ta, tr, yi. CJK/unknown → no filtering.
+        'language' => env('SCOLTA_LANGUAGE', 'en'),
+        'custom_stop_words' => array_filter(array_map(
+            'trim',
+            explode(',', env('SCOLTA_CUSTOM_STOP_WORDS', ''))
+        )),
+
+        // Pluggable recency functions (0.2.2+)
+        // Strategies: 'exponential' (default), 'linear', 'step', 'none', 'custom'.
+        'recency_strategy' => env('SCOLTA_RECENCY_STRATEGY', 'exponential'),
+        // For 'custom': JSON array of [[days, boost], …] control points.
+        // e.g. SCOLTA_RECENCY_CURVE='[[0,1.0],[180,0.5],[365,0.0]]'
+        'recency_curve' => json_decode(env('SCOLTA_RECENCY_CURVE', '[]'), true) ?: [],
     ],
 
     /*

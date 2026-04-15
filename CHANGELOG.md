@@ -6,6 +6,15 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+## [0.2.2] - Unreleased
+
+### Added
+
+- **`scoring.language`** (default `'en'`): ISO 639-1 language code for stop word filtering. Readable from `SCOLTA_LANGUAGE` env var.
+- **`scoring.custom_stop_words`** (default `[]`): Comma-separated extra stop words via `SCOLTA_CUSTOM_STOP_WORDS` env var.
+- **`scoring.recency_strategy`** (default `'exponential'`): Recency decay function. Readable from `SCOLTA_RECENCY_STRATEGY` env var.
+- **`scoring.recency_curve`** (default `[]`): JSON `[[days,boost],…]` control points for the `custom` strategy. Readable from `SCOLTA_RECENCY_CURVE` env var.
+
 ## [0.2.1] - 2026-04-15
 
 ### Fixed
