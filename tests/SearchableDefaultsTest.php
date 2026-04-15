@@ -130,21 +130,24 @@ class SearchableDefaultsTest extends TestCase
         $this->assertEquals('', $item->bodyHtml);
     }
 
-    public function test_body_column_html_special_chars_escaped(): void
+    public function test_body_column_html_tags_stripped(): void
     {
         $model = new FakeSearchableModel(['body' => '<script>alert("xss")</script>']);
         $item = $model->toSearchableContent();
 
+        // strip_tags() removes the tag, leaving the inner text for indexing.
         $this->assertStringNotContainsString('<script>', $item->bodyHtml);
-        $this->assertStringContainsString('&lt;script&gt;', $item->bodyHtml);
+        $this->assertStringNotContainsString('&lt;script&gt;', $item->bodyHtml);
+        $this->assertStringContainsString('alert("xss")', $item->bodyHtml);
     }
 
-    public function test_body_ampersand_escaped(): void
+    public function test_body_ampersand_preserved(): void
     {
         $model = new FakeSearchableModel(['body' => 'Cats & Dogs']);
         $item = $model->toSearchableContent();
 
-        $this->assertStringContainsString('Cats &amp; Dogs', $item->bodyHtml);
+        // strip_tags() leaves plain text intact — & is not escaped.
+        $this->assertStringContainsString('Cats & Dogs', $item->bodyHtml);
     }
 
     // -------------------------------------------------------------------
