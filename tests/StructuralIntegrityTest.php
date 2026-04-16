@@ -185,4 +185,37 @@ class StructuralIntegrityTest extends TestCase
 
         return $hits;
     }
+
+    // -------------------------------------------------------------------
+    // Release workflow ZIP folder structure
+    // -------------------------------------------------------------------
+
+    public function test_release_workflow_creates_correct_zip_folder(): void
+    {
+        $workflow = file_get_contents($this->root.'/.github/workflows/release.yml');
+        $this->assertStringContainsString(
+            'mv package scolta-laravel',
+            $workflow,
+            'Release workflow must rename package dir to scolta-laravel before zipping'
+        );
+        $this->assertStringNotContainsString(
+            'zip -r ../scolta-laravel-${VERSION}.zip .',
+            $workflow,
+            'Must not zip from current dir (creates flat archive without scolta-laravel/ folder)'
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // isExecutable() guard
+    // -------------------------------------------------------------------
+
+    public function test_build_command_does_not_call_is_executable(): void
+    {
+        $source = file_get_contents($this->root.'/src/Commands/BuildCommand.php');
+        $this->assertStringNotContainsString(
+            'isExecutable()',
+            $source,
+            'Build command must not call private isExecutable(); use resolve() + status() instead'
+        );
+    }
 }

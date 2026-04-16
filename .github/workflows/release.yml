@@ -39,11 +39,13 @@ jobs:
         working-directory: package
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          zip -r ../scolta-laravel-${VERSION}.zip . \
-            --exclude "*.git*" \
-            --exclude "tests/*" \
-            --exclude "node_modules/*" \
-            --exclude ".claude/*"
+          cd ..
+          mv package scolta-laravel
+          zip -r scolta-laravel-${VERSION}.zip scolta-laravel/ \
+            --exclude "scolta-laravel/.git*" \
+            --exclude "scolta-laravel/tests/*" \
+            --exclude "scolta-laravel/node_modules/*" \
+            --exclude "scolta-laravel/.claude/*"
 
       - name: Extract CHANGELOG entry
         working-directory: package
