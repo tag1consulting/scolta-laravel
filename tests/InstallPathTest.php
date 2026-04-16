@@ -27,7 +27,7 @@ class InstallPathTest extends TestCase
 
     public function test_default_paths_use_storage_and_public_path(): void
     {
-        $config = file_get_contents($this->root . '/config/scolta.php');
+        $config = file_get_contents($this->root.'/config/scolta.php');
 
         $this->assertStringContainsString(
             'storage_path(',
@@ -56,7 +56,7 @@ class InstallPathTest extends TestCase
                 continue;
             }
             $content = file_get_contents($file->getPathname());
-            $rel     = str_replace($this->root.'/', '', $file->getPathname());
+            $rel = str_replace($this->root.'/', '', $file->getPathname());
 
             foreach (['ext-ffi', 'Extism', 'extism', 'extension_loaded(\'ffi\')'] as $term) {
                 $this->assertStringNotContainsString(
@@ -98,7 +98,7 @@ class InstallPathTest extends TestCase
 
     public function test_config_uses_env_helpers(): void
     {
-        $config = file_get_contents($this->root . '/config/scolta.php');
+        $config = file_get_contents($this->root.'/config/scolta.php');
 
         // AI key must come from env, not be hardcoded.
         $this->assertStringContainsString(
