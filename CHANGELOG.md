@@ -4,9 +4,10 @@ All notable changes to scolta-laravel will be documented in this file.
 
 This project uses [Semantic Versioning](https://semver.org/). Major versions are synchronized across all Scolta packages.
 
-## [Unreleased]
+## [0.2.3] - 2026-04-17
 
-## [0.2.3] - Unreleased
+### Changed
+- Inherits all scolta-php 0.2.3 fixes and features (filter sidebar, N-set merge, AI context, PII sanitization, priority pages)
 
 ## [0.2.2] - 2026-04-16
 
