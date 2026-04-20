@@ -35,7 +35,7 @@ class RouteSmokeTest extends TestCase
     protected function setUp(): void
     {
         $this->routesSource = file_get_contents(
-            dirname(__DIR__, 2) . '/routes/api.php'
+            dirname(__DIR__, 2).'/routes/api.php'
         );
     }
 
@@ -58,12 +58,12 @@ class RouteSmokeTest extends TestCase
     public static function routeNameProvider(): array
     {
         return [
-            'scolta.expand'         => ['scolta.expand'],
-            'scolta.summarize'      => ['scolta.summarize'],
-            'scolta.followup'       => ['scolta.followup'],
-            'scolta.health'         => ['scolta.health'],
+            'scolta.expand' => ['scolta.expand'],
+            'scolta.summarize' => ['scolta.summarize'],
+            'scolta.followup' => ['scolta.followup'],
+            'scolta.health' => ['scolta.health'],
             'scolta.build-progress' => ['scolta.build-progress'],
-            'scolta.rebuild-now'    => ['scolta.rebuild-now'],
+            'scolta.rebuild-now' => ['scolta.rebuild-now'],
         ];
     }
 
