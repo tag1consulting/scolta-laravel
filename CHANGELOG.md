@@ -6,6 +6,9 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [0.2.4] - Unreleased
 
+### Fixed
+- **`<x-scolta::search />` rendered empty after index build**: `search.blade.php` was checking `$outputDir/pagefind/pagefind-entry.json` but Pagefind writes `pagefind-entry.json` directly to `$outputDir` (no `/pagefind/` subdirectory). The component always fell through to the "index not built" warning even on sites with a valid index.
+
 ### Added
 - **Route smoke test suite** (`tests/Http/RouteSmokeTest.php`): Twenty test methods covering all six named Scolta API routes (`scolta.expand`, `scolta.summarize`, `scolta.followup`, `scolta.health`, `scolta.build-progress`, `scolta.rebuild-now`). Asserts correct HTTP methods, controller class references, and middleware guards — in particular that `build-progress` and `rebuild-now` are behind `auth:sanctum` and that the AI endpoints are not. Uses plain PHPUnit source-text analysis (no Laravel kernel boot) so it runs in the same fast unit-test suite as all other Laravel tests.
 

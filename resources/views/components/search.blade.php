@@ -18,7 +18,7 @@
 
 @php
     $outputDir = config('scolta.pagefind.output_dir', public_path('scolta-pagefind'));
-    $indexExists = file_exists($outputDir . '/pagefind/pagefind-entry.json');
+    $indexExists = file_exists($outputDir . '/pagefind-entry.json');
 @endphp
 
 @if(!$indexExists)
