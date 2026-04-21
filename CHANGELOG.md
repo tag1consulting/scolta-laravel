@@ -6,6 +6,9 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [0.2.4] - Unreleased
 
+### Changed
+- Inherits all scolta-php 0.2.4 fixes and features (phrase-proximity scoring, WASM config key fix, quoted-phrase forced-mode, second WASM rebuild)
+
 ### Fixed
 - **`<x-scolta::search />` rendered empty after index build**: `search.blade.php` was checking `$outputDir/pagefind/pagefind-entry.json` but Pagefind writes `pagefind-entry.json` directly to `$outputDir` (no `/pagefind/` subdirectory). The component always fell through to the "index not built" warning even on sites with a valid index.
 
