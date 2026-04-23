@@ -4,6 +4,16 @@ All notable changes to scolta-laravel will be documented in this file.
 
 This project uses [Semantic Versioning](https://semver.org/). Major versions are synchronized across all Scolta packages.
 
+## [0.3.1] - 2026-04-23
+
+### Fixed
+- **Release packaging**: Release workflow now triggers on both `v0.x.x` and bare `0.x.x` tag formats, fixing the 0.3.0 release that shipped with no binary assets.
+
+### Added
+- **Zip structure regression test**: New `validate-zip` CI job asserts `scolta-laravel/vendor/autoload.php` and `scolta-laravel/src/ScoltaServiceProvider.php` are present in each release archive.
+- **`memory_budget` config section**: `config/scolta.php` now includes a `memory_budget.profile` key (env `SCOLTA_MEMORY_BUDGET`, default `conservative`). `artisan scolta:build` reads this as the default for `--memory-budget` instead of always using `'conservative'`.
+- **`artisan scolta:memory-budget` command**: Interactive command to view the current memory budget setting, the detected PHP `memory_limit`, and the advisory suggestion. Use `--set=<profile>` to display instructions for updating `.env`.
+
 ## [0.3.0] - 2026-04-23
 
 ### Added
