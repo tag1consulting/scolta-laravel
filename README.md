@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/tag1consulting/scolta-laravel/actions/workflows/ci.yml/badge.svg)](https://github.com/tag1consulting/scolta-laravel/actions/workflows/ci.yml)
 
-Scolta is a browser-side search engine: the index lives in static files, scoring runs in the browser via WebAssembly, and an optional AI layer handles query expansion and summarization. No search server required. "Scolta" is archaic Italian for sentinel — someone watching for what matters.
+Scolta is a scoring, ranking, and AI layer built on [Pagefind](https://pagefind.app/). Pagefind is the search engine — it builds the static index, runs the browser-side WASM search, produces word-position data, and generates excerpts. Scolta takes Pagefind's results and re-ranks them with configurable title/content/recency/priority boosts, then optionally passes them through an AI layer for query expansion, summarization, and follow-up generation. No search server required. "Scolta" is archaic Italian for sentinel — someone watching for what matters.
 
 This package is the Laravel adapter. It provides Artisan commands, a `Searchable` trait for Eloquent models, a `<x-scolta::search />` Blade component, and API endpoints.
 
@@ -340,7 +340,7 @@ Set `SCOLTA_INDEXER=binary` in `.env` and rebuild. See [scolta-php README](../sc
 
 ### Migrate from Laravel Scout
 
-Scolta and Scout solve different problems. Scout drives external search servers (Algolia, Meilisearch, Typesense). Scolta produces a static, browser-side index — no search server required.
+Scolta and Scout solve different problems. Scout drives external search servers (Algolia, Meilisearch, Typesense). Scolta runs Pagefind, which produces a static, browser-side index — no search server required. Scolta then re-ranks Pagefind's results and optionally adds an AI layer.
 
 Replace `toSearchArray()` with `toSearchableContent()` and `scopeSearch()` with `scopeSearchable()`. Remove Scout from `composer.json`, publish Scolta's config and migrations, and replace Scout's search calls with `<x-scolta::search />`.
 
@@ -412,6 +412,10 @@ database/migrations/                     Tracker table migration
 routes/api.php                           API route definitions
 resources/views/components/search.blade.php  <x-scolta::search /> component
 ```
+
+## Credits
+
+Scolta is built on [Pagefind](https://pagefind.app/) by [CloudCannon](https://cloudcannon.com/). Without Pagefind, Scolta has no search to score — the index format, WASM search engine, word-position data, and excerpt generation are all Pagefind's. Scolta's contribution is the layer that sits on top: configurable scoring, multi-adapter ranking parity, AI features, and platform glue.
 
 ## License
 
