@@ -13,10 +13,14 @@ use Tag1\Scolta\Binary\PagefindBinary;
 use Tag1\Scolta\Config\ScoltaConfig;
 use Tag1\Scolta\Export\ContentExporter;
 use Tag1\Scolta\Export\ContentItem;
+use Tag1\Scolta\Index\BuildIntent;
+use Tag1\Scolta\Index\IndexBuildOrchestrator;
+use Tag1\Scolta\Index\MemoryBudget;
 use Tag1\Scolta\Index\PhpIndexer;
 use Tag1\ScoltaLaravel\Jobs\FinalizeIndex;
 use Tag1\ScoltaLaravel\Jobs\ProcessIndexChunk;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
+use Tag1\ScoltaLaravel\Progress\ArtisanProgressReporter;
 use Tag1\ScoltaLaravel\Services\ContentSource;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
 
@@ -53,7 +57,10 @@ class BuildCommand extends Command
         {--skip-pagefind : Export HTML files but don\'t run the Pagefind CLI}
         {--indexer=  : Indexer backend: php, binary, or auto (overrides config)}
         {--force : Skip fingerprint check and force a full rebuild}
-        {--sync : Run synchronously instead of dispatching to queue}';
+        {--sync : Run synchronously instead of dispatching to queue}
+        {--memory-budget= : Memory profile: conservative, balanced, or aggressive (default: conservative)}
+        {--resume : Resume a previously interrupted PHP index build}
+        {--restart : Discard interrupted state and restart the PHP index build}';
 
     protected $description = 'Build or rebuild the Scolta search index';
 
@@ -116,97 +123,58 @@ class BuildCommand extends Command
     }
 
     /**
-     * Build the search index using the pure-PHP PhpIndexer.
+     * Build the search index using the pure-PHP indexer via IndexBuildOrchestrator.
      *
-     * Gathers content from Eloquent models, creates ContentItems,
-     * checks the fingerprint (unless --force), chunks the items,
-     * and runs them through PhpIndexer::processChunk() / finalize().
-     *
-     * @since 0.2.0
+     * @since 0.2.0 (rewritten 0.3.0)
      *
      * @stability experimental
      */
     private function buildWithPhpIndexer(string $outputDir): int
     {
-        $this->info('Building index with PHP indexer...');
+        $stateDir = storage_path('scolta/state');
+        $hmacSecret = config('app.key');
+        $language = config('scolta.ai_languages.0', 'en');
+        $budget = MemoryBudget::fromString((string) ($this->option('memory-budget') ?? 'conservative'));
 
-        // Step 1: Gather content from Eloquent models.
-        $this->info('Step 1: Gathering content from models...');
         $items = $this->gatherContentItems();
-
         if (count($items) === 0) {
             $this->warn('No searchable content found. Check scolta.models config.');
 
             return self::SUCCESS;
         }
 
-        $this->info('  Found '.count($items).' content items.');
-
-        // Step 2: Fingerprint check (unless --force).
-        $stateDir = storage_path('scolta/state');
-        $hmacSecret = config('app.key');
-        $language = config('scolta.ai_languages.0', 'en');
-
-        $indexer = new PhpIndexer($stateDir, $outputDir, $hmacSecret, $language);
-
-        if (! $this->option('force')) {
-            $fingerprint = $indexer->shouldBuild($items);
-            if ($fingerprint === null) {
+        // Fingerprint check (unless --force or --resume/--restart).
+        if (! $this->option('force') && ! $this->option('resume') && ! $this->option('restart')) {
+            $indexer = new PhpIndexer($stateDir, $outputDir, $hmacSecret, $language);
+            if ($indexer->shouldBuild($items) === null) {
                 $this->info('Content unchanged. Index is up to date (use --force to rebuild).');
 
                 return self::SUCCESS;
             }
-            $this->info('  Content fingerprint changed, rebuilding...');
-        } else {
-            $this->info('  Forced rebuild (--force), skipping fingerprint check.');
         }
 
-        // Step 3: Chunk and process.
-        $chunkSize = 100;
-        $chunks = array_chunk($items, $chunkSize);
-        $totalPages = count($items);
+        $intent = match (true) {
+            (bool) $this->option('resume') => BuildIntent::resume($budget),
+            (bool) $this->option('restart') => BuildIntent::restart(count($items), $budget),
+            default => BuildIntent::fresh(count($items), $budget),
+        };
 
-        $this->info('Step 2: Indexing content ('.count($chunks).' chunks)...');
+        $orchestrator = new IndexBuildOrchestrator($stateDir, $outputDir, $hmacSecret, $language);
+        $reporter = new ArtisanProgressReporter($this);
+        $report = $orchestrator->build($intent, $items, reporter: $reporter);
 
-        $bar = $this->output->createProgressBar(count($chunks));
-        $bar->start();
-
-        $totalProcessed = 0;
-        foreach ($chunks as $i => $chunk) {
-            $processed = $indexer->processChunk($chunk, $i, $totalPages);
-            $totalProcessed += $processed;
-            $bar->advance();
-        }
-
-        $bar->finish();
-        $this->newLine();
-
-        // Step 4: Finalize — merge partials and write Pagefind format.
-        $this->info('Step 3: Finalizing index...');
-        $result = $indexer->finalize();
-
-        if (! $result->success) {
-            $this->error('Index build failed: '.($result->error ?? $result->message));
+        if (! $report->success) {
+            $this->error('Index build failed: '.($report->error ?? 'Unknown error'));
 
             return self::FAILURE;
         }
 
-        // Write fingerprint state file for next run's shouldBuild() check.
-        $fingerprint = PhpIndexer::computeFingerprint($items);
-        $stateFile = $outputDir.'/.scolta-state';
-        if (! is_dir(dirname($stateFile))) {
-            mkdir(dirname($stateFile), 0755, true);
-        }
-        file_put_contents($stateFile, $fingerprint);
-
         Cache::increment('scolta_expand_generation');
-
-        $this->info($result->message);
         $this->info(sprintf(
-            '  %d pages, %d files in %.3fs',
-            $result->pageCount,
-            $result->fileCount,
-            $result->elapsedSeconds,
+            'Index built: %d pages in %.3fs (%s peak RAM)',
+            $report->pagesProcessed,
+            $report->durationSeconds,
+            $report->peakMemoryMb(),
         ));
 
         return self::SUCCESS;
@@ -241,21 +209,19 @@ class BuildCommand extends Command
         $stateDir = storage_path('scolta/state');
         $hmacSecret = config('app.key');
         $language = config('scolta.ai_languages.0', 'en');
-        $fingerprint = null;
+        $budgetProfile = (string) ($this->option('memory-budget') ?? 'conservative');
 
         if (! $this->option('force')) {
             $indexer = new PhpIndexer($stateDir, $outputDir, $hmacSecret, $language);
-            $fingerprint = $indexer->shouldBuild($items);
-            if ($fingerprint === null) {
+            if ($indexer->shouldBuild($items) === null) {
                 $this->info('Content unchanged. Index is up to date (use --force to rebuild).');
 
                 return self::SUCCESS;
             }
-        } else {
-            $fingerprint = PhpIndexer::computeFingerprint($items);
         }
 
-        $chunkSize = 100;
+        $budget = MemoryBudget::fromString($budgetProfile);
+        $chunkSize = $budget->chunkSize();
         $chunks = array_chunk($items, $chunkSize);
         $jobs = [];
 
@@ -268,6 +234,7 @@ class BuildCommand extends Command
                 $outputDir,
                 $hmacSecret,
                 $language,
+                $budgetProfile,
             );
         }
 
@@ -276,7 +243,7 @@ class BuildCommand extends Command
             $outputDir,
             $hmacSecret,
             $language,
-            $fingerprint,
+            $budgetProfile,
         );
 
         Bus::chain($jobs)->dispatch();
