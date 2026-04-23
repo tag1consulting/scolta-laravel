@@ -4,6 +4,20 @@ All notable changes to scolta-laravel will be documented in this file.
 
 This project uses [Semantic Versioning](https://semver.org/). Major versions are synchronized across all Scolta packages.
 
+## [0.3.0] - Unreleased
+
+### Added
+- **`--memory-budget` flag**: Pass `conservative` (default), `balanced`, or `aggressive` to `scolta:build` to control peak RSS vs. throughput trade-off.
+- **`--resume` flag**: Resume a previously interrupted PHP index build from the last committed chunk.
+- **`--restart` flag**: Discard interrupted state and force a clean rebuild.
+- **`ArtisanProgressReporter`**: Routes `IndexBuildOrchestrator` progress callbacks to Laravel's native Artisan progress bar.
+
+### Changed
+- **`BuildCommand::buildWithPhpIndexer()`** rewritten to use `IndexBuildOrchestrator::build()` — 85 lines down to ~30.
+- **`ProcessIndexChunk`**: Now uses `BuildCoordinator::commitChunk()` directly; `tries = 1` to prevent duplicate chunks from retries.
+- **`FinalizeIndex`**: Now uses `IndexBuildOrchestrator::finalize()`; `tries = 1`; `$fingerprint` parameter removed (fingerprint management moved to orchestrator layer).
+- Inherits all scolta-php 0.3.0 improvements: `MemoryBudget`, `BuildIntent`, `BuildCoordinator`, streaming pre-merge fix.
+
 ## [0.2.5] - Unreleased
 
 ### Fixed
