@@ -223,8 +223,8 @@ class CommandValidationTest extends TestCase
 
         // Count Command::class references in the $this->commands([...]) block.
         preg_match_all('/Command::class/', $providerSource, $matches);
-        $this->assertCount(9, $matches[0],
-            'ServiceProvider should register exactly 9 commands.');
+        $this->assertCount(10, $matches[0],
+            'ServiceProvider should register exactly 10 commands.');
     }
 
     // -------------------------------------------------------------------

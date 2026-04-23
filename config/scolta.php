@@ -110,6 +110,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Memory Budget
+    |--------------------------------------------------------------------------
+    |
+    | Controls peak RAM used by the PHP indexer pipeline.
+    |
+    | - 'conservative' (default): peak ≤ 96 MB — safe for shared hosting.
+    | - 'balanced':  ~384 MB — recommended for dedicated VMs.
+    | - 'aggressive': ~1 GB — maximises throughput on high-memory servers.
+    |
+    | Can be overridden per-run with --memory-budget on `artisan scolta:build`.
+    | Set SCOLTA_MEMORY_BUDGET in .env to change the persistent default.
+    |
+    */
+
+    'memory_budget' => [
+        'profile' => env('SCOLTA_MEMORY_BUDGET', 'conservative'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Auto Rebuild
     |--------------------------------------------------------------------------
     |

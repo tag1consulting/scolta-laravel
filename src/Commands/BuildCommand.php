@@ -134,7 +134,8 @@ class BuildCommand extends Command
         $stateDir = storage_path('scolta/state');
         $hmacSecret = config('app.key');
         $language = config('scolta.ai_languages.0', 'en');
-        $budget = MemoryBudget::fromString((string) ($this->option('memory-budget') ?? 'conservative'));
+        $savedProfile = config('scolta.memory_budget.profile', 'conservative');
+        $budget = MemoryBudget::fromString((string) ($this->option('memory-budget') ?? $savedProfile));
 
         $items = $this->gatherContentItems();
         if (count($items) === 0) {
@@ -209,7 +210,8 @@ class BuildCommand extends Command
         $stateDir = storage_path('scolta/state');
         $hmacSecret = config('app.key');
         $language = config('scolta.ai_languages.0', 'en');
-        $budgetProfile = (string) ($this->option('memory-budget') ?? 'conservative');
+        $savedProfile = config('scolta.memory_budget.profile', 'conservative');
+        $budgetProfile = (string) ($this->option('memory-budget') ?? $savedProfile);
 
         if (! $this->option('force')) {
             $indexer = new PhpIndexer($stateDir, $outputDir, $hmacSecret, $language);
