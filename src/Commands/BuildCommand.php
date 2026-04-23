@@ -162,7 +162,7 @@ class BuildCommand extends Command
         }
 
         // Step 3: Chunk and process.
-        $chunkSize = 50;
+        $chunkSize = 100;
         $chunks = array_chunk($items, $chunkSize);
         $totalPages = count($items);
 
@@ -255,7 +255,7 @@ class BuildCommand extends Command
             $fingerprint = PhpIndexer::computeFingerprint($items);
         }
 
-        $chunkSize = 50;
+        $chunkSize = 100;
         $chunks = array_chunk($items, $chunkSize);
         $jobs = [];
 

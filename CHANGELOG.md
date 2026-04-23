@@ -6,6 +6,12 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [0.2.5] - Unreleased
 
+### Fixed
+- **Chunk size corrected**: `BuildCommand` now uses chunk size 100 (was 50), aligning with the WP and Drupal adapters and reducing the number of partial files written per build.
+
+### Changed
+- Inherits scolta-php 0.2.5 OOM fix: PHP indexer now uses a streaming merge pipeline, keeping peak RAM ~5-10 MB regardless of corpus size.
+
 ## [0.2.4] - 2026-04-21
 
 ### Changed
