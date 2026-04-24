@@ -35,9 +35,9 @@ class SummarizeController extends Controller
             'context' => 'required|string|min:1|max:50000',
         ]);
 
-        $config  = $ai->getConfig();
+        $config = $ai->getConfig();
         $handler = $this->createHandler($ai, $config);
-        $result  = $handler->handleSummarize($validated['query'], $validated['context']);
+        $result = $handler->handleSummarize($validated['query'], $validated['context']);
 
         if ($result['ok']) {
             return response()->json($result['data']);

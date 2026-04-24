@@ -34,9 +34,9 @@ class ExpandQueryController extends Controller
             'query' => 'required|string|min:1|max:500',
         ]);
 
-        $config  = $ai->getConfig();
+        $config = $ai->getConfig();
         $handler = $this->createHandler($ai, $config);
-        $result  = $handler->handleExpandQuery($validated['query']);
+        $result = $handler->handleExpandQuery($validated['query']);
 
         if ($result['ok']) {
             return response()->json($result['data']);

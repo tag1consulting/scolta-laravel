@@ -140,7 +140,7 @@ class BuildCommand extends Command
             $this->option('memory-budget'),
             $this->option('chunk-size'),
             fn () => [
-                'profile'    => config('scolta.memory_budget.profile', 'conservative'),
+                'profile' => config('scolta.memory_budget.profile', 'conservative'),
                 'chunk_size' => config('scolta.memory_budget.chunk_size'),
             ],
         );
@@ -218,7 +218,7 @@ class BuildCommand extends Command
             $this->option('memory-budget'),
             $this->option('chunk-size'),
             fn () => [
-                'profile'    => config('scolta.memory_budget.profile', 'conservative'),
+                'profile' => config('scolta.memory_budget.profile', 'conservative'),
                 'chunk_size' => config('scolta.memory_budget.chunk_size'),
             ],
         );

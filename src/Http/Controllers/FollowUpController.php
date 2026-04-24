@@ -34,9 +34,9 @@ class FollowUpController extends Controller
             'messages.*.content' => 'required|string|min:1',
         ]);
 
-        $config  = $ai->getConfig();
+        $config = $ai->getConfig();
         $handler = $this->createHandler($ai, $config);
-        $result  = $handler->handleFollowUp($validated['messages']);
+        $result = $handler->handleFollowUp($validated['messages']);
 
         if ($result['ok']) {
             return response()->json($result['data']);
