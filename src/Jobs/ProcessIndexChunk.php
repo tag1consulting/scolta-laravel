@@ -37,6 +37,7 @@ class ProcessIndexChunk implements ShouldQueue
         public readonly ?string $hmacSecret = null,
         public readonly string $language = 'en',
         public readonly string $memoryBudget = 'conservative',
+        public readonly ?int $chunkSize = null,
     ) {}
 
     public function handle(): void
@@ -45,7 +46,7 @@ class ProcessIndexChunk implements ShouldQueue
             return;
         }
 
-        $budget = MemoryBudget::fromString($this->memoryBudget);
+        $budget = MemoryBudget::fromOptions($this->memoryBudget, $this->chunkSize);
         $coordinator = new BuildCoordinator($this->stateDir, $this->hmacSecret);
 
         $tokenizer = new Tokenizer;

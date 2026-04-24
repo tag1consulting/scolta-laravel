@@ -59,7 +59,8 @@ class BuildCommand extends Command
         {--indexer=  : Indexer backend: php, binary, or auto (overrides config)}
         {--force : Skip fingerprint check and force a full rebuild}
         {--sync : Run synchronously instead of dispatching to queue}
-        {--memory-budget= : Memory profile: conservative, balanced, or aggressive (default: conservative)}
+        {--memory-budget= : Memory profile or byte value (conservative, 256M, 1G…). Default: from config.}
+        {--chunk-size= : Pages per chunk. Overrides profile default and config setting.}
         {--resume : Resume a previously interrupted PHP index build}
         {--restart : Discard interrupted state and restart the PHP index build}';
 
@@ -136,7 +137,11 @@ class BuildCommand extends Command
         $hmacSecret = config('app.key');
         $language = config('scolta.ai_languages.0', 'en');
         $savedProfile = config('scolta.memory_budget.profile', 'conservative');
-        $budget = MemoryBudget::fromString((string) ($this->option('memory-budget') ?? $savedProfile));
+        $budgetStr = (string) ($this->option('memory-budget') ?? $savedProfile);
+        $savedChunk = config('scolta.memory_budget.chunk_size');
+        $rawChunk = $this->option('chunk-size') ?? $savedChunk;
+        $chunkSize = ($rawChunk !== null && (int) $rawChunk >= 1) ? (int) $rawChunk : null;
+        $budget = MemoryBudget::fromOptions($budgetStr, $chunkSize);
 
         $totalCount = $this->gatherItemCount();
         if ($totalCount === 0) {
@@ -207,7 +212,11 @@ class BuildCommand extends Command
         $hmacSecret = config('app.key');
         $language = config('scolta.ai_languages.0', 'en');
         $savedProfile = config('scolta.memory_budget.profile', 'conservative');
-        $budgetProfile = (string) ($this->option('memory-budget') ?? $savedProfile);
+        $budgetStr = (string) ($this->option('memory-budget') ?? $savedProfile);
+        $savedChunk = config('scolta.memory_budget.chunk_size');
+        $rawChunk = $this->option('chunk-size') ?? $savedChunk;
+        $chunkSize = ($rawChunk !== null && (int) $rawChunk >= 1) ? (int) $rawChunk : null;
+        $budget = MemoryBudget::fromOptions($budgetStr, $chunkSize);
 
         if (! $this->option('force')) {
             $indexer = new PhpIndexer($stateDir, $outputDir, $hmacSecret, $language);
@@ -218,9 +227,8 @@ class BuildCommand extends Command
             }
         }
 
-        $budget = MemoryBudget::fromString($budgetProfile);
-        $chunkSize = $budget->chunkSize();
-        $chunks = array_chunk($items, $chunkSize);
+        $effectiveChunkSize = $budget->chunkSize();
+        $chunks = array_chunk($items, $effectiveChunkSize);
         $jobs = [];
 
         foreach ($chunks as $idx => $chunk) {
@@ -232,7 +240,8 @@ class BuildCommand extends Command
                 $outputDir,
                 $hmacSecret,
                 $language,
-                $budgetProfile,
+                $budgetStr,
+                $chunkSize,
             );
         }
 
