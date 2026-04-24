@@ -4,6 +4,11 @@ All notable changes to scolta-laravel will be documented in this file.
 
 This project uses [Semantic Versioning](https://semver.org/). Major versions are synchronized across all Scolta packages.
 
+## [Unreleased]
+
+### Fixed
+- **Lint**: Fixed `concat_space`, `unary_operator_spaces`, `not_operator_with_successor_space`, `blank_line_before_statement`, unused import, and import ordering violations in `MemoryBudgetCommand.php` and `ScoltaServiceProvider.php`.
+
 ## [0.3.1] - 2026-04-23
 
 ### Fixed
