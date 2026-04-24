@@ -11,12 +11,12 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use Tag1\Scolta\Binary\PagefindBinary;
+use Tag1\Scolta\Config\MemoryBudgetConfig;
 use Tag1\Scolta\Config\ScoltaConfig;
 use Tag1\Scolta\Export\ContentExporter;
 use Tag1\Scolta\Export\ContentItem;
-use Tag1\Scolta\Index\BuildIntent;
+use Tag1\Scolta\Index\BuildIntentFactory;
 use Tag1\Scolta\Index\IndexBuildOrchestrator;
-use Tag1\Scolta\Index\MemoryBudget;
 use Tag1\Scolta\Index\PhpIndexer;
 use Tag1\ScoltaLaravel\Jobs\FinalizeIndex;
 use Tag1\ScoltaLaravel\Jobs\ProcessIndexChunk;
@@ -136,12 +136,14 @@ class BuildCommand extends Command
         $stateDir = storage_path('scolta/state');
         $hmacSecret = config('app.key');
         $language = config('scolta.ai_languages.0', 'en');
-        $savedProfile = config('scolta.memory_budget.profile', 'conservative');
-        $budgetStr = (string) ($this->option('memory-budget') ?? $savedProfile);
-        $savedChunk = config('scolta.memory_budget.chunk_size');
-        $rawChunk = $this->option('chunk-size') ?? $savedChunk;
-        $chunkSize = ($rawChunk !== null && (int) $rawChunk >= 1) ? (int) $rawChunk : null;
-        $budget = MemoryBudget::fromOptions($budgetStr, $chunkSize);
+        $budget = MemoryBudgetConfig::fromCliAndConfig(
+            $this->option('memory-budget'),
+            $this->option('chunk-size'),
+            fn () => [
+                'profile'    => config('scolta.memory_budget.profile', 'conservative'),
+                'chunk_size' => config('scolta.memory_budget.chunk_size'),
+            ],
+        );
 
         $totalCount = $this->gatherItemCount();
         if ($totalCount === 0) {
@@ -154,11 +156,12 @@ class BuildCommand extends Command
         $exporter = new ContentExporter($outputDir);
         $items = $exporter->filterItems($this->streamContentItems());
 
-        $intent = match (true) {
-            (bool) $this->option('resume') => BuildIntent::resume($budget),
-            (bool) $this->option('restart') => BuildIntent::restart($totalCount, $budget),
-            default => BuildIntent::fresh($totalCount, $budget),
-        };
+        $intent = BuildIntentFactory::fromFlags(
+            (bool) $this->option('resume'),
+            (bool) $this->option('restart'),
+            $totalCount,
+            $budget,
+        );
 
         $reporter = new ArtisanProgressReporter($this);
         $logger = new Logger(app('log')->driver(), app('events'));
@@ -211,12 +214,14 @@ class BuildCommand extends Command
         $stateDir = storage_path('scolta/state');
         $hmacSecret = config('app.key');
         $language = config('scolta.ai_languages.0', 'en');
-        $savedProfile = config('scolta.memory_budget.profile', 'conservative');
-        $budgetStr = (string) ($this->option('memory-budget') ?? $savedProfile);
-        $savedChunk = config('scolta.memory_budget.chunk_size');
-        $rawChunk = $this->option('chunk-size') ?? $savedChunk;
-        $chunkSize = ($rawChunk !== null && (int) $rawChunk >= 1) ? (int) $rawChunk : null;
-        $budget = MemoryBudget::fromOptions($budgetStr, $chunkSize);
+        $budget = MemoryBudgetConfig::fromCliAndConfig(
+            $this->option('memory-budget'),
+            $this->option('chunk-size'),
+            fn () => [
+                'profile'    => config('scolta.memory_budget.profile', 'conservative'),
+                'chunk_size' => config('scolta.memory_budget.chunk_size'),
+            ],
+        );
 
         if (! $this->option('force')) {
             $indexer = new PhpIndexer($stateDir, $outputDir, $hmacSecret, $language);
@@ -240,8 +245,8 @@ class BuildCommand extends Command
                 $outputDir,
                 $hmacSecret,
                 $language,
-                $budgetStr,
-                $chunkSize,
+                $budget->profile(),
+                $budget->chunkSize(),
             );
         }
 
@@ -250,7 +255,7 @@ class BuildCommand extends Command
             $outputDir,
             $hmacSecret,
             $language,
-            $budgetProfile,
+            $budget->profile(),
         );
 
         Bus::chain($jobs)->dispatch();

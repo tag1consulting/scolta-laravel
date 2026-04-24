@@ -26,6 +26,9 @@ final class ArtisanProgressReporter implements ProgressReporterInterface
 
     public function advance(int $steps = 1, ?string $detail = null): void
     {
+        if ($detail !== null && $this->bar !== null) {
+            $this->bar->setMessage($detail);
+        }
         $this->bar?->advance($steps);
     }
 

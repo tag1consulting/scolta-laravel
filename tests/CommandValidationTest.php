@@ -204,8 +204,9 @@ class CommandValidationTest extends TestCase
     {
         $source = file_get_contents(dirname(__DIR__).'/src/Commands/BuildCommand.php');
 
-        $this->assertStringContainsString('MemoryBudget::fromOptions(', $source,
-            'BuildCommand must call MemoryBudget::fromOptions() rather than fromString() + withChunkSize().');
+        // Budget resolution is now delegated to MemoryBudgetConfig::fromCliAndConfig().
+        $this->assertStringContainsString('MemoryBudgetConfig::fromCliAndConfig(', $source,
+            'BuildCommand must call MemoryBudgetConfig::fromCliAndConfig() to resolve budget and chunk size.');
     }
 
     public function test_process_index_chunk_accepts_chunk_size(): void

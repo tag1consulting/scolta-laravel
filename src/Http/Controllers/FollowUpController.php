@@ -8,8 +8,10 @@ use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Tag1\Scolta\Cache\CacheDriverInterface;
 use Tag1\Scolta\Cache\NullCacheDriver;
-use Tag1\Scolta\Http\AiEndpointHandler;
+use Tag1\Scolta\Http\AiControllerTrait;
+use Tag1\Scolta\Prompt\PromptEnricherInterface;
 use Tag1\ScoltaLaravel\Prompt\EventDrivenEnricher;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
 
@@ -20,7 +22,11 @@ use Tag1\ScoltaLaravel\Services\ScoltaAiService;
  */
 class FollowUpController extends Controller
 {
-    public function __invoke(Request $request, ScoltaAiService $ai, Dispatcher $events): JsonResponse
+    use AiControllerTrait;
+
+    public function __construct(private readonly Dispatcher $events) {}
+
+    public function __invoke(Request $request, ScoltaAiService $ai): JsonResponse
     {
         $validated = $request->validate([
             'messages' => 'required|array|min:1',
@@ -28,18 +34,9 @@ class FollowUpController extends Controller
             'messages.*.content' => 'required|string|min:1',
         ]);
 
-        $config = $ai->getConfig();
-        $handler = new AiEndpointHandler(
-            $ai,
-            new NullCacheDriver,
-            0,
-            0,
-            $config->maxFollowUps,
-            new EventDrivenEnricher($events),
-            $config->aiLanguages,
-        );
-
-        $result = $handler->handleFollowUp($validated['messages']);
+        $config  = $ai->getConfig();
+        $handler = $this->createHandler($ai, $config);
+        $result  = $handler->handleFollowUp($validated['messages']);
 
         if ($result['ok']) {
             return response()->json($result['data']);
@@ -55,5 +52,20 @@ class FollowUpController extends Controller
         }
 
         return response()->json($response, $result['status']);
+    }
+
+    protected function resolveCache(int $cacheTtl): CacheDriverInterface
+    {
+        return new NullCacheDriver;
+    }
+
+    protected function getCacheGeneration(): int
+    {
+        return 0;
+    }
+
+    protected function resolveEnricher(): PromptEnricherInterface
+    {
+        return new EventDrivenEnricher($this->events);
     }
 }

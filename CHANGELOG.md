@@ -4,6 +4,17 @@ All notable changes to scolta-laravel will be documented in this file.
 
 This project uses [Semantic Versioning](https://semver.org/). Major versions are synchronized across all Scolta packages.
 
+## [Unreleased]
+
+### Fixed
+- **`$budgetProfile` undefined variable in `dispatchToQueue()`**: `FinalizeIndex` was receiving `null` as its `$memoryBudget` argument. Now passes `$budget->profile()`.
+
+### Changed
+- **`buildWithPhpIndexer()` and `dispatchToQueue()`**: Budget and chunk-size resolution now delegated to `MemoryBudgetConfig::fromCliAndConfig()` (scolta-php), removing ~8 lines of duplicated precedence logic from each method.
+- **`buildWithPhpIndexer()` intent construction**: Replaced inline `match(true)` with `BuildIntentFactory::fromFlags()` (scolta-php).
+- **`ExpandQueryController`, `SummarizeController`, `FollowUpController`**: Now use `AiControllerTrait` (scolta-php) for `AiEndpointHandler` construction. `Dispatcher` moved from method injection to constructor injection so `resolveEnricher()` can access it.
+- **`ArtisanProgressReporter::advance()`**: Now calls `setMessage($detail)` on the Symfony ProgressBar when a detail string is provided.
+
 ## [0.3.2] - 2026-04-24
 
 Coordinated release. Ports the streaming gather and CLI wiring pattern from scolta-wp to Laravel.
