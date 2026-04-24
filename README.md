@@ -2,9 +2,77 @@
 
 [![CI](https://github.com/tag1consulting/scolta-laravel/actions/workflows/ci.yml/badge.svg)](https://github.com/tag1consulting/scolta-laravel/actions/workflows/ci.yml)
 
-Scolta is a scoring, ranking, and AI layer built on [Pagefind](https://pagefind.app/). Pagefind is the search engine — it builds the static index, runs the browser-side WASM search, produces word-position data, and generates excerpts. Scolta takes Pagefind's results and re-ranks them with configurable title/content/recency/priority boosts, then optionally passes them through an AI layer for query expansion, summarization, and follow-up generation. No search server required. "Scolta" is archaic Italian for sentinel — someone watching for what matters.
+Laravel 11/12 package — Artisan commands, `Searchable` trait for Eloquent models, and AI-powered search built on Pagefind.
 
-This package is the Laravel adapter. It provides Artisan commands, a `Searchable` trait for Eloquent models, a `<x-scolta::search />` Blade component, and API endpoints.
+## Status
+
+Beta. Scolta is installable and in active use on Laravel applications. The API documented here will not break within the 0.x minor series without a deprecation notice. Expect breaking changes before 1.0. Test in staging before deploying to production. File bugs at the repo issue tracker.
+
+## What Is Scolta?
+
+Scolta is a scoring, ranking, and AI layer built on [Pagefind](https://pagefind.app/). Pagefind is the search engine: it builds a static inverted index at publish time, runs a browser-side WASM search engine, produces word-position data, and generates highlighted excerpts. Scolta takes Pagefind's result set and re-ranks it with configurable boosts — title match weight, content match weight, recency decay curves, and phrase-proximity multipliers. No search server required. Queries resolve in the visitor's browser against a pre-built static index.
+
+This package is the Laravel adapter. It provides Artisan commands for building and maintaining the index, a `Searchable` trait for Eloquent models, a `<x-scolta::search />` Blade component, change tracking via an observer pattern, and REST API endpoints for the AI features. The actual scoring, indexing logic, memory management, and AI communication live in [scolta-php](https://github.com/tag1consulting/scolta-php), which this package depends on. Scoring runs client-side via the `scolta.js` browser asset and the pre-built WASM module shipped with scolta-php.
+
+The LLM tier — query expansion, result summarization, follow-up questions — is optional. When enabled, it sends the query text and selected result excerpts to a configured LLM provider (Anthropic, OpenAI, or a self-hosted Ollama endpoint). The base search tier shares nothing with any third party.
+
+## Running Example
+
+The examples in this README and the other Scolta repos use a recipe catalog as the concrete data set. Recipes are a good showcase because recipe vocabulary has genuine cross-dialect mismatches:
+
+- A search for `aubergine parmesan` should surface *Eggplant Parmigiana*.
+- A search for `chinese noodle soup` should surface *Lanzhou Beef Noodles*, *Wonton Soup*, and *Dan Dan Noodles*.
+- A search for `gluten free pasta` should surface *Zucchini Spaghetti with Pesto* and *Rice Noodle Stir-Fry*.
+- A search for `quick dinner under 30 min` should surface *Pad Kra Pao*, *Dan Dan Noodles*, and *Steak Frites*.
+
+Here is how to model and index the recipe catalog in Laravel:
+
+```php
+// app/Models/Recipe.php
+use Tag1\Scolta\Export\ContentItem;
+use Tag1\ScoltaLaravel\Searchable;
+
+class Recipe extends Model
+{
+    use Searchable;
+
+    public function toSearchableContent(): ContentItem
+    {
+        return new ContentItem(
+            id:       "recipe-{$this->id}",
+            title:    $this->name,
+            bodyHtml: "<p>{$this->description}</p>"
+                    . "<h2>Ingredients</h2><ul>"
+                    . implode('', array_map(fn($i) => "<li>{$i}</li>", $this->ingredients))
+                    . "</ul><p>Tags: {$this->tags}, {$this->regional_synonyms}</p>",
+            url:      "/recipes/{$this->slug}",
+            date:     $this->updated_at->format('Y-m-d'),
+            siteName: config('scolta.site_name', config('app.name')),
+        );
+    }
+
+    public function scopeSearchable($query)
+    {
+        return $query->where('published', true);
+    }
+}
+```
+
+Register the model in `config/scolta.php`:
+
+```php
+'models' => [App\Models\Recipe::class],
+```
+
+Build the index:
+
+```bash
+php artisan scolta:build
+```
+
+Then add `<x-scolta::search />` to any Blade template and visit the page. A search for `aubergine parmesan` surfaces *Eggplant Parmigiana* because the body HTML includes both the American term "eggplant" and the Italian name. Scolta's title boost lifts it above pages that mention aubergine only in passing.
+
+The recipe fixture HTML files live in [scolta-php](https://github.com/tag1consulting/scolta-php) at `tests/fixtures/recipes/` if you want a pre-built data set to index without a database.
 
 ## Quick Install
 
@@ -34,7 +102,7 @@ In `.env`:
 SCOLTA_API_KEY=sk-ant-...
 ```
 
-With an API key configured, search queries are automatically expanded with related terms, results include an AI summary, and users can ask follow-up questions.
+With an API key configured, search queries are automatically expanded with related terms, results include an AI summary, and visitors can ask follow-up questions.
 
 ## Verify It Works
 
@@ -49,6 +117,57 @@ php artisan scolta:status
 ```
 
 The health endpoint also reports current state: `GET /api/scolta/v1/health`
+
+## What Scolta Replaces (and What It Doesn't)
+
+Scolta is a practical replacement for hosted search SaaS (Algolia, Coveo, SearchStax) and for self-hosted search backends like Solr or Elasticsearch when the use case is content search on a Laravel application.
+
+Scolta is not a replacement for:
+
+- Full-text database search with row-level access control (per-document permissions enforced at query time).
+- Elasticsearch setups used for log analytics, observability, or complex aggregation queries.
+- Vector databases used as a general retrieval layer for RAG pipelines.
+- Enterprise search with audit logging, retention policies, or SSO-gated content visibility.
+
+### Migrating from Laravel Scout
+
+Scout and Scolta solve different problems. Scout drives external search servers (Algolia, Meilisearch, Typesense). Scolta runs Pagefind, which produces a static browser-side index — no search server required. Scolta then re-ranks Pagefind's results and optionally adds an AI layer.
+
+Replace `toSearchArray()` with `toSearchableContent()` and `scopeSearch()` with `scopeSearchable()`. Remove Scout from `composer.json`, publish Scolta's config and migrations, and replace Scout search calls with `<x-scolta::search />`.
+
+What you gain: no external search service bill, AI query expansion and summarization, works on shared and managed hosting. What you give up: Scout's per-record real-time index updates and its driver flexibility.
+
+## Memory and Scale
+
+The default memory profile is `conservative`, which targets a peak RSS under 96 MB and works on shared hosting with a 128 MB PHP `memory_limit`. Scolta never silently upgrades to a larger profile.
+
+The admin interface shows the detected PHP `memory_limit` and suggests a profile. The profile selection is always left to the admin.
+
+Pass the profile via the Artisan CLI:
+
+```bash
+php artisan scolta:build --memory-budget=balanced
+```
+
+Available profiles: `conservative` (default, ≤96 MB), `balanced` (≤200 MB), `aggressive` (≤384 MB). Higher budget means fewer, larger index chunks and faster builds.
+
+Or set it in `.env`:
+
+```env
+SCOLTA_MEMORY_BUDGET=balanced
+```
+
+Tested ceiling at the `conservative` profile: 50,000 pages. Higher counts likely work; not certified yet.
+
+## AI Features and Privacy
+
+Scolta's AI tier is optional. When enabled:
+
+- The LLM receives: the query text, and the titles and excerpts of the top N results (default: 5, configurable via `ai_summary_top_n`).
+- The LLM does not receive: the full index contents, full page text, user session data, or visitor identity.
+- Which provider receives the query data depends on your `SCOLTA_AI_PROVIDER` setting: `anthropic`, `openai`, or a self-hosted endpoint via `SCOLTA_AI_BASE_URL`.
+
+The base search tier — Pagefind index lookup and Scolta WASM scoring — runs entirely in the visitor's browser with no server-side involvement beyond serving static index files.
 
 ## Configuration
 
@@ -126,6 +245,16 @@ Scoring settings live under the `scoring` key in `config/scolta.php`.
 ],
 ```
 
+**Recipe catalog** (no recency, title precision matters):
+
+```php
+'scoring' => [
+    'recency_strategy'           => 'none',
+    'title_match_boost'          => 1.5,
+    'title_all_terms_multiplier' => 2.0,
+],
+```
+
 ### Display
 
 Display settings live under the `display` key in `config/scolta.php`.
@@ -143,8 +272,6 @@ Display settings live under the `display` key in `config/scolta.php`.
 | Site name | `SCOLTA_SITE_NAME` | `site_name` | app name | Included in AI prompts so the AI knows what site it's searching |
 | Site description | — | `site_description` | `website` | Brief description for AI context |
 
-The AI uses your site name and description to give contextually relevant answers. A search on "pricing" will produce very different AI summaries on a SaaS product site vs. a news outlet.
-
 ### Custom Prompts
 
 Override prompts in `config/scolta.php` under the `prompts` key, or use an event listener:
@@ -158,7 +285,7 @@ class EnrichScoltaPrompt
     public function handle(PromptEnrichEvent $event): void
     {
         if ($event->promptName === 'summarize') {
-            $event->resolvedPrompt .= "\n\nAlways mention our 30-day return policy.";
+            $event->resolvedPrompt .= "\n\nFocus on dietary information and cuisine type.";
         }
     }
 }
@@ -174,13 +301,11 @@ protected $listen = [
 ];
 ```
 
-See [ENRICHMENT.md](../../packages/scolta-php/docs/ENRICHMENT.md) for advanced use cases (vertical examples, multi-tenant, compliance).
-
 ## Debugging
 
 ### "Pagefind binary not found"
 
-On managed hosting where `exec()` is disabled, the package falls back to the PHP indexer automatically:
+On managed hosting where `exec()` is disabled, the package falls back to the PHP indexer automatically. The PHP indexer works on WP Engine, Kinsta, Flywheel, Pantheon, and any host where `exec()` is unavailable. It supports 14 languages via Snowball stemming. The search experience is identical to using the binary.
 
 ```bash
 php artisan scolta:check-setup
@@ -191,7 +316,10 @@ To install the binary on a host that supports it:
 
 ```bash
 php artisan scolta:download-pagefind
+# or: npm install -g pagefind
 ```
+
+Set `SCOLTA_INDEXER=binary` in `.env` and rebuild.
 
 ### "AI features not working"
 
@@ -230,14 +358,6 @@ Lower `expand_primary_weight` to give more weight to the original query, or disa
 // or: 'ai_expand_query' => false,
 ```
 
-### "AI features are slow"
-
-Check which model is configured — smaller models respond faster. Verify `cache_ttl` is not too low (default 30 days means expansions are cached for 30 days once computed):
-
-```env
-SCOLTA_CACHE_TTL=2592000
-```
-
 ### "No search results"
 
 1. Check index status: `php artisan scolta:status`
@@ -262,11 +382,11 @@ class Article extends Model
     public function toSearchableContent(): ContentItem
     {
         return new ContentItem(
-            id: "article-{$this->id}",
-            title: $this->title,
+            id:       "article-{$this->id}",
+            title:    $this->title,
             bodyHtml: $this->body,
-            url: "/articles/{$this->slug}",
-            date: $this->updated_at->format('Y-m-d'),
+            url:      "/articles/{$this->slug}",
+            date:     $this->updated_at->format('Y-m-d'),
             siteName: config('scolta.site_name', config('app.name')),
         );
     }
@@ -294,6 +414,7 @@ Register the model in `config/scolta.php`:
 php artisan scolta:build                    # Full build: mark all content, export, run indexer
 php artisan scolta:build --incremental      # Only process tracked changes
 php artisan scolta:build --skip-pagefind    # Export HTML without rebuilding index
+php artisan scolta:build --memory-budget=balanced  # Use balanced memory profile
 php artisan scolta:export                   # Export content to HTML only
 php artisan scolta:export --incremental     # Only export tracked changes
 php artisan scolta:rebuild-index            # Rebuild index from existing HTML files
@@ -323,28 +444,6 @@ Route prefix and middleware are configurable via `route_prefix` and `middleware`
 | `scopeSearchable($query)` | all records | Filter which records to index |
 | `getSearchableType()` | class name | Content type identifier for tracking |
 | `shouldBeSearchable()` | `true` | Whether this instance should be indexed |
-
-## Optional Upgrades
-
-### Upgrade to the Pagefind binary indexer
-
-The package auto-selects the PHP indexer on managed hosts. On hosts that support binaries, the Pagefind binary is 5–10× faster:
-
-```bash
-php artisan scolta:download-pagefind
-# or:
-npm install -g pagefind
-```
-
-Set `SCOLTA_INDEXER=binary` in `.env` and rebuild. See [scolta-php README](../scolta-php/README.md) for a full indexer comparison table.
-
-### Migrate from Laravel Scout
-
-Scolta and Scout solve different problems. Scout drives external search servers (Algolia, Meilisearch, Typesense). Scolta runs Pagefind, which produces a static, browser-side index — no search server required. Scolta then re-ranks Pagefind's results and optionally adds an AI layer.
-
-Replace `toSearchArray()` with `toSearchableContent()` and `scopeSearch()` with `scopeSearchable()`. Remove Scout from `composer.json`, publish Scolta's config and migrations, and replace Scout's search calls with `<x-scolta::search />`.
-
-What you gain: no Algolia/Meilisearch bill, AI query expansion and summarization, works on shared/managed hosting. What you give up: Scout's per-record real-time index updates and driver flexibility.
 
 ## Requirements
 
@@ -420,3 +519,10 @@ Scolta is built on [Pagefind](https://pagefind.app/) by [CloudCannon](https://cl
 ## License
 
 MIT
+
+## Related Packages
+
+- [scolta-core](https://github.com/tag1consulting/scolta-core) — Rust/WASM scoring, ranking, and AI layer that runs in the browser.
+- [scolta-php](https://github.com/tag1consulting/scolta-php) — PHP library that indexes content into Pagefind-compatible indexes, plus the shared orchestration and AI client.
+- [scolta-drupal](https://github.com/tag1consulting/scolta-drupal) — Drupal 10/11 Search API backend with Drush commands, admin settings form, and a search block.
+- [scolta-wp](https://github.com/tag1consulting/scolta-wp) — WordPress 6.x plugin with WP-CLI commands, Settings API page, and a `[scolta_search]` shortcode.
