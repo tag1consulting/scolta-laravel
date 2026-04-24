@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel\Commands;
 
 use Illuminate\Console\Command;
-use Tag1\Scolta\Config\MemoryBudgetConfig;
 use Tag1\Scolta\Index\MemoryBudgetSuggestion;
 
 /**
@@ -31,10 +30,12 @@ class MemoryBudgetCommand extends Command
             $valid = ['conservative', 'balanced', 'aggressive'];
             if (! in_array($set, $valid, true)) {
                 $this->error(sprintf('Invalid profile "%s". Must be one of: %s.', $set, implode(', ', $valid)));
+
                 return self::FAILURE;
             }
             $this->info("Set SCOLTA_MEMORY_BUDGET={$set} in your .env file.");
             $this->line('Then run <comment>php artisan config:clear</comment> to apply the change.');
+
             return self::SUCCESS;
         }
 
@@ -45,7 +46,7 @@ class MemoryBudgetCommand extends Command
                 ['Suggested profile', $hint['profile']],
                 ['Reason', wordwrap($hint['reason'], 60)],
                 ['Detected memory_limit', $hint['detected_limit_bytes'] !== null
-                    ? round($hint['detected_limit_bytes'] / 1_048_576) . ' MB'
+                    ? round($hint['detected_limit_bytes'] / 1_048_576).' MB'
                     : 'unlimited or unknown'],
                 ['Confidence', $hint['confidence']],
             ]
