@@ -4,6 +4,17 @@ All notable changes to scolta-laravel will be documented in this file.
 
 This project uses [Semantic Versioning](https://semver.org/). Major versions are synchronized across all Scolta packages.
 
+## [Unreleased]
+
+### Fixed
+- **Lint**: Fixed `concat_space`, `unary_operator_spaces`, `not_operator_with_successor_space`, `blank_line_before_statement`, unused import, and import ordering violations in `MemoryBudgetCommand.php` and `ScoltaServiceProvider.php`.
+- **`reporter:` named argument crash**: `buildWithPhpIndexer()` called `$orchestrator->build($intent, $items, reporter: $reporter)` but the parameter is named `$progress`, not `$reporter`. PHP 8.1+ raises `TypeError: Unknown named argument $reporter`. Fixed to use positional arguments.
+- **Silent CLI during large builds**: `buildWithPhpIndexer()` was passing the progress reporter but not a PSR-3 logger to `build()`. Now also passes Laravel's PSR-3 logger so memory telemetry and phase markers are visible in `php artisan scolta:build` output.
+
+### Added
+- **`BuildCommand::gatherItemCount(): int`**: Uses `Model::count()` (one `SELECT COUNT` per model class) to get the total without loading any model fields.
+- **`BuildCommand::streamContentItems(): \Generator`**: Uses `Model::cursor()` (PDO cursor, one row hydrated at a time) instead of `Model::all()` so that the full model dataset is never resident in RAM. The sync PHP indexer path now passes this generator to `ContentExporter::filterItems()` and then to `IndexBuildOrchestrator::build()`.
+
 ## [0.3.1] - 2026-04-23
 
 ### Fixed
