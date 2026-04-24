@@ -125,7 +125,15 @@ return [
     */
 
     'memory_budget' => [
+        // Named profile (conservative, balanced, aggressive) or a raw byte value
+        // such as "256M" or "1G". Can be overridden per-run with --memory-budget.
         'profile' => env('SCOLTA_MEMORY_BUDGET', 'conservative'),
+
+        // Pages per chunk during a PHP build. null = use the profile default
+        // (50 / 200 / 500 for conservative / balanced / aggressive).
+        // Lower values reduce peak RSS; higher values reduce merge overhead.
+        // Can be overridden per-run with --chunk-size.
+        'chunk_size' => env('SCOLTA_CHUNK_SIZE') ? (int) env('SCOLTA_CHUNK_SIZE') : null,
     ],
 
     /*

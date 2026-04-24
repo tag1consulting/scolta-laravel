@@ -181,6 +181,55 @@ class CommandValidationTest extends TestCase
             'BuildCommand signature should include --skip-pagefind option.');
     }
 
+    public function test_build_command_has_memory_budget_option(): void
+    {
+        $ref = new ReflectionClass(BuildCommand::class);
+        $signature = $ref->getProperty('signature')->getDefaultValue();
+
+        $this->assertStringContainsString('--memory-budget=', $signature,
+            'BuildCommand signature should include --memory-budget option.');
+    }
+
+    public function test_build_command_has_chunk_size_option(): void
+    {
+        $ref = new ReflectionClass(BuildCommand::class);
+        $signature = $ref->getProperty('signature')->getDefaultValue();
+
+        $this->assertStringContainsString('--chunk-size=', $signature,
+            'BuildCommand signature should include --chunk-size option.');
+    }
+
+    public function test_build_command_uses_from_options(): void
+    {
+        $source = file_get_contents(dirname(__DIR__).'/src/Commands/BuildCommand.php');
+
+        $this->assertStringContainsString('MemoryBudget::fromOptions(',  $source,
+            'BuildCommand must call MemoryBudget::fromOptions() rather than fromString() + withChunkSize().');
+    }
+
+    public function test_process_index_chunk_accepts_chunk_size(): void
+    {
+        $ref = new \ReflectionClass(\Tag1\ScoltaLaravel\Jobs\ProcessIndexChunk::class);
+        $constructor = $ref->getConstructor();
+        $params = array_column(
+            array_map(fn ($p) => ['name' => $p->getName()], $constructor->getParameters()),
+            'name'
+        );
+
+        $this->assertContains('chunkSize', $params,
+            'ProcessIndexChunk constructor must accept $chunkSize parameter.');
+    }
+
+    public function test_process_index_chunk_uses_from_options(): void
+    {
+        $source = file_get_contents(
+            dirname(__DIR__).'/src/Jobs/ProcessIndexChunk.php'
+        );
+
+        $this->assertStringContainsString('MemoryBudget::fromOptions(',  $source,
+            'ProcessIndexChunk::handle() must use MemoryBudget::fromOptions().');
+    }
+
     // -------------------------------------------------------------------
     // ExportCommand options
     // -------------------------------------------------------------------
