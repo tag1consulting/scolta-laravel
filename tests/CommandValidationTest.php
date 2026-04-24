@@ -18,6 +18,7 @@ use Tag1\ScoltaLaravel\Commands\DownloadPagefindCommand;
 use Tag1\ScoltaLaravel\Commands\ExportCommand;
 use Tag1\ScoltaLaravel\Commands\RebuildIndexCommand;
 use Tag1\ScoltaLaravel\Commands\StatusCommand;
+use Tag1\ScoltaLaravel\Jobs\ProcessIndexChunk;
 
 /**
  * Validate all 9 Artisan commands: existence, signatures, options, registration.
@@ -203,13 +204,13 @@ class CommandValidationTest extends TestCase
     {
         $source = file_get_contents(dirname(__DIR__).'/src/Commands/BuildCommand.php');
 
-        $this->assertStringContainsString('MemoryBudget::fromOptions(',  $source,
+        $this->assertStringContainsString('MemoryBudget::fromOptions(', $source,
             'BuildCommand must call MemoryBudget::fromOptions() rather than fromString() + withChunkSize().');
     }
 
     public function test_process_index_chunk_accepts_chunk_size(): void
     {
-        $ref = new \ReflectionClass(\Tag1\ScoltaLaravel\Jobs\ProcessIndexChunk::class);
+        $ref = new ReflectionClass(ProcessIndexChunk::class);
         $constructor = $ref->getConstructor();
         $params = array_column(
             array_map(fn ($p) => ['name' => $p->getName()], $constructor->getParameters()),
@@ -226,7 +227,7 @@ class CommandValidationTest extends TestCase
             dirname(__DIR__).'/src/Jobs/ProcessIndexChunk.php'
         );
 
-        $this->assertStringContainsString('MemoryBudget::fromOptions(',  $source,
+        $this->assertStringContainsString('MemoryBudget::fromOptions(', $source,
             'ProcessIndexChunk::handle() must use MemoryBudget::fromOptions().');
     }
 
