@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Log\Logger;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -137,32 +138,27 @@ class BuildCommand extends Command
         $savedProfile = config('scolta.memory_budget.profile', 'conservative');
         $budget = MemoryBudget::fromString((string) ($this->option('memory-budget') ?? $savedProfile));
 
-        $items = $this->gatherContentItems();
-        if (count($items) === 0) {
+        $totalCount = $this->gatherItemCount();
+        if ($totalCount === 0) {
             $this->warn('No searchable content found. Check scolta.models config.');
 
             return self::SUCCESS;
         }
 
-        // Fingerprint check (unless --force or --resume/--restart).
-        if (! $this->option('force') && ! $this->option('resume') && ! $this->option('restart')) {
-            $indexer = new PhpIndexer($stateDir, $outputDir, $hmacSecret, $language);
-            if ($indexer->shouldBuild($items) === null) {
-                $this->info('Content unchanged. Index is up to date (use --force to rebuild).');
-
-                return self::SUCCESS;
-            }
-        }
+        // Stream content one model at a time — no full pre-load into RAM.
+        $exporter = new ContentExporter($outputDir);
+        $items = $exporter->filterItems($this->streamContentItems());
 
         $intent = match (true) {
             (bool) $this->option('resume') => BuildIntent::resume($budget),
-            (bool) $this->option('restart') => BuildIntent::restart(count($items), $budget),
-            default => BuildIntent::fresh(count($items), $budget),
+            (bool) $this->option('restart') => BuildIntent::restart($totalCount, $budget),
+            default => BuildIntent::fresh($totalCount, $budget),
         };
 
-        $orchestrator = new IndexBuildOrchestrator($stateDir, $outputDir, $hmacSecret, $language);
         $reporter = new ArtisanProgressReporter($this);
-        $report = $orchestrator->build($intent, $items, reporter: $reporter);
+        $logger = new Logger(app('log')->driver(), app('events'));
+        $orchestrator = new IndexBuildOrchestrator($stateDir, $outputDir, $hmacSecret, $language);
+        $report = $orchestrator->build($intent, $items, $logger, $reporter);
 
         if (! $report->success) {
             $this->error('Index build failed: '.($report->error ?? 'Unknown error'));
@@ -368,11 +364,90 @@ class BuildCommand extends Command
     }
 
     /**
+     * Count content items across all configured Eloquent models without loading bodies.
+     *
+     * Uses Model::count() (a single SELECT COUNT query per model) so that
+     * gatherItemCount() is O(1) in memory regardless of corpus size.
+     *
+     * @return int Total count across all configured model classes.
+     *
+     * @since 0.3.2
+     *
+     * @stability experimental
+     */
+    private function gatherItemCount(): int
+    {
+        $models = config('scolta.models', []);
+        $total = 0;
+
+        foreach ($models as $modelClass) {
+            if (class_exists($modelClass)) {
+                $total += (int) $modelClass::count();
+            }
+        }
+
+        return $total;
+    }
+
+    /**
+     * Stream content items from all configured Eloquent models as a generator.
+     *
+     * Uses Model::cursor() which returns a lazy collection backed by a PDO
+     * cursor, hydrating one model at a time. Peak RSS stays bounded because
+     * only one model's fields are resident in memory at any given moment.
+     *
+     * Callers must NOT convert this generator to an array — that restores
+     * the pre-0.3.2 eager-load behaviour. Pass it directly to
+     * ContentExporter::filterItems() or IndexBuildOrchestrator::build().
+     *
+     * @return \Generator<ContentItem>
+     *
+     * @since 0.3.2
+     *
+     * @stability experimental
+     */
+    private function streamContentItems(): \Generator
+    {
+        $models = config('scolta.models', []);
+        $siteName = config('scolta.site_name', config('app.name'));
+
+        foreach ($models as $modelClass) {
+            if (! class_exists($modelClass)) {
+                $this->warn("  Model class not found: {$modelClass}");
+
+                continue;
+            }
+
+            foreach ($modelClass::cursor() as $model) {
+                if (! method_exists($model, 'toSearchableContent')) {
+                    continue;
+                }
+
+                $content = $model->toSearchableContent();
+
+                if ($content instanceof ContentItem) {
+                    yield $content;
+                } else {
+                    // Fallback for models returning an array.
+                    yield new ContentItem(
+                        id: $modelClass.'-'.$model->getKey(),
+                        title: $content['title'] ?? '',
+                        bodyHtml: $content['body'] ?? '',
+                        url: $content['url'] ?? '',
+                        date: $model->updated_at?->format('Y-m-d') ?? '',
+                        siteName: $siteName,
+                    );
+                }
+            }
+        }
+    }
+
+    /**
      * Gather content items from all configured Eloquent models.
      *
-     * Queries each model class listed in config('scolta.models'),
-     * calling toSearchableContent() on each instance to produce
-     * ContentItem objects for the PHP indexer.
+     * @deprecated 0.3.2 Use streamContentItems() for bounded-memory streaming.
+     *   This method is retained for the queue dispatch path which splits items
+     *   into discrete jobs and requires an array to chunk.
      *
      * @return ContentItem[]
      *
