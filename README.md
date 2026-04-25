@@ -445,6 +445,74 @@ Route prefix and middleware are configurable via `route_prefix` and `middleware`
 | `getSearchableType()` | class name | Content type identifier for tracking |
 | `shouldBeSearchable()` | `true` | Whether this instance should be indexed |
 
+## Optional Upgrades
+
+### Upgrade to the Pagefind binary indexer
+
+On hosts with Node.js ≥ 18 or binary execution support, the Pagefind binary is 5–10× faster than the PHP indexer:
+
+```bash
+php artisan scolta:download-pagefind
+# or: npm install -g pagefind
+```
+
+Set `SCOLTA_INDEXER=binary` in `.env` and rebuild. The PHP indexer continues to work on managed hosts (WP Engine, Kinsta, Pantheon, etc.) where binary execution is disabled.
+
+### Keeping the Index Fresh
+
+When **auto_rebuild** is enabled (`SCOLTA_AUTO_REBUILD=true` in `.env`), a `ScoltaObserver` watches the models listed in `config/scolta.php` and dispatches a debounced `TriggerRebuild` job whenever a model is saved or deleted (default delay: 5 minutes). This requires a queue worker running.
+
+Three paths are available, in order of reliability:
+
+#### Path A: Queue worker / Supervisor (recommended)
+
+Enable **auto_rebuild** and run a persistent queue worker:
+
+```bash
+php artisan queue:work --tries=3
+```
+
+For production, use [Supervisor](https://laravel.com/docs/queues#supervisor-configuration) or [Laravel Forge](https://forge.laravel.com) to keep the worker running. Forge configures this automatically.
+
+Content saves trigger `ScoltaObserver`, which dispatches a `TriggerRebuild` job after the configured delay. The queue worker processes that job in the background.
+
+#### Path B: Laravel Scheduler
+
+Add a scheduled rebuild to your app. One system cron entry handles all Laravel scheduled tasks:
+
+```
+* * * * * cd /var/www/html && php artisan schedule:run 2>&1 | logger -t scolta
+```
+
+Then schedule the build in `routes/console.php` (Laravel 11+):
+
+```php
+use Illuminate\Support\Facades\Schedule;
+
+Schedule::command('scolta:build --incremental')->everyFifteenMinutes();
+```
+
+Or in `app/Console/Kernel.php` (Laravel 10):
+
+```php
+protected function schedule(Schedule $schedule): void
+{
+    $schedule->command('scolta:build --incremental')->everyFifteenMinutes();
+}
+```
+
+`--incremental` only processes tracked changes, so runs are fast when nothing has changed.
+
+#### Path C: System cron (direct)
+
+Call `scolta:build` directly from system cron, bypassing the Scheduler:
+
+```
+*/15 * * * * cd /var/www/html && php artisan scolta:build --incremental 2>&1 | logger -t scolta
+```
+
+Simpler than the Scheduler but without Laravel's logging integration and overlap protection.
+
 ## Requirements
 
 - Laravel 11 or 12
