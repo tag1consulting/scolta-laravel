@@ -7,6 +7,7 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 ## [Unreleased]
 
 ### Added
+- **AI configuration tests (Phase 5).** Added `test_ai_feature_toggle_defaults` asserting that `ai_expand_query`, `ai_summarize`, and `max_follow_ups` have the correct default values (true, true, 3).
 - **Scoring behavior tests (Phase 1).** Extended `test_scoring_section` to assert `language`, `recency_strategy`, and `recency_curve` keys are present in the scoring config. Extended `test_scoring_defaults` to assert their default values. Added `test_ai_languages_default` confirming `ai_languages` is an array containing `'en'`.
 
 ## [0.3.3] - 2026-04-26

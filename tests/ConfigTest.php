@@ -54,6 +54,13 @@ class ConfigTest extends TestCase
         $this->assertArrayHasKey('max_follow_ups', $this->config);
     }
 
+    public function test_ai_feature_toggle_defaults(): void
+    {
+        $this->assertTrue($this->config['ai_expand_query']);
+        $this->assertTrue($this->config['ai_summarize']);
+        $this->assertEquals(3, $this->config['max_follow_ups']);
+    }
+
     // -------------------------------------------------------------------
     // Site identity
     // -------------------------------------------------------------------
