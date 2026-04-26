@@ -6,6 +6,8 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-04-26
+
 ### Fixed
 - **`$budgetProfile` undefined variable in `dispatchToQueue()`**: `FinalizeIndex` was receiving `null` as its `$memoryBudget` argument. Now passes `$budget->profile()`.
 
