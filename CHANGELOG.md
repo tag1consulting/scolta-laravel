@@ -14,6 +14,8 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 - **`buildWithPhpIndexer()` intent construction**: Replaced inline `match(true)` with `BuildIntentFactory::fromFlags()` (scolta-php).
 - **`ExpandQueryController`, `SummarizeController`, `FollowUpController`**: Now use `AiControllerTrait` (scolta-php) for `AiEndpointHandler` construction. `Dispatcher` moved from method injection to constructor injection so `resolveEnricher()` can access it.
 - **`ArtisanProgressReporter::advance()`**: Now calls `setMessage($detail)` on the Symfony ProgressBar when a detail string is provided.
+- **Anti-pattern CI check.** New `antipatterns` CI job catches `IndexBuildOrchestrator` construction without logger/progress.
+- **scolta-php dependency bumped to `^0.3.3`** (atomic manifest writes, CRC32 chunk validation, stale lock detection).
 
 ## [0.3.2] - 2026-04-24
 
