@@ -6,6 +6,9 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+### Added
+- **Scoring behavior tests (Phase 1).** Extended `test_scoring_section` to assert `language`, `recency_strategy`, and `recency_curve` keys are present in the scoring config. Extended `test_scoring_defaults` to assert their default values. Added `test_ai_languages_default` confirming `ai_languages` is an array containing `'en'`.
+
 ## [0.3.3] - 2026-04-26
 
 ### Fixed

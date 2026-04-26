@@ -103,6 +103,7 @@ class ConfigTest extends TestCase
             'content_match_boost', 'recency_boost_max',
             'recency_half_life_days', 'recency_penalty_after_days',
             'recency_max_penalty', 'expand_primary_weight',
+            'language', 'recency_strategy', 'recency_curve',
         ];
 
         foreach ($expectedKeys as $key) {
@@ -121,6 +122,16 @@ class ConfigTest extends TestCase
         $this->assertEquals(1825, $scoring['recency_penalty_after_days']);
         $this->assertEquals(0.3, $scoring['recency_max_penalty']);
         $this->assertEquals(0.7, $scoring['expand_primary_weight']);
+        $this->assertEquals('en', $scoring['language']);
+        $this->assertEquals('exponential', $scoring['recency_strategy']);
+        $this->assertIsArray($scoring['recency_curve']);
+    }
+
+    public function test_ai_languages_default(): void
+    {
+        $this->assertArrayHasKey('ai_languages', $this->config);
+        $this->assertIsArray($this->config['ai_languages']);
+        $this->assertContains('en', $this->config['ai_languages']);
     }
 
     // -------------------------------------------------------------------
