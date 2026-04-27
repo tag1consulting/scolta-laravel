@@ -135,6 +135,7 @@ class DownloadPagefindCommand extends Command
             }
             if (file_put_contents($envPath, $env) === false) {
                 $this->error("Failed to update .env at {$envPath}");
+
                 return self::FAILURE;
             }
             $this->info("Updated .env: SCOLTA_PAGEFIND_BINARY={$targetBinary}");

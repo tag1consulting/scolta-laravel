@@ -11,9 +11,9 @@ use PHPUnit\Framework\TestCase;
  */
 class HygieneTest extends TestCase
 {
-    public function testTriggerRebuildDoesNotUseSerialize(): void
+    public function test_trigger_rebuild_does_not_use_serialize(): void
     {
-        $source = file_get_contents(__DIR__ . '/../src/Jobs/TriggerRebuild.php');
+        $source = file_get_contents(__DIR__.'/../src/Jobs/TriggerRebuild.php');
         $this->assertDoesNotMatchRegularExpression(
             '/\bserialize\s*\(/',
             $source,
@@ -21,9 +21,9 @@ class HygieneTest extends TestCase
         );
     }
 
-    public function testFilePutContentsAlwaysChecked(): void
+    public function test_file_put_contents_always_checked(): void
     {
-        $source = file_get_contents(__DIR__ . '/../src/Commands/DownloadPagefindCommand.php');
+        $source = file_get_contents(__DIR__.'/../src/Commands/DownloadPagefindCommand.php');
 
         // Assert the file still contains a file_put_contents call so this test remains meaningful.
         $this->assertMatchesRegularExpression(
@@ -39,7 +39,7 @@ class HygieneTest extends TestCase
             $this->assertMatchesRegularExpression(
                 '/(?:if\s*\(|return\s)/',
                 $preceding,
-                'DownloadPagefindCommand: file_put_contents at offset ' . $offset . ' must be wrapped in an error check.'
+                'DownloadPagefindCommand: file_put_contents at offset '.$offset.' must be wrapped in an error check.'
             );
         }
     }
