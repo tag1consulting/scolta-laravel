@@ -6,6 +6,8 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-04-27
+
 ### Fixed
 - **`TriggerRebuild` no longer passes `$fingerprint` to `FinalizeIndex`.** The `$fingerprint` parameter was removed from `FinalizeIndex`'s constructor in the 0.3.0 rewrite, but `TriggerRebuild` was not updated. The md5 hash was silently flowing into the `$memoryBudget` slot and causing auto-rebuild jobs to always use the conservative memory budget, ignoring any explicitly configured budget.
 - **Hygiene:** Replaced `md5(serialize($items))` with `md5(json_encode($items, JSON_THROW_ON_ERROR))` in `TriggerRebuild` for content fingerprinting — `json_encode` is faster, produces deterministic output across PHP versions, and avoids `serialize` baggage.
