@@ -6,6 +6,12 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+### Fixed
+- **Hygiene:** Replaced `md5(serialize($items))` with `md5(json_encode($items, JSON_THROW_ON_ERROR))` in `TriggerRebuild` for content fingerprinting — `json_encode` is faster, produces deterministic output across PHP versions, and avoids `serialize` baggage.
+- **Hygiene:** Added `=== false` error check to `file_put_contents` in `DownloadPagefindCommand` — failed `.env` writes now report an error instead of silently continuing.
+- **Hygiene:** Added TOCTOU-safe comments to intentional `@unlink` calls in `CleanupCommand` and `DownloadPagefindCommand`.
+- **Hygiene:** Added source-parse tests preventing reintroduction of bare `serialize()` and unchecked `file_put_contents`.
+
 ### Added
 - **`LaravelCacheDriver` behavior tests.** New `ScoltaCacheBehaviorTest`: verifies the driver contract (get/set/miss/array values) and end-to-end handler+driver caching — second call to `handleExpandQuery`/`handleSummarize` serves from the in-memory Cache facade (AI called once), while `cacheTtl=0` calls the AI service both times. Uses `Cache::swap(new Repository(new ArrayStore))` so no real cache store is needed.
 - **New `ScoltaConfigIntegrationTest`.** Verifies the full pipeline: Laravel config → `ScoltaAiService::flattenConfig()` → `ScoltaConfig::fromArray()` → `toJsScoringConfig()` / `toAiClientConfig()`. Covers all 8 scoring fields, language, recency_strategy, all 5 display fields, feature toggles, AI client config (provider/model/base_url/omission), ai_languages, custom_stop_words, phrase proximity (defaults + overrides), cache_ttl (including 0), and all three prompt overrides.

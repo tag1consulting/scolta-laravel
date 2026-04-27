@@ -47,6 +47,7 @@ class CleanupCommand extends Command
                 if ($dryRun) {
                     $this->line("[dry-run] Would remove stale lock: {$lockFile} (age: {$age}s)");
                 } else {
+                    // Suppress: best-effort cleanup, file may already be removed.
                     @unlink($lockFile);
                     $this->line("Removed stale lock: {$lockFile}");
                 }
@@ -67,6 +68,7 @@ class CleanupCommand extends Command
                     if ($dryRun) {
                         $this->line("[dry-run] Would remove orphaned chunk: {$chunkFile}");
                     } else {
+                        // Suppress: best-effort cleanup, file may already be removed.
                         @unlink($chunkFile);
                         $this->line("Removed orphaned chunk: {$chunkFile}");
                     }
@@ -90,6 +92,7 @@ class CleanupCommand extends Command
                     if ($dryRun) {
                         $this->line("[dry-run] Would remove orphaned index file: {$orphan}");
                     } else {
+                        // Suppress: best-effort cleanup, file may already be removed.
                         @unlink($orphan);
                         $this->line("Removed orphaned index file: {$orphan}");
                     }

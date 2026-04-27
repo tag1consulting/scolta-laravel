@@ -97,7 +97,7 @@ class TriggerRebuild implements ShouldQueue
         }
         // When forced but fingerprint is null, compute one for finalization.
         if ($fingerprint === null) {
-            $fingerprint = md5(serialize($items));
+            $fingerprint = md5(json_encode($items, JSON_THROW_ON_ERROR));
         }
 
         // Chunk and dispatch.
