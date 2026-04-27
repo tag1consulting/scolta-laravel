@@ -89,6 +89,7 @@ class DownloadPagefindCommand extends Command
 
         if ($downloadResponse->failed()) {
             $this->error('Download failed: HTTP '.$downloadResponse->status());
+            // Suppress: best-effort cleanup of partial download, file may already be removed.
             @unlink($tmpFile);
 
             return self::FAILURE;
@@ -103,6 +104,7 @@ class DownloadPagefindCommand extends Command
             .' pagefind'
         );
 
+        // Suppress: best-effort cleanup of partial download, file may already be removed.
         @unlink($tmpFile);
 
         if (! file_exists($targetBinary)) {
@@ -131,7 +133,10 @@ class DownloadPagefindCommand extends Command
             } else {
                 $env .= "\nSCOLTA_PAGEFIND_BINARY={$targetBinary}\n";
             }
-            file_put_contents($envPath, $env);
+            if (file_put_contents($envPath, $env) === false) {
+                $this->error("Failed to update .env at {$envPath}");
+                return self::FAILURE;
+            }
             $this->info("Updated .env: SCOLTA_PAGEFIND_BINARY={$targetBinary}");
         } else {
             $this->warn("Add to your .env: SCOLTA_PAGEFIND_BINARY={$targetBinary}");

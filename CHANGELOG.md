@@ -6,6 +6,12 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+### Fixed
+- **Hygiene:** Replaced `md5(serialize($items))` with `md5(json_encode($items, JSON_THROW_ON_ERROR))` in `TriggerRebuild` for content fingerprinting — `json_encode` is faster, produces deterministic output across PHP versions, and avoids `serialize` baggage.
+- **Hygiene:** Added `=== false` error check to `file_put_contents` in `DownloadPagefindCommand` — failed `.env` writes now report an error instead of silently continuing.
+- **Hygiene:** Added TOCTOU-safe comments to intentional `@unlink` calls in `CleanupCommand` and `DownloadPagefindCommand`.
+- **Hygiene:** Added source-parse tests preventing reintroduction of bare `serialize()` and unchecked `file_put_contents`.
+
 ### Added
 - **AI configuration tests (Phase 5).** Added `test_ai_feature_toggle_defaults` asserting that `ai_expand_query`, `ai_summarize`, and `max_follow_ups` have the correct default values (true, true, 3).
 - **Scoring behavior tests (Phase 1).** Extended `test_scoring_section` to assert `language`, `recency_strategy`, and `recency_curve` keys are present in the scoring config. Extended `test_scoring_defaults` to assert their default values. Added `test_ai_languages_default` confirming `ai_languages` is an array containing `'en'`.
