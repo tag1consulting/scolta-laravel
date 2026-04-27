@@ -122,7 +122,6 @@ class TriggerRebuild implements ShouldQueue
             $outputDir,
             $hmacSecret,
             $language,
-            $fingerprint,
         );
 
         Bus::chain($jobs)->dispatch();

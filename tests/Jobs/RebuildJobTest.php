@@ -97,6 +97,26 @@ class RebuildJobTest extends TestCase
         );
     }
 
+    public function test_finalize_index_default_memory_budget(): void
+    {
+        $job = new FinalizeIndex('/tmp/state', '/tmp/output');
+        $reflection = new ReflectionProperty($job, 'memoryBudget');
+        $this->assertSame('conservative', $reflection->getValue($job));
+    }
+
+    public function test_trigger_rebuild_does_not_pass_fingerprint_to_finalize_index(): void
+    {
+        $source = file_get_contents(__DIR__.'/../../src/Jobs/TriggerRebuild.php');
+        preg_match('/new FinalizeIndex\s*\(([^;]+)\)/s', $source, $matches);
+        if (! empty($matches[1])) {
+            $this->assertStringNotContainsString(
+                '$fingerprint',
+                $matches[1],
+                'TriggerRebuild must not pass $fingerprint to FinalizeIndex constructor.'
+            );
+        }
+    }
+
     // -------------------------------------------------------------------
     // ScoltaObserver dispatches TriggerRebuild
     // -------------------------------------------------------------------
