@@ -33,6 +33,7 @@ return [
     'ai_provider' => env('SCOLTA_AI_PROVIDER', 'anthropic'),
     'ai_api_key' => env('SCOLTA_API_KEY', env('SCOLTA_AI_API_KEY', '')),
     'ai_model' => env('SCOLTA_AI_MODEL', 'claude-sonnet-4-5-20250929'),
+    'ai_expansion_model' => env('SCOLTA_EXPANSION_MODEL', ''),
     'ai_base_url' => env('SCOLTA_AI_BASE_URL', ''),
 
     /*
