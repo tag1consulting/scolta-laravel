@@ -128,7 +128,7 @@ class ConfigTest extends TestCase
         $this->assertEquals(365, $scoring['recency_half_life_days']);
         $this->assertEquals(1825, $scoring['recency_penalty_after_days']);
         $this->assertEquals(0.3, $scoring['recency_max_penalty']);
-        $this->assertEquals(0.7, $scoring['expand_primary_weight']);
+        $this->assertEquals(0.5, $scoring['expand_primary_weight']);
         $this->assertEquals('en', $scoring['language']);
         $this->assertEquals('exponential', $scoring['recency_strategy']);
         $this->assertIsArray($scoring['recency_curve']);
@@ -150,8 +150,8 @@ class ConfigTest extends TestCase
         $this->assertEquals(300, $this->config['excerpt_length']);
         $this->assertEquals(10, $this->config['results_per_page']);
         $this->assertEquals(50, $this->config['max_pagefind_results']);
-        $this->assertEquals(5, $this->config['ai_summary_top_n']);
-        $this->assertEquals(2000, $this->config['ai_summary_max_chars']);
+        $this->assertEquals(10, $this->config['ai_summary_top_n']);
+        $this->assertEquals(4000, $this->config['ai_summary_max_chars']);
     }
 
     // -------------------------------------------------------------------

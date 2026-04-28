@@ -61,7 +61,7 @@ class ScoltaConfigIntegrationTest extends TestCase
         $this->assertEquals(365, $js['RECENCY_HALF_LIFE_DAYS']);
         $this->assertEquals(1825, $js['RECENCY_PENALTY_AFTER_DAYS']);
         $this->assertEquals(0.3, $js['RECENCY_MAX_PENALTY']);
-        $this->assertEquals(0.7, $js['EXPAND_PRIMARY_WEIGHT']);
+        $this->assertEquals(0.5, $js['EXPAND_PRIMARY_WEIGHT']);
         $this->assertEquals('en', $js['LANGUAGE']);
         $this->assertEquals('exponential', $js['RECENCY_STRATEGY']);
         $this->assertIsArray($js['RECENCY_CURVE']);
@@ -105,8 +105,8 @@ class ScoltaConfigIntegrationTest extends TestCase
         $this->assertEquals(300, $js['EXCERPT_LENGTH']);
         $this->assertEquals(10, $js['RESULTS_PER_PAGE']);
         $this->assertEquals(50, $js['MAX_PAGEFIND_RESULTS']);
-        $this->assertEquals(5, $js['AI_SUMMARY_TOP_N']);
-        $this->assertEquals(2000, $js['AI_SUMMARY_MAX_CHARS']);
+        $this->assertEquals(10, $js['AI_SUMMARY_TOP_N']);
+        $this->assertEquals(4000, $js['AI_SUMMARY_MAX_CHARS']);
     }
 
     public function test_display_overrides_propagate_to_js_output(): void
