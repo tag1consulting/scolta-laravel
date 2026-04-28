@@ -179,7 +179,7 @@ return [
         'recency_half_life_days' => 365,
         'recency_penalty_after_days' => 1825,
         'recency_max_penalty' => 0.3,
-        'expand_primary_weight' => 0.7,
+        'expand_primary_weight' => 0.5,
 
         // Language-aware stop words (0.2.2+)
         // ISO 639-1 code for stop word filtering. Supported: ar, ca, da, de, el,
@@ -208,8 +208,8 @@ return [
     'excerpt_length' => 300,
     'results_per_page' => 10,
     'max_pagefind_results' => 50,
-    'ai_summary_top_n' => 5,
-    'ai_summary_max_chars' => 2000,
+    'ai_summary_top_n' => 10,
+    'ai_summary_max_chars' => 4000,
 
     /*
     |--------------------------------------------------------------------------
