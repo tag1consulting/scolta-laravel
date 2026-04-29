@@ -6,6 +6,10 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+_No changes yet._
+
+## [0.3.6] - 2026-04-29
+
 ### Added
 - **`ai_expansion_model` config key** (`SCOLTA_EXPANSION_MODEL` env var, default `''`): Optional model for query expansion only. When set, expand-query uses this model while summarize and follow-up continue using `ai_model`. Leave empty for unchanged single-model behavior.
 
