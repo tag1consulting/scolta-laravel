@@ -6,7 +6,7 @@ Laravel 11/12 package — Artisan commands, `Searchable` trait for Eloquent mode
 
 ## Status
 
-Beta. Scolta is installable and in active use on Laravel applications. The API documented here will not break within the 0.x minor series without a deprecation notice. Expect breaking changes before 1.0. Test in staging before deploying to production. File bugs at the repo issue tracker.
+Scolta is in active production use on Laravel 11 and 12. The API documented here is stable within the 0.x minor series — no changes without a deprecation notice and a replacement in place. Some capabilities are still maturing toward a 1.0 release; test in staging when upgrading between minor versions. File bugs at the repo issue tracker.
 
 ## What Is Scolta?
 
@@ -118,16 +118,11 @@ php artisan scolta:status
 
 The health endpoint also reports current state: `GET /api/scolta/v1/health`
 
-## What Scolta Replaces (and What It Doesn't)
+## What Scolta Is Built For
 
-Scolta is a practical replacement for hosted search SaaS (Algolia, Coveo, SearchStax) and for self-hosted search backends like Solr or Elasticsearch when the use case is content search on a Laravel application.
+Scolta is designed for content search on Laravel applications: articles, documentation, product catalogs, knowledge bases, and other Eloquent model content indexed at build time. Laravel powers SaaS products, enterprise applications, API platforms, and content-driven sites — and Scolta is tuned for the content search needs of these applications.
 
-Scolta is not a replacement for:
-
-- Full-text database search with row-level access control (per-document permissions enforced at query time).
-- Elasticsearch setups used for log analytics, observability, or complex aggregation queries.
-- Vector databases used as a general retrieval layer for RAG pipelines.
-- Enterprise search with audit logging, retention policies, or SSO-gated content visibility.
+The static-index architecture means no Elasticsearch or Solr server to provision. Scolta replaces hosted search SaaS (Algolia, Coveo, SearchStax) and Solr/Elasticsearch backends for Laravel applications where the search use case is full-text relevance, recency, and phrase matching. It runs on managed hosting where binary execution is restricted, using the PHP indexer automatically.
 
 ### Migrating from Laravel Scout
 
