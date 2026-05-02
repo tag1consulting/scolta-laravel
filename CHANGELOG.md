@@ -6,7 +6,8 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
-_No changes yet._
+### Added
+- **`preset` key in `config/scolta.php`**: Set `SCOLTA_PRESET` in `.env` (or edit the published config file) to apply a named scoring preset. Available values: `content_catalog`, `reference`, `ecommerce`, `blog`, `none` (default). The `flattenConfig()` helper already passes this key through to `ScoltaConfig::fromArray()`, which applies preset values before any explicit scoring overrides in the `scoring` array. Requires scolta-php ≥ 0.3.9.
 
 ## [0.3.8] - 2026-05-01
 

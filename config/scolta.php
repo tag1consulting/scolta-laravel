@@ -30,6 +30,29 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Site Type Preset — Start Here
+    |--------------------------------------------------------------------------
+    |
+    | Pick the closest match for your site. This gives you a good set of
+    | scoring defaults. Presets adjust how Scolta ranks results — how much
+    | weight goes to titles vs. page content, whether newer content ranks
+    | higher, and how broadly Scolta interprets what you searched for.
+    |
+    | The preset is a starting point, not a constraint. You can optionally
+    | override any individual value in the 'scoring' section below.
+    |
+    | Available presets:
+    |   'content_catalog'  - Recipe sites, wikis, content collections
+    |   'reference'        - Documentation, knowledge bases, encyclopedias
+    |   'ecommerce'        - Online stores, product catalogs
+    |   'blog'             - Blogs, news, editorial content
+    |   'none'             - No preset (default). All values from 'scoring' below.
+    |
+    */
+    'preset' => env('SCOLTA_PRESET', 'none'),
+
     'ai_provider' => env('SCOLTA_AI_PROVIDER', 'anthropic'),
     'ai_api_key' => env('SCOLTA_API_KEY', env('SCOLTA_AI_API_KEY', '')),
     'ai_model' => env('SCOLTA_AI_MODEL', 'claude-sonnet-4-5-20250929'),
@@ -169,6 +192,9 @@ return [
     |
     | Fine-tune how search results are ranked. These values are passed
     | to the JavaScript scoring algorithm via the Blade component.
+    |
+    | Any value you set here overrides the preset above. Leave a value at
+    | its default to use the preset's recommendation.
     |
     */
 
