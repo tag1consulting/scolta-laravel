@@ -6,6 +6,9 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+### Note
+- Version synchronized with coordinated 0.3.10 release across all Scolta packages. No Laravel-specific changes in this release.
+
 ## [0.3.9] - 2026-05-02
 
 ### Added
