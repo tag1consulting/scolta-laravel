@@ -166,7 +166,7 @@ class BuildCommand extends Command
         $reporter = new ArtisanProgressReporter($this);
         $logger = new Logger(app('log')->driver(), app('events'));
         $orchestrator = new IndexBuildOrchestrator($stateDir, $outputDir, $hmacSecret, $language);
-        $report = $orchestrator->build($intent, $items, $logger, $reporter);
+        $report = $orchestrator->build($intent, $items, $logger, $reporter, force: (bool) $this->option('force'));
 
         if (! $report->success) {
             $this->error('Index build failed: '.($report->error ?? 'Unknown error'));
