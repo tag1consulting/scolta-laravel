@@ -121,9 +121,9 @@ return [
     |
     | Controls which indexing backend is used when running `scolta:build`.
     |
-    | - 'auto'   (default) Use the Pagefind binary if available, otherwise
-    |             fall back to the pure-PHP indexer.
-    | - 'php'    Always use the pure-PHP indexer (no external binary needed).
+    | - 'auto'   (default) Use the pure-PHP indexer. Works on all hosting
+    |             environments, no binary or Node.js required.
+    | - 'php'    Explicitly select the pure-PHP indexer.
     | - 'binary' Always use the Pagefind CLI binary (fails if not found).
     |
     | Can be overridden per-invocation with `--indexer=php|binary|auto`.
