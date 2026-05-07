@@ -303,7 +303,7 @@ class CommandValidationTest extends TestCase
         $this->assertStringContainsString(
             "if (\$indexer === 'auto') {",
             $source,
-            "resolveIndexer() must have an auto branch"
+            'resolveIndexer() must have an auto branch'
         );
         $this->assertStringContainsString(
             "return 'php';",
@@ -324,9 +324,9 @@ class CommandValidationTest extends TestCase
         );
         // resolveIndexer must not call PagefindBinary when $indexer === 'auto'.
         $this->assertStringNotContainsString(
-            "resolveAutoIndexer",
+            'resolveAutoIndexer',
             $source,
-            "BuildCommand must not delegate auto resolution to a binary-checking method"
+            'BuildCommand must not delegate auto resolution to a binary-checking method'
         );
     }
 }
