@@ -8,7 +8,6 @@ use Illuminate\Console\Command;
 use Illuminate\Log\Logger;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use Tag1\Scolta\Binary\PagefindBinary;
 use Tag1\Scolta\Config\MemoryBudgetConfig;
@@ -89,7 +88,10 @@ class BuildCommand extends Command
      * Resolve the effective indexer backend.
      *
      * Priority: --indexer CLI option > config('scolta.indexer') > 'auto'.
-     * When 'auto', prefer the binary if available, fall back to PHP.
+     * When 'auto', always uses the PHP indexer — it works on all PHP hosting
+     * environments without exec() or Node.js, uses less memory, and supports
+     * fast incremental re-indexing. Set indexer=binary to use the Pagefind
+     * binary explicitly.
      *
      * @since 0.2.0
      *
@@ -103,22 +105,7 @@ class BuildCommand extends Command
         }
 
         if ($indexer === 'auto') {
-            $resolver = new PagefindBinary(
-                configuredPath: config('scolta.pagefind.binary'),
-                projectDir: base_path(),
-            );
-            $binary = $resolver->resolve();
-
-            if ($binary === null) {
-                $message = 'Pagefind binary not found. Using PHP indexer (slower, 14 Snowball languages vs 33+). '
-                    .'For faster indexing: npm install -g pagefind';
-                $this->warn($message);
-                Log::info('[scolta] '.$message);
-
-                return 'php';
-            }
-
-            return 'binary';
+            return 'php';
         }
 
         return $indexer;

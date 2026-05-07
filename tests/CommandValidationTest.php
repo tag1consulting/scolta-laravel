@@ -291,4 +291,42 @@ class CommandValidationTest extends TestCase
             "{$class} should extend Illuminate\\Console\\Command."
         );
     }
+
+    // -------------------------------------------------------------------
+    // Auto indexer always uses PHP (no binary check).
+    // -------------------------------------------------------------------
+
+    public function test_auto_indexer_returns_php(): void
+    {
+        $source = file_get_contents(dirname(__DIR__).'/src/Commands/BuildCommand.php');
+
+        $this->assertStringContainsString(
+            "if (\$indexer === 'auto') {",
+            $source,
+            'resolveIndexer() must have an auto branch'
+        );
+        $this->assertStringContainsString(
+            "return 'php';",
+            $source,
+            "resolveIndexer() auto branch must return 'php'"
+        );
+    }
+
+    public function test_auto_indexer_does_not_fall_through_to_binary_check(): void
+    {
+        $source = file_get_contents(dirname(__DIR__).'/src/Commands/BuildCommand.php');
+
+        // The old auto branch checked PagefindBinary availability. That must not happen.
+        $this->assertStringNotContainsString(
+            'binary (auto-detected)',
+            $source,
+            "BuildCommand must not display 'binary (auto-detected)' — auto now always uses PHP"
+        );
+        // resolveIndexer must not call PagefindBinary when $indexer === 'auto'.
+        $this->assertStringNotContainsString(
+            'resolveAutoIndexer',
+            $source,
+            'BuildCommand must not delegate auto resolution to a binary-checking method'
+        );
+    }
 }
