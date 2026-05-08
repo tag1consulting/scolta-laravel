@@ -12,7 +12,7 @@
     ],
     "require": {
         "php": ">=8.1",
-        "tag1/scolta-php": "^0.3.3",
+        "tag1/scolta-php": "^0.3.11",
         "illuminate/support": "^11.0|^12.0",
         "illuminate/console": "^11.0|^12.0",
         "illuminate/database": "^11.0|^12.0",
@@ -46,6 +46,8 @@
             ]
         }
     },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
     "repositories": [
         {
             "type": "path",
