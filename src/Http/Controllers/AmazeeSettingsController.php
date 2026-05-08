@@ -11,6 +11,7 @@ use Illuminate\View\View;
 use Tag1\Scolta\AiProvider\Amazee\AmazeeAccountUpgrader;
 use Tag1\Scolta\AiProvider\Amazee\AmazeeApiException;
 use Tag1\Scolta\AiProvider\Amazee\AmazeeClient;
+use Tag1\Scolta\AiProvider\Amazee\AmazeeModelResolver;
 use Tag1\Scolta\AiProvider\Amazee\AmazeeTrialProvisioner;
 use Tag1\ScoltaLaravel\AiProvider\Amazee\LaravelConfigStorage;
 
@@ -57,11 +58,26 @@ class AmazeeSettingsController extends Controller
 
         try {
             $storage = new LaravelConfigStorage;
-            $provisioner = new AmazeeTrialProvisioner(new AmazeeClient, $storage);
-            $provisioner->provision($validated['email']);
+            $amazeeClient = new AmazeeClient;
+            $provisioner = new AmazeeTrialProvisioner(
+                $amazeeClient,
+                $storage,
+                null,
+                new AmazeeModelResolver($amazeeClient),
+            );
+            $result = $provisioner->provision($validated['email']);
+
+            if ($result->aiModel !== null) {
+                $storage->storeModels($result->aiModel, $result->aiExpansionModel ?? '');
+            }
+
             $request->session()->forget(self::SESSION_KEY);
 
-            return response()->json(['step' => 'connected']);
+            return response()->json([
+                'step' => 'connected',
+                'ai_model' => $result->aiModel,
+                'ai_expansion_model' => $result->aiExpansionModel,
+            ]);
         } catch (AmazeeApiException $e) {
             return response()->json(['error' => $e->getMessage()], 422);
         }
