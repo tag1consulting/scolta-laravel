@@ -73,6 +73,19 @@ class ScoltaServiceProvider extends ServiceProvider
                     $config['ai_base_url'] = $creds['litellm_api_url'];
                     $amazeeActive = true;
                 }
+
+                // Apply auto-selected models only when the current config
+                // value is still the default (not manually overridden).
+                $models = $storage->loadModels();
+                if ($models !== null) {
+                    $defaultModel = 'claude-sonnet-4-5-20250929';
+                    if ($models['ai_model'] !== '' && $config['ai_model'] === $defaultModel) {
+                        $config['ai_model'] = $models['ai_model'];
+                    }
+                    if ($models['ai_expansion_model'] !== '' && ($config['ai_expansion_model'] ?? '') === '') {
+                        $config['ai_expansion_model'] = $models['ai_expansion_model'];
+                    }
+                }
             } catch (\Exception) {
                 // DB not yet migrated — skip Amazee credential check.
             }

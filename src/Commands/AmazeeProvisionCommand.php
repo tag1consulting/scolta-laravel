@@ -7,6 +7,7 @@ namespace Tag1\ScoltaLaravel\Commands;
 use Illuminate\Console\Command;
 use Tag1\Scolta\AiProvider\Amazee\AmazeeApiException;
 use Tag1\Scolta\AiProvider\Amazee\AmazeeClient;
+use Tag1\Scolta\AiProvider\Amazee\AmazeeModelResolver;
 use Tag1\Scolta\AiProvider\Amazee\AmazeeTrialProvisioner;
 use Tag1\Scolta\AiProvider\Amazee\ProvisioningResult;
 use Tag1\ScoltaLaravel\AiProvider\Amazee\LaravelConfigStorage;
@@ -48,7 +49,13 @@ class AmazeeProvisionCommand extends Command
 
         try {
             $storage = new LaravelConfigStorage;
-            $provisioner = new AmazeeTrialProvisioner(new AmazeeClient, $storage, $hasExistingProvider);
+            $amazeeClient = new AmazeeClient;
+            $provisioner = new AmazeeTrialProvisioner(
+                $amazeeClient,
+                $storage,
+                $hasExistingProvider,
+                new AmazeeModelResolver($amazeeClient),
+            );
             $result = $provisioner->provision($email);
         } catch (AmazeeApiException $e) {
             $this->error('Provisioning failed: '.$e->getMessage());
@@ -64,8 +71,17 @@ class AmazeeProvisionCommand extends Command
         }
 
         $region = $result->region ?: 'unknown';
-
         $this->info("Connected to Amazee.ai (region: {$region}).");
+
+        if ($result->aiModel !== null) {
+            $storage = new LaravelConfigStorage;
+            $storage->storeModels($result->aiModel, $result->aiExpansionModel ?? '');
+            $this->line("  AI model:           {$result->aiModel}");
+            if ($result->aiExpansionModel !== null) {
+                $this->line("  AI expansion model: {$result->aiExpansionModel}");
+            }
+        }
+
         $this->line('Run <info>php artisan scolta:status</info> to verify the AI provider.');
 
         return self::SUCCESS;
