@@ -2,11 +2,11 @@
 
 [![CI](https://github.com/tag1consulting/scolta-laravel/actions/workflows/ci.yml/badge.svg)](https://github.com/tag1consulting/scolta-laravel/actions/workflows/ci.yml)
 
-Laravel 11/12 package — Artisan commands, `Searchable` trait for Eloquent models, and AI-powered search built on Pagefind.
+Laravel 11/12/13 package — Artisan commands, `Searchable` trait for Eloquent models, and AI-powered search built on Pagefind.
 
 ## Status
 
-Scolta is in active production use on Laravel 11 and 12. The API documented here is stable within the 0.x minor series — no changes without a deprecation notice and a replacement in place. Some capabilities are still maturing toward a 1.0 release; test in staging when upgrading between minor versions. File bugs at the repo issue tracker.
+Scolta 1.0 — the API documented here is stable. Breaking changes follow semantic versioning: no removal or signature change without a major version bump and a deprecation cycle. File bugs at the repo issue tracker.
 
 ## What Is Scolta?
 
@@ -78,7 +78,7 @@ The recipe fixture HTML files live in [scolta-php](https://github.com/tag1consul
 
 ```bash
 # 1. Install
-composer require tag1/scolta-laravel tag1/scolta-php
+composer require tag1/scolta-laravel:^1.0 tag1/scolta-php:^1.0
 
 # 2. Publish config, migrations, and assets
 php artisan vendor:publish --tag=scolta-config --tag=scolta-migrations --tag=scolta-assets
@@ -510,7 +510,7 @@ Simpler than the Scheduler but without Laravel's logging integration and overlap
 
 ## Requirements
 
-- Laravel 11 or 12
+- Laravel 11, 12, or 13
 - PHP 8.1+
 
 The Pagefind binary is optional — the PHP indexer works without it.
