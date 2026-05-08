@@ -75,7 +75,14 @@ class StructuralIntegrityTest extends TestCase
 
     public function test_illuminate_constraints_include_laravel_13(): void
     {
-        $composer = json_decode(file_get_contents($this->root.'/composer.json'), true);
+        // CI pins packages to a single version before running tests; read the committed
+        // composer.json from git HEAD so the assertion always checks the authored constraint.
+        $gitJson = trim((string) @shell_exec('git show HEAD:composer.json 2>/dev/null'));
+        $source = ($gitJson !== '' && str_starts_with($gitJson, '{'))
+            ? $gitJson
+            : file_get_contents($this->root.'/composer.json');
+
+        $composer = json_decode($source, true);
         $require = $composer['require'] ?? [];
 
         foreach (['illuminate/support', 'illuminate/console', 'illuminate/database', 'illuminate/routing'] as $pkg) {
