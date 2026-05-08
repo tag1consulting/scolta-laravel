@@ -6,6 +6,16 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+### Added
+- **Amazee.ai integration.** Connect Scolta to Amazee.ai's privacy-respecting LiteLLM proxy.
+  - `LaravelConfigStorage`: `ConfigStorageInterface` backed by the `scolta_config` database table (token encrypted via `Crypt` facade).
+  - Migration `2026_05_08_000001_create_scolta_config_table` creates the key/value config store.
+  - `AmazeeSettingsController`: multi-step connection flow (free trial + OTP sign-in) via 7 JSON endpoints at `GET|POST|DELETE /scolta/amazee/*`. In-flight state stored in the Laravel session.
+  - `HandleAmazeeBudgetExceeded` middleware: converts `AmazeeBudgetExceededException` to a `503` JSON response with `Retry-After: 3600`; automatically applied to AI endpoints.
+  - `AmazeeProvisionCommand` (`scolta:amazee:provision {email}`): CLI provisioning for headless/CI environments.
+  - `amazee-settings.blade.php`: Alpine.js multi-step settings UI, matching the WordPress/Drupal admin pages.
+  - `ScoltaAiService` now detects stored Amazee credentials at container-bind time and routes requests through the LiteLLM proxy. Budget `RuntimeException`s are converted to `AmazeeBudgetExceededException`.
+
 ### Changed
 - **`indexer: auto` now always uses the PHP indexer.** Previously `auto` tried the Pagefind binary first and fell back to PHP. The PHP indexer works on all Laravel hosting environments without `exec()` or Node.js, uses less memory, and supports fast incremental re-indexing. Use `indexer: binary` to keep the old binary-first behaviour.
 - **`php artisan scolta:build --force` now bypasses the per-item token cache** in addition to the existing fingerprint check. Previously `--force` only skipped the `shouldBuild()` fingerprint comparison; the page-word cache (new in this release, provided by scolta-php) was still consulted. With this change, `--force` triggers a full re-tokenization of every content item.
