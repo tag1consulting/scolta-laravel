@@ -14,6 +14,9 @@ First stable release — all features from 0.3.x promoted to 1.0 API surface.
 ## [Unreleased]
 
 ### Added
+- **Laravel 13 support.** All `illuminate/*` constraints now include `^13.0`, and `orchestra/testbench` allows `^11.0`. The CI matrix covers Laravel 11, 12, and 13 with dedicated jobs. ([scolta-laravel#22](https://github.com/tag1consulting/scolta-laravel/issues/22))
+
+### Added
 - **Amazee.ai auto-configuration: best available Claude model is applied after trial provisioning.** `LaravelConfigStorage` gains `storeModels()` / `loadModels()` backed by the `scolta_config` table. `ScoltaServiceProvider` overlays the stored model values at boot time if `config('scolta.ai_model')` is still the default. `AmazeeSettingsController::startTrial()` and `AmazeeProvisionCommand::handle()` call `AmazeeModelResolver` and persist the results. The artisan command prints the auto-selected model names.
 
 ### Added

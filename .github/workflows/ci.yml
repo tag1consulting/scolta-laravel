@@ -13,10 +13,19 @@ jobs:
       matrix:
         include:
           - php: '8.2'
+            laravel: '11'
             lint: false
           - php: '8.3'
+            laravel: '11'
+            lint: false
+          - php: '8.3'
+            laravel: '12'
             lint: true
+          - php: '8.3'
+            laravel: '13'
+            lint: false
           - php: '8.4'
+            laravel: '13'
             lint: false
     steps:
       - uses: actions/checkout@v4
@@ -28,12 +37,16 @@ jobs:
           extensions: intl
           coverage: none
 
-      - name: Replace path repo with GitHub VCS repo
+      - name: Replace path repo with GitHub VCS repo and pin Laravel version
         run: |
           php -r '
             $j = json_decode(file_get_contents("composer.json"), true);
             $j["repositories"] = [["type" => "vcs", "url" => "https://github.com/tag1consulting/scolta-php.git"]];
             $j["require"]["tag1/scolta-php"] = "dev-main@dev";
+            $v = "${{ matrix.laravel }}";
+            foreach (["illuminate/support","illuminate/console","illuminate/database","illuminate/routing"] as $pkg) {
+                $j["require"][$pkg] = "^{$v}.0";
+            }
             file_put_contents("composer.json", json_encode($j, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
           '
 
