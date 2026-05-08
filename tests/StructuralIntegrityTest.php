@@ -73,6 +73,21 @@ class StructuralIntegrityTest extends TestCase
         );
     }
 
+    public function test_illuminate_constraints_include_laravel_13(): void
+    {
+        $composer = json_decode(file_get_contents($this->root.'/composer.json'), true);
+        $require = $composer['require'] ?? [];
+
+        foreach (['illuminate/support', 'illuminate/console', 'illuminate/database', 'illuminate/routing'] as $pkg) {
+            $constraint = $require[$pkg] ?? '';
+            $this->assertStringContainsString(
+                '^13',
+                $constraint,
+                "{$pkg} constraint must include ^13.0 to support Laravel 13 (got: {$constraint})"
+            );
+        }
+    }
+
     public function test_composer_auto_discovery(): void
     {
         $composer = json_decode(file_get_contents($this->root.'/composer.json'), true);
