@@ -35,12 +35,14 @@ class AmazeeSettingsController extends Controller
         $storage = new LaravelConfigStorage;
         $creds = $storage->load();
         $flow = $request->session()->get(self::SESSION_KEY, []);
+        $hasExistingProvider = $this->detectExistingProvider();
 
         return view('scolta::amazee-settings', [
             'connected' => $creds !== null,
             'region' => $creds['region'] ?? null,
-            'step' => $this->determineStep($creds, $flow),
+            'step' => $this->determineStep($creds, $flow, $hasExistingProvider),
             'email' => $flow['email'] ?? '',
+            'hasExistingProvider' => $hasExistingProvider,
         ]);
     }
 
@@ -176,12 +178,26 @@ class AmazeeSettingsController extends Controller
     }
 
     /**
+     * Returns true when a non-Amazee AI provider is already configured.
+     */
+    private function detectExistingProvider(): bool
+    {
+        $key = config('scolta.ai_api_key', '') ?: env('SCOLTA_API_KEY', '');
+
+        return $key !== '';
+    }
+
+    /**
      * Determine the active step based on stored credentials and flow state.
      */
-    private function determineStep(?array $creds, array $flow): string
+    private function determineStep(?array $creds, array $flow, bool $hasExistingProvider = false): string
     {
         if ($creds !== null) {
             return 'connected';
+        }
+
+        if ($hasExistingProvider && empty($flow['step'])) {
+            return 'provider-configured';
         }
 
         return $flow['step'] ?? 'start';

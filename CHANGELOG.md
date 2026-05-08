@@ -7,6 +7,7 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 ## [Unreleased]
 
 ### Added
+- **`AmazeeTrialProvisioner` now skips provisioning when an AI provider is already configured.** If `config('scolta.ai_api_key')` or `SCOLTA_API_KEY` is set, `scolta:amazee:provision` exits early with an informational message instead of consuming a trial slot. Pass `--force` to bypass the check. The Amazee settings page shows "AI provider already configured" instead of the connection form. `ProvisioningResult` gains a `STATUS_SKIPPED_EXISTING_PROVIDER` constant and `$status` field to let callers distinguish skips from provisioned and failed outcomes.
 - **Amazee.ai integration.** Connect Scolta to Amazee.ai's privacy-respecting LiteLLM proxy.
   - `LaravelConfigStorage`: `ConfigStorageInterface` backed by the `scolta_config` database table (token encrypted via `Crypt` facade).
   - Migration `2026_05_08_000001_create_scolta_config_table` creates the key/value config store.
