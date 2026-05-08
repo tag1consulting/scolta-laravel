@@ -8,6 +8,7 @@ use Illuminate\Console\Command;
 use Tag1\Scolta\AiProvider\Amazee\AmazeeApiException;
 use Tag1\Scolta\AiProvider\Amazee\AmazeeClient;
 use Tag1\Scolta\AiProvider\Amazee\AmazeeTrialProvisioner;
+use Tag1\Scolta\AiProvider\Amazee\ProvisioningResult;
 use Tag1\ScoltaLaravel\AiProvider\Amazee\LaravelConfigStorage;
 
 /**
@@ -20,7 +21,8 @@ use Tag1\ScoltaLaravel\AiProvider\Amazee\LaravelConfigStorage;
 class AmazeeProvisionCommand extends Command
 {
     protected $signature = 'scolta:amazee:provision
-                            {email : Email address for the Amazee.ai trial account}';
+                            {email : Email address for the Amazee.ai trial account}
+                            {--force : Provision even if an AI provider is already configured}';
 
     protected $description = 'Provision a free Amazee.ai trial account and store credentials';
 
@@ -36,18 +38,32 @@ class AmazeeProvisionCommand extends Command
 
         $this->line("Provisioning Amazee.ai trial for {$email}…");
 
+        $hasExistingProvider = $this->option('force')
+            ? null
+            : function (): bool {
+                $key = config('scolta.ai_api_key', '') ?: env('SCOLTA_API_KEY', '');
+
+                return $key !== '';
+            };
+
         try {
             $storage = new LaravelConfigStorage;
-            $provisioner = new AmazeeTrialProvisioner(new AmazeeClient, $storage);
-            $provisioner->provision($email);
+            $provisioner = new AmazeeTrialProvisioner(new AmazeeClient, $storage, $hasExistingProvider);
+            $result = $provisioner->provision($email);
         } catch (AmazeeApiException $e) {
             $this->error('Provisioning failed: '.$e->getMessage());
 
             return self::FAILURE;
         }
 
-        $creds = (new LaravelConfigStorage)->load();
-        $region = $creds['region'] ?? 'unknown';
+        if ($result->status === ProvisioningResult::STATUS_SKIPPED_EXISTING_PROVIDER) {
+            $this->info('AI provider already configured. Skipped Amazee provisioning.');
+            $this->line('Use <info>--force</info> to provision anyway.');
+
+            return self::SUCCESS;
+        }
+
+        $region = $result->region ?: 'unknown';
 
         $this->info("Connected to Amazee.ai (region: {$region}).");
         $this->line('Run <info>php artisan scolta:status</info> to verify the AI provider.');

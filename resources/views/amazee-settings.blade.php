@@ -30,6 +30,16 @@
         </div>
     </template>
 
+    {{-- Provider already configured — Amazee.ai not needed --}}
+    <template x-if="step === 'provider-configured'">
+        <div>
+            <p>AI provider already configured. Amazee.ai is not needed.</p>
+            <button type="button" @click="step = 'start'" class="btn btn-secondary btn-sm">
+                Set up Amazee.ai anyway
+            </button>
+        </div>
+    </template>
+
     {{-- Start: email + trial/sign-in --}}
     <template x-if="step === 'start'">
         <div>
