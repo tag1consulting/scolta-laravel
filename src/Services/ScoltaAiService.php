@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tag1\ScoltaLaravel\Services;
 
+use Tag1\Scolta\AiProvider\Amazee\AmazeeBudgetExceededException;
 use Tag1\Scolta\Config\ScoltaConfig;
 use Tag1\Scolta\Service\AiServiceAdapter;
 
@@ -14,21 +15,83 @@ use Tag1\Scolta\Service\AiServiceAdapter;
  *   - Laravel 12+: Detects and uses the Laravel AI SDK (laravel/ai)
  *   - Laravel 11:  Falls back to scolta-php's built-in AiClient
  *
- * The detection is elegant: check if the Ai facade exists. If it does,
- * the Laravel AI SDK is installed and configured. If not, use the
- * built-in client. Runtime detection, zero configuration friction.
- *
- * Laravel's service container makes this even cleaner than WordPress —
- * the service is bound as a singleton in the provider, so config is
- * read once and the instance is reused across all API calls in a request.
+ * When Amazee.ai credentials are injected via the service provider,
+ * message() / conversation() / messageForOperation() convert the
+ * Amazee budget signal to AmazeeBudgetExceededException so the
+ * HandleAmazeeBudgetExceeded middleware can return a proper 503.
  */
 class ScoltaAiService extends AiServiceAdapter
 {
-    public function __construct(array $configArray)
+    private bool $amazeeActive;
+
+    public function __construct(array $configArray, bool $amazeeActive = false)
     {
         // Flatten the nested config arrays for ScoltaConfig::fromArray().
         $flat = self::flattenConfig($configArray);
         parent::__construct(ScoltaConfig::fromArray($flat));
+        $this->amazeeActive = $amazeeActive;
+    }
+
+    /**
+     * Whether Amazee.ai credentials are active for this instance.
+     */
+    public function isAmazeeActive(): bool
+    {
+        return $this->amazeeActive;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function message(string $systemPrompt, string $userMessage, int $maxTokens = 512): string
+    {
+        try {
+            return parent::message($systemPrompt, $userMessage, $maxTokens);
+        } catch (\RuntimeException $e) {
+            $this->handlePossibleBudgetException($e);
+            throw $e;
+        }
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function conversation(string $systemPrompt, array $messages, int $maxTokens = 512): string
+    {
+        try {
+            return parent::conversation($systemPrompt, $messages, $maxTokens);
+        } catch (\RuntimeException $e) {
+            $this->handlePossibleBudgetException($e);
+            throw $e;
+        }
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function messageForOperation(string $operation, string $systemPrompt, string $userMessage, int $maxTokens = 512): string
+    {
+        try {
+            return parent::messageForOperation($operation, $systemPrompt, $userMessage, $maxTokens);
+        } catch (\RuntimeException $e) {
+            $this->handlePossibleBudgetException($e);
+            throw $e;
+        }
+    }
+
+    /**
+     * Convert a budget-exceeded RuntimeException to AmazeeBudgetExceededException.
+     *
+     * No-op if the exception message does not contain the Amazee budget signal.
+     *
+     * @throws AmazeeBudgetExceededException When the budget message is detected.
+     */
+    private function handlePossibleBudgetException(\RuntimeException $e): void
+    {
+        if (! str_contains($e->getMessage(), 'Budget has been exceeded!')) {
+            return;
+        }
+        throw new AmazeeBudgetExceededException($e);
     }
 
     /**

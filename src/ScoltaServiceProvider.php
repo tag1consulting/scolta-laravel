@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use ReflectionClass;
 use Tag1\Scolta\Config\ScoltaConfig;
+use Tag1\ScoltaLaravel\AiProvider\Amazee\LaravelConfigStorage;
+use Tag1\ScoltaLaravel\Commands\AmazeeProvisionCommand;
 use Tag1\ScoltaLaravel\Commands\BuildCommand;
 use Tag1\ScoltaLaravel\Commands\CheckSetupCommand;
 use Tag1\ScoltaLaravel\Commands\CleanupCommand;
@@ -20,6 +22,7 @@ use Tag1\ScoltaLaravel\Commands\ExportCommand;
 use Tag1\ScoltaLaravel\Commands\MemoryBudgetCommand;
 use Tag1\ScoltaLaravel\Commands\RebuildIndexCommand;
 use Tag1\ScoltaLaravel\Commands\StatusCommand;
+use Tag1\ScoltaLaravel\Http\Middleware\HandleAmazeeBudgetExceeded;
 use Tag1\ScoltaLaravel\Jobs\TriggerRebuild;
 use Tag1\ScoltaLaravel\Observers\ScoltaObserver;
 use Tag1\ScoltaLaravel\Services\ContentSource;
@@ -55,8 +58,26 @@ class ScoltaServiceProvider extends ServiceProvider
 
         // Bind the AI service as a singleton — one instance per request,
         // config read once, reused across all three endpoints.
+        // If Amazee.ai credentials are stored, inject them into the config
+        // so the built-in AiClient routes through the LiteLLM proxy.
         $this->app->singleton(ScoltaAiService::class, function ($app) {
-            return new ScoltaAiService($app['config']['scolta']);
+            $config = $app['config']['scolta'];
+            $amazeeActive = false;
+
+            try {
+                $storage = new LaravelConfigStorage;
+                $creds = $storage->load();
+                if ($creds !== null) {
+                    $config['ai_provider'] = 'openai';
+                    $config['ai_api_key'] = $creds['litellm_token'];
+                    $config['ai_base_url'] = $creds['litellm_api_url'];
+                    $amazeeActive = true;
+                }
+            } catch (\Exception) {
+                // DB not yet migrated — skip Amazee credential check.
+            }
+
+            return new ScoltaAiService($config, $amazeeActive);
         });
 
         // Bind ContentSource as a singleton for consistent access.
@@ -74,6 +95,8 @@ class ScoltaServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->app['router']->aliasMiddleware('scolta.amazee-budget', HandleAmazeeBudgetExceeded::class);
+
         $this->registerPublishables();
         $this->registerRoutes();
         $this->registerBladeComponents();
@@ -162,6 +185,7 @@ class ScoltaServiceProvider extends ServiceProvider
     private function registerRoutes(): void
     {
         $this->loadRoutesFrom(__DIR__.'/../routes/api.php');
+        $this->loadRoutesFrom(__DIR__.'/../routes/scolta-amazee.php');
     }
 
     /**
@@ -235,6 +259,7 @@ class ScoltaServiceProvider extends ServiceProvider
     private function registerCommands(): void
     {
         $this->commands([
+            AmazeeProvisionCommand::class,
             BuildCommand::class,
             CheckSetupCommand::class,
             MemoryBudgetCommand::class,

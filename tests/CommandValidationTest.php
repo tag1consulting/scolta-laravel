@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use ReflectionMethod;
+use Tag1\ScoltaLaravel\Commands\AmazeeProvisionCommand;
 use Tag1\ScoltaLaravel\Commands\BuildCommand;
 use Tag1\ScoltaLaravel\Commands\CheckSetupCommand;
 use Tag1\ScoltaLaravel\Commands\CleanupCommand;
@@ -21,11 +22,12 @@ use Tag1\ScoltaLaravel\Commands\StatusCommand;
 use Tag1\ScoltaLaravel\Jobs\ProcessIndexChunk;
 
 /**
- * Validate all 9 Artisan commands: existence, signatures, options, registration.
+ * Validate all Artisan commands: existence, signatures, options, registration.
  */
 class CommandValidationTest extends TestCase
 {
     private const COMMAND_CLASSES = [
+        'AmazeeProvisionCommand' => AmazeeProvisionCommand::class,
         'BuildCommand' => BuildCommand::class,
         'ExportCommand' => ExportCommand::class,
         'RebuildIndexCommand' => RebuildIndexCommand::class,
@@ -38,6 +40,7 @@ class CommandValidationTest extends TestCase
     ];
 
     private const EXPECTED_SIGNATURES = [
+        AmazeeProvisionCommand::class => 'scolta:amazee:provision',
         BuildCommand::class => 'scolta:build',
         ExportCommand::class => 'scolta:export',
         RebuildIndexCommand::class => 'scolta:rebuild-index',
@@ -274,8 +277,8 @@ class CommandValidationTest extends TestCase
 
         // Count Command::class references in the $this->commands([...]) block.
         preg_match_all('/Command::class/', $providerSource, $matches);
-        $this->assertCount(10, $matches[0],
-            'ServiceProvider should register exactly 10 commands.');
+        $this->assertCount(11, $matches[0],
+            'ServiceProvider should register exactly 11 commands.');
     }
 
     // -------------------------------------------------------------------

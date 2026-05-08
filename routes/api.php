@@ -34,6 +34,7 @@ Route::group([
     'middleware' => array_merge(
         config('scolta.middleware', ['api']),
         $rateLimit > 0 ? ['throttle:scolta'] : [],
+        ['scolta.amazee-budget'],
     ),
 ], function () {
     Route::post('/expand-query', ExpandQueryController::class)->name('scolta.expand');
