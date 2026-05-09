@@ -82,6 +82,19 @@ class RebuildJobTest extends TestCase
         );
     }
 
+    public function test_process_index_chunk_uses_queueable_trait(): void
+    {
+        // Bus::chain() calls $firstJob->chain() which is provided by the
+        // Queueable trait. Without it, dispatching a chain throws
+        // "Call to undefined method ProcessIndexChunk::chain()".
+        $traits = class_uses_recursive(ProcessIndexChunk::class);
+        $this->assertArrayHasKey(
+            'Illuminate\Bus\Queueable',
+            $traits,
+            'ProcessIndexChunk must use the Queueable trait so Bus::chain() can call chain() on it'
+        );
+    }
+
     // -------------------------------------------------------------------
     // FinalizeIndex
     // -------------------------------------------------------------------
@@ -94,6 +107,18 @@ class RebuildJobTest extends TestCase
             'Illuminate\Contracts\Queue\ShouldQueue',
             $reflection->getInterfaceNames(),
             'FinalizeIndex must implement ShouldQueue'
+        );
+    }
+
+    public function test_finalize_index_uses_queueable_trait(): void
+    {
+        // Same requirement as ProcessIndexChunk — Bus::chain() needs chain()
+        // from Queueable on all jobs in the chain, including the last one.
+        $traits = class_uses_recursive(FinalizeIndex::class);
+        $this->assertArrayHasKey(
+            'Illuminate\Bus\Queueable',
+            $traits,
+            'FinalizeIndex must use the Queueable trait so Bus::chain() can call chain() on it'
         );
     }
 
