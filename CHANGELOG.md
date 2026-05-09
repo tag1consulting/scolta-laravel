@@ -8,6 +8,9 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 First stable release — all features from 0.3.x promoted to 1.0 API surface.
 
+### Documentation
+- **PaaS deployment guidance added to README.** The `vendor:publish --tag=scolta-assets` step must run on every deploy on platforms like Laravel Cloud, Forge, and Vapor because the filesystem is rebuilt from the repo. The new "Deploying to PaaS Platforms" section explains why this happens, how to wire `vendor:publish --tag=scolta-assets --force` into the build pipeline via `post-autoload-dump` in the app's `composer.json`, and why the same hook in a dependency's `composer.json` is not executed for consumers. Platform-specific notes cover Laravel Cloud, Vapor, and Forge. ([scolta-laravel#25](https://github.com/tag1consulting/scolta-laravel/issues/25))
+
 ### Fixed
 - **Async build writes Pagefind output to wrong path.** The PHP indexer (`IndexBuildOrchestrator::atomicSwap`) always writes the final index into `$outputDir/pagefind/`. The binary Pagefind invocations in `BuildCommand` and `RebuildIndexCommand` now also use `--output-path $outputDir/pagefind` so both indexers produce the same layout. `StatusCommand`, `HealthController`, and `CleanupCommand` now look for `pagefind.js` and fragment files in the `pagefind/` subdirectory. The Blade search component checks `$outputDir/pagefind/pagefind-entry.json` for index presence and constructs asset URLs with the `pagefind/` subdirectory. ([scolta-laravel#24](https://github.com/tag1consulting/scolta-laravel/issues/24))
 - **Search index warning hidden from anonymous visitors.** The `@auth` gate that wrapped the "Search index has not been built yet" notice in the Blade component has been removed. The notice is now visible to all visitors when the index is absent. ([scolta-laravel#24](https://github.com/tag1consulting/scolta-laravel/issues/24))

@@ -154,6 +154,41 @@ SCOLTA_MEMORY_BUDGET=balanced
 
 Tested ceiling at the `conservative` profile: 50,000 pages. Higher counts likely work; not certified yet.
 
+## Deploying to PaaS Platforms
+
+On PaaS platforms — including Laravel Cloud, Forge with push-to-deploy, Vapor, Railway, and Render — the filesystem is rebuilt from your repository on every deploy. Any files written outside the repo at install time are wiped, including assets published by `vendor:publish`.
+
+`php artisan vendor:publish --tag=scolta-assets` must run as part of your **build pipeline**, not just during initial setup.
+
+### Wiring it automatically via `post-autoload-dump`
+
+Add it to your **application's** `composer.json` scripts:
+
+```json
+"scripts": {
+    "post-autoload-dump": [
+        "@php artisan package:discover --ansi",
+        "@php artisan vendor:publish --tag=scolta-assets --force --ansi"
+    ]
+}
+```
+
+Composer runs `post-autoload-dump` on every `composer install` and `composer update`, which PaaS platforms execute automatically on each deploy. The `--force` flag is required so assets are refreshed even when the destination directory already exists from a previous build cache.
+
+> **Important:** Composer only runs scripts from the **root package** — your application. Scripts in a dependency's `composer.json` (including Scolta's own) are never executed for consumers. You must add the script to your own `composer.json`.
+
+### Platform-specific steps
+
+**Laravel Cloud**: Runs `composer install` on each deployment. The `post-autoload-dump` script above runs automatically.
+
+**Laravel Vapor**: Runs `composer install` in the Lambda package build step. The `post-autoload-dump` script above runs automatically.
+
+**Laravel Forge (push-to-deploy)**: Add the publish command to your Forge deployment script, after the `composer install` line:
+
+```bash
+php artisan vendor:publish --tag=scolta-assets --force
+```
+
 ## AI Features and Privacy
 
 Scolta's AI tier is optional. When enabled:
