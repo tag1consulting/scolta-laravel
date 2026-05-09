@@ -142,6 +142,102 @@ class RebuildJobTest extends TestCase
         }
     }
 
+    public function test_trigger_rebuild_uses_queueable_trait(): void
+    {
+        // Queueable is needed for consistency with ProcessIndexChunk and FinalizeIndex,
+        // and is required if TriggerRebuild is ever used in a chain.
+        $traits = class_uses_recursive(TriggerRebuild::class);
+        $this->assertArrayHasKey(
+            'Illuminate\Bus\Queueable',
+            $traits,
+            'TriggerRebuild must use the Queueable trait, matching the standard Laravel job template'
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // Bus::chain() dispatch pattern — prevent regression
+    //
+    // The crash "Call to undefined method ProcessIndexChunk::chain()" happened
+    // because the Queueable trait was missing. These source-analysis tests
+    // verify that the correct dispatch pattern (Bus::chain($array)->dispatch())
+    // is used in every place that builds a job chain, so a future accidental
+    // revert of the Queueable trait would be caught immediately.
+    // -------------------------------------------------------------------
+
+    public function test_build_command_uses_bus_chain_facade_not_static_job_method(): void
+    {
+        $source = file_get_contents(dirname(__DIR__, 2).'/src/Commands/BuildCommand.php');
+
+        $this->assertStringContainsString(
+            'Bus::chain(',
+            $source,
+            'BuildCommand must use Bus::chain() to build the job chain.'
+        );
+        $this->assertStringNotContainsString(
+            'ProcessIndexChunk::chain(',
+            $source,
+            'BuildCommand must not call chain() as a static method on ProcessIndexChunk.'
+        );
+        $this->assertStringNotContainsString(
+            'FinalizeIndex::chain(',
+            $source,
+            'BuildCommand must not call chain() as a static method on FinalizeIndex.'
+        );
+    }
+
+    public function test_build_command_dispatches_chain(): void
+    {
+        $source = file_get_contents(dirname(__DIR__, 2).'/src/Commands/BuildCommand.php');
+
+        $this->assertMatchesRegularExpression(
+            '/Bus::chain\(\$jobs\)\s*->\s*dispatch\(\)/',
+            $source,
+            'BuildCommand must call ->dispatch() on the Bus::chain() result.'
+        );
+    }
+
+    public function test_trigger_rebuild_uses_bus_chain_facade_not_static_job_method(): void
+    {
+        $source = file_get_contents(dirname(__DIR__, 2).'/src/Jobs/TriggerRebuild.php');
+
+        $this->assertStringContainsString(
+            'Bus::chain(',
+            $source,
+            'TriggerRebuild must use Bus::chain() to build the job chain.'
+        );
+        $this->assertStringNotContainsString(
+            'ProcessIndexChunk::chain(',
+            $source,
+            'TriggerRebuild must not call chain() as a static method on ProcessIndexChunk.'
+        );
+    }
+
+    public function test_trigger_rebuild_dispatches_chain(): void
+    {
+        $source = file_get_contents(dirname(__DIR__, 2).'/src/Jobs/TriggerRebuild.php');
+
+        $this->assertMatchesRegularExpression(
+            '/Bus::chain\(\$jobs\)\s*->\s*dispatch\(\)/',
+            $source,
+            'TriggerRebuild must call ->dispatch() on the Bus::chain() result.'
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // --sync flag regression guard
+    // -------------------------------------------------------------------
+
+    public function test_build_command_has_sync_option(): void
+    {
+        $source = file_get_contents(dirname(__DIR__, 2).'/src/Commands/BuildCommand.php');
+
+        $this->assertStringContainsString(
+            '--sync',
+            $source,
+            'BuildCommand must define a --sync option so the synchronous path remains available.'
+        );
+    }
+
     // -------------------------------------------------------------------
     // ScoltaObserver dispatches TriggerRebuild
     // -------------------------------------------------------------------

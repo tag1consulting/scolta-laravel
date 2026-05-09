@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tag1\ScoltaLaravel\Jobs;
 
+use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -31,7 +32,7 @@ use Tag1\Scolta\Index\PhpIndexer;
  */
 class TriggerRebuild implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue;
+    use Dispatchable, InteractsWithQueue, Queueable;
 
     /**
      * Whether to force a full rebuild, bypassing the fingerprint check.
