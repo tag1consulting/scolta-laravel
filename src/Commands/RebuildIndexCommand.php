@@ -58,16 +58,17 @@ class RebuildIndexCommand extends Command
 
         $this->info("Using Pagefind: {$binary} (resolved via {$resolver->resolvedVia()})");
 
+        $pagefindOutputDir = $outputDir.'/pagefind';
         $cmd = $binary
             .' --site '.escapeshellarg($buildDir)
-            .' --output-path '.escapeshellarg($outputDir);
+            .' --output-path '.escapeshellarg($pagefindOutputDir);
 
         $this->line("  Running: {$cmd}");
 
         $result = Process::timeout(300)->run($cmd);
 
-        if ($result->successful() && file_exists($outputDir.'/pagefind.js')) {
-            $fragmentCount = count(glob($outputDir.'/fragment/*') ?: []);
+        if ($result->successful() && file_exists($pagefindOutputDir.'/pagefind.js')) {
+            $fragmentCount = count(glob($pagefindOutputDir.'/fragment/*') ?: []);
             Cache::increment('scolta_expand_generation');
             $this->info("Pagefind index rebuilt: {$htmlCount} files, {$fragmentCount} fragments.");
 

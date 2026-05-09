@@ -18,16 +18,14 @@
 
 @php
     $outputDir = config('scolta.pagefind.output_dir', public_path('scolta-pagefind'));
-    $indexExists = file_exists($outputDir . '/pagefind-entry.json');
+    $indexExists = file_exists($outputDir . '/pagefind/pagefind-entry.json');
 @endphp
 
 @if(!$indexExists)
-    @auth
-        <div style="padding:20px;background:#fff3cd;border:1px solid #ffc107;border-radius:4px;margin:20px 0;">
-            <p><strong>Scolta:</strong> Search index has not been built yet.</p>
-            <p>Run <code>php artisan scolta:build</code> to build the index.</p>
-        </div>
-    @endauth
+    <div style="padding:20px;background:#fff3cd;border:1px solid #ffc107;border-radius:4px;margin:20px 0;">
+        <p><strong>Scolta:</strong> Search index has not been built yet.</p>
+        <p>Run <code>php artisan scolta:build</code> to build the index.</p>
+    </div>
 @else
     @php
         $config = app(\Tag1\ScoltaLaravel\Services\ScoltaAiService::class)->getConfig();
@@ -47,7 +45,7 @@
                 'followup' => url($routePrefix . '/followup'),
             ],
             'wasmPath' => asset('vendor/scolta/wasm/scolta_core.js'),
-            'pagefindPath' => asset(ltrim($pagefindUrl, '/') . '/pagefind.js'),
+            'pagefindPath' => asset(ltrim($pagefindUrl, '/') . '/pagefind/pagefind.js'),
             'siteName' => $config->siteName ?: config('app.name', 'Laravel'),
             'container' => '#scolta-search',
             'allowedLinkDomains' => [],
@@ -56,8 +54,8 @@
     @endphp
 
     {{-- Pagefind UI CSS --}}
-    @if(file_exists($outputDir . '/pagefind-ui.css'))
-        <link rel="stylesheet" href="{{ asset(ltrim($pagefindUrl, '/') . '/pagefind-ui.css') }}" />
+    @if(file_exists($outputDir . '/pagefind/pagefind-ui.css'))
+        <link rel="stylesheet" href="{{ asset(ltrim($pagefindUrl, '/') . '/pagefind/pagefind-ui.css') }}" />
     @endif
 
     {{-- Scolta CSS from published assets --}}

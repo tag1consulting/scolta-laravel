@@ -81,11 +81,11 @@ class CleanupCommand extends Command
         // A fragment is orphaned when the output directory exists but the
         // pagefind entry file is gone — the index was partially built.
         if (is_dir($outputDir)) {
-            $entryFile = $outputDir.'/pagefind.js';
+            $entryFile = $outputDir.'/pagefind/pagefind.js';
             if (! file_exists($entryFile)) {
                 $orphans = array_merge(
-                    glob($outputDir.'/fragment/*.pf_fragment') ?: [],
-                    glob($outputDir.'/index/*.pf_index') ?: [],
+                    glob($outputDir.'/pagefind/fragment/*.pf_fragment') ?: [],
+                    glob($outputDir.'/pagefind/index/*.pf_index') ?: [],
                 );
 
                 foreach ($orphans as $orphan) {

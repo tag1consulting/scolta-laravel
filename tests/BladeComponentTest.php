@@ -195,4 +195,40 @@ class BladeComponentTest extends TestCase
         $this->assertStringContainsString('vendor:publish', $this->templateContent,
             'Template should include a fallback comment about vendor:publish.');
     }
+
+    // -------------------------------------------------------------------
+    // Index existence check uses correct pagefind/ subdirectory
+    // -------------------------------------------------------------------
+
+    public function test_index_exists_check_uses_pagefind_subdir(): void
+    {
+        $this->assertStringContainsString("'/pagefind/pagefind-entry.json'", $this->templateContent,
+            'Index existence check must use the pagefind/ subdirectory path.');
+    }
+
+    public function test_index_exists_check_does_not_use_flat_path(): void
+    {
+        $this->assertStringNotContainsString("'/pagefind-entry.json'", $this->templateContent,
+            'Index existence check must not use the flat (non-pagefind-subdir) path.');
+    }
+
+    // -------------------------------------------------------------------
+    // pagefindPath URL points into pagefind/ subdirectory
+    // -------------------------------------------------------------------
+
+    public function test_pagefind_path_url_includes_pagefind_subdir(): void
+    {
+        $this->assertStringContainsString("'/pagefind/pagefind.js'", $this->templateContent,
+            'pagefindPath asset URL must include the pagefind/ subdirectory.');
+    }
+
+    // -------------------------------------------------------------------
+    // Warning shown to all visitors, not gated behind @auth
+    // -------------------------------------------------------------------
+
+    public function test_index_missing_warning_not_gated_by_auth(): void
+    {
+        $this->assertStringNotContainsString('@auth', $this->templateContent,
+            'The "index not built" warning must not be wrapped in @auth — anonymous visitors should also see it.');
+    }
 }
