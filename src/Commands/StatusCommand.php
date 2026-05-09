@@ -72,9 +72,9 @@ class StatusCommand extends Command
 
         // Pagefind index.
         $this->info('--- Pagefind Index ---');
-        $indexFile = $outputDir.'/pagefind.js';
+        $indexFile = $outputDir.'/pagefind/pagefind.js';
         if (file_exists($indexFile)) {
-            $fragmentCount = count(glob($outputDir.'/fragment/*') ?: []);
+            $fragmentCount = count(glob($outputDir.'/pagefind/fragment/*') ?: []);
             $mtime = filemtime($indexFile);
             $this->line("  Path:       {$outputDir}");
             $this->line("  Fragments:  {$fragmentCount}");

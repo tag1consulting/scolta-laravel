@@ -519,16 +519,17 @@ class BuildCommand extends Command
             mkdir($outputDir, 0755, true);
         }
 
+        $pagefindOutputDir = $outputDir.'/pagefind';
         $cmd = escapeshellcmd($binary)
             .' --site '.escapeshellarg($buildDir)
-            .' --output-path '.escapeshellarg($outputDir);
+            .' --output-path '.escapeshellarg($pagefindOutputDir);
 
         $this->line("  Running: {$cmd}");
 
         $result = Process::timeout(300)->run($cmd);
 
-        if ($result->successful() && file_exists($outputDir.'/pagefind.js')) {
-            $fragmentCount = count(glob($outputDir.'/fragment/*') ?: []);
+        if ($result->successful() && file_exists($pagefindOutputDir.'/pagefind.js')) {
+            $fragmentCount = count(glob($pagefindOutputDir.'/fragment/*') ?: []);
             $this->info("Pagefind index built: {$htmlCount} files, {$fragmentCount} fragments.");
             Cache::increment('scolta_expand_generation');
 

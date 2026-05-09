@@ -228,6 +228,85 @@ class StructuralIntegrityTest extends TestCase
     }
 
     // -------------------------------------------------------------------
+    // Pagefind output subdirectory path consistency
+    //
+    // The PHP indexer (IndexBuildOrchestrator::atomicSwap) writes the index
+    // into $outputDir/pagefind/.  Binary invocations must use the same
+    // structure (--output-path $outputDir/pagefind) so every code path that
+    // reads the index looks in one place.
+    // -------------------------------------------------------------------
+
+    public function test_build_command_binary_output_path_uses_pagefind_subdir(): void
+    {
+        $src = file_get_contents($this->root.'/src/Commands/BuildCommand.php');
+        $this->assertStringContainsString(
+            "'/pagefind'",
+            $src,
+            'BuildCommand must append /pagefind to outputDir when invoking the binary.'
+        );
+        $this->assertStringNotContainsString(
+            "--output-path '.escapeshellarg(\$outputDir)",
+            $src,
+            'BuildCommand must not pass $outputDir directly to --output-path.'
+        );
+    }
+
+    public function test_rebuild_command_binary_output_path_uses_pagefind_subdir(): void
+    {
+        $src = file_get_contents($this->root.'/src/Commands/RebuildIndexCommand.php');
+        $this->assertStringContainsString(
+            "'/pagefind'",
+            $src,
+            'RebuildIndexCommand must append /pagefind to outputDir when invoking the binary.'
+        );
+    }
+
+    public function test_status_command_checks_pagefind_subdir(): void
+    {
+        $src = file_get_contents($this->root.'/src/Commands/StatusCommand.php');
+        $this->assertStringContainsString(
+            "'/pagefind/pagefind.js'",
+            $src,
+            'StatusCommand must check for pagefind.js in the pagefind/ subdirectory.'
+        );
+        $this->assertStringNotContainsString(
+            "'/pagefind.js'",
+            $src,
+            'StatusCommand must not check for pagefind.js at the flat (non-subdir) path.'
+        );
+    }
+
+    public function test_health_controller_checks_pagefind_subdir(): void
+    {
+        $src = file_get_contents($this->root.'/src/Http/Controllers/HealthController.php');
+        $this->assertStringContainsString(
+            "'/pagefind/pagefind.js'",
+            $src,
+            'HealthController must check for pagefind.js in the pagefind/ subdirectory.'
+        );
+        $this->assertStringNotContainsString(
+            "'/pagefind.js'",
+            $src,
+            'HealthController must not check pagefind.js at the flat path.'
+        );
+    }
+
+    public function test_cleanup_command_checks_pagefind_subdir(): void
+    {
+        $src = file_get_contents($this->root.'/src/Commands/CleanupCommand.php');
+        $this->assertStringContainsString(
+            "'/pagefind/pagefind.js'",
+            $src,
+            'CleanupCommand must check for pagefind.js in the pagefind/ subdirectory.'
+        );
+        $this->assertStringNotContainsString(
+            "'/pagefind.js'",
+            $src,
+            'CleanupCommand must not check pagefind.js at the flat path.'
+        );
+    }
+
+    // -------------------------------------------------------------------
     // isExecutable() guard
     // -------------------------------------------------------------------
 
