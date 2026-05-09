@@ -65,7 +65,7 @@ class AutoProvisioningTest extends TestCase
 
     public function test_attempt_auto_provisioning_is_private(): void
     {
-        $ref    = new ReflectionClass(ScoltaServiceProvider::class);
+        $ref = new ReflectionClass(ScoltaServiceProvider::class);
         $method = $ref->getMethod('attemptAmazeeAutoProvisioning');
         $this->assertTrue(
             $method->isPrivate(),
@@ -126,5 +126,4 @@ class AutoProvisioningTest extends TestCase
             'attemptAmazeeAutoProvisioning() must catch DB exceptions (DB not migrated)'
         );
     }
-
 }
