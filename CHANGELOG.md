@@ -8,6 +8,9 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 First stable release — all features from 0.3.x promoted to 1.0 API surface.
 
+### Added
+- **Amazee.ai trial is provisioned automatically on first boot after install.** `ScoltaServiceProvider::boot()` calls the new private `attemptAmazeeAutoProvisioning()` method, which delegates to `AutoProvisioner::ensureAiAvailable()` from scolta-php. A cache key (`scolta_amazee_provisioned`) prevents re-running on every request. The provisioner is a no-op when `SCOLTA_API_KEY` / `scolta.ai_api_key` is configured. On success, `storeModels()` is called via the `onModelsResolved` callback so the best Claude model is persisted to the `scolta_config` table. DB exceptions (table not yet migrated) are caught and silenced so the first request doesn't fail.
+
 ### Documentation
 - **PaaS deployment guidance added to README.** The `vendor:publish --tag=scolta-assets` step must run on every deploy on platforms like Laravel Cloud, Forge, and Vapor because the filesystem is rebuilt from the repo. The new "Deploying to PaaS Platforms" section explains why this happens, how to wire `vendor:publish --tag=scolta-assets --force` into the build pipeline via `post-autoload-dump` in the app's `composer.json`, and why the same hook in a dependency's `composer.json` is not executed for consumers. Platform-specific notes cover Laravel Cloud, Vapor, and Forge. ([scolta-laravel#25](https://github.com/tag1consulting/scolta-laravel/issues/25))
 

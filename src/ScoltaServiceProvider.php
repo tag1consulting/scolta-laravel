@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use ReflectionClass;
+use Tag1\Scolta\AiProvider\Amazee\AutoProvisioner;
 use Tag1\Scolta\Config\ScoltaConfig;
 use Tag1\ScoltaLaravel\AiProvider\Amazee\LaravelConfigStorage;
 use Tag1\ScoltaLaravel\Commands\AmazeeProvisionCommand;
@@ -131,6 +132,50 @@ class ScoltaServiceProvider extends ServiceProvider
                     TriggerRebuild::dispatch();
                 }
             }
+        }
+
+        // First-run Amazee.ai provisioning: attempt once per installation.
+        // Uses a cache flag to avoid re-running on every boot. The DB may
+        // not be migrated yet on the very first boot; exceptions are silenced.
+        $this->attemptAmazeeAutoProvisioning();
+    }
+
+    /**
+     * Attempt Amazee.ai trial provisioning on first boot after install.
+     *
+     * No-op when SCOLTA_API_KEY is configured, credentials are already stored,
+     * or the DB is not yet migrated. Uses a cache flag so the attempt only
+     * happens once per installation.
+     */
+    private function attemptAmazeeAutoProvisioning(): void
+    {
+        $cacheKey = 'scolta_amazee_provisioned';
+        if (Cache::has($cacheKey)) {
+            return;
+        }
+
+        $hasExplicitApiKey = config('scolta.ai_api_key', '') !== '';
+
+        try {
+            $storage = new LaravelConfigStorage;
+            $provisioned = AutoProvisioner::ensureAiAvailable(
+                $storage,
+                hasExplicitApiKey: $hasExplicitApiKey,
+                onModelsResolved: function (string $aiModel, string $aiExpansionModel) use ($storage): void {
+                    $storage->storeModels($aiModel, $aiExpansionModel);
+                },
+            );
+
+            if ($provisioned) {
+                // Mark as provisioned so we don't re-run on every boot.
+                Cache::put($cacheKey, true, now()->addDays(30));
+            } elseif (! $hasExplicitApiKey) {
+                // Already provisioned or skipped — cache the result so we
+                // don't attempt (and query the DB) on every request.
+                Cache::put($cacheKey, true, now()->addDays(30));
+            }
+        } catch (\Exception) {
+            // DB not migrated or API unreachable — silently degrade.
         }
     }
 
