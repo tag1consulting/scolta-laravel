@@ -9,6 +9,8 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 First stable release — all features from 0.3.x promoted to 1.0 API surface.
 
 ### Added
+- **Search component now passes `currentLanguage` to the JS config.** `app()->getLocale()` is used to detect the active Laravel locale (e.g. `en`, `fr`, `en-US` → `en`), and the 2-letter language code is added to `window.scolta.currentLanguage`. `scolta.js` reads this value to auto-scope search results to the active language on first load. The auto-filter only activates when `ai_languages` has more than one entry, so single-language sites are unaffected.
+
 - **Amazee.ai trial is provisioned automatically on first boot after install.** `ScoltaServiceProvider::boot()` calls the new private `attemptAmazeeAutoProvisioning()` method, which delegates to `AutoProvisioner::ensureAiAvailable()` from scolta-php. A cache key (`scolta_amazee_provisioned`) prevents re-running on every request. The provisioner is a no-op when `SCOLTA_API_KEY` / `scolta.ai_api_key` is configured. On success, `storeModels()` is called via the `onModelsResolved` callback so the best Claude model is persisted to the `scolta_config` table. DB exceptions (table not yet migrated) are caught and silenced so the first request doesn't fail.
 
 ### Documentation
