@@ -13,6 +13,9 @@ First stable release — all features from 0.3.x promoted to 1.0 API surface.
 
 ## [Unreleased]
 
+### Fixed
+- **`php artisan scolta:build` no longer crashes with "Call to undefined method ProcessIndexChunk::chain()".** `ProcessIndexChunk` and `FinalizeIndex` were missing the `Illuminate\Bus\Queueable` trait. Laravel's `Bus::chain()` calls `$firstJob->chain()` internally, which is provided by that trait; without it, dispatching a chained job sequence threw a fatal error.
+
 ### Added
 - **Laravel 13 support.** All `illuminate/*` constraints now include `^13.0`, and `orchestra/testbench` allows `^11.0`. The CI matrix covers Laravel 11, 12, and 13 with dedicated jobs. ([scolta-laravel#22](https://github.com/tag1consulting/scolta-laravel/issues/22))
 
