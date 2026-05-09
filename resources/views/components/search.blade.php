@@ -50,6 +50,7 @@
             'container' => '#scolta-search',
             'allowedLinkDomains' => [],
             'disclaimer' => '',
+            'currentLanguage' => strtolower(preg_replace('/[_-].*$/', '', app()->getLocale())),
         ];
     @endphp
 
