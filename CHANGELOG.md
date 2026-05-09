@@ -4,14 +4,9 @@ All notable changes to scolta-laravel will be documented in this file.
 
 This project uses [Semantic Versioning](https://semver.org/). Major versions are synchronized across all Scolta packages.
 
-## [1.0.0] Unreleased
+## [Unreleased]
 
 First stable release — all features from 0.3.x promoted to 1.0 API surface.
-
-### Changed
-- Added `extra.branch-alias` (`dev-main` → `1.0.x-dev`) so consumers can resolve this package with `^1.0@dev` from a VCS repository.
-
-## [Unreleased]
 
 ### Fixed
 - **Async build writes Pagefind output to wrong path.** The PHP indexer (`IndexBuildOrchestrator::atomicSwap`) always writes the final index into `$outputDir/pagefind/`. The binary Pagefind invocations in `BuildCommand` and `RebuildIndexCommand` now also use `--output-path $outputDir/pagefind` so both indexers produce the same layout. `StatusCommand`, `HealthController`, and `CleanupCommand` now look for `pagefind.js` and fragment files in the `pagefind/` subdirectory. The Blade search component checks `$outputDir/pagefind/pagefind-entry.json` for index presence and constructs asset URLs with the `pagefind/` subdirectory. ([scolta-laravel#24](https://github.com/tag1consulting/scolta-laravel/issues/24))
@@ -19,11 +14,7 @@ First stable release — all features from 0.3.x promoted to 1.0 API surface.
 
 ### Added
 - **Laravel 13 support.** All `illuminate/*` constraints now include `^13.0`, and `orchestra/testbench` allows `^11.0`. The CI matrix covers Laravel 11, 12, and 13 with dedicated jobs. ([scolta-laravel#22](https://github.com/tag1consulting/scolta-laravel/issues/22))
-
-### Added
 - **Amazee.ai auto-configuration: best available Claude model is applied after trial provisioning.** `LaravelConfigStorage` gains `storeModels()` / `loadModels()` backed by the `scolta_config` table. `ScoltaServiceProvider` overlays the stored model values at boot time if `config('scolta.ai_model')` is still the default. `AmazeeSettingsController::startTrial()` and `AmazeeProvisionCommand::handle()` call `AmazeeModelResolver` and persist the results. The artisan command prints the auto-selected model names.
-
-### Added
 - **`AmazeeTrialProvisioner` now skips provisioning when an AI provider is already configured.** If `config('scolta.ai_api_key')` or `SCOLTA_API_KEY` is set, `scolta:amazee:provision` exits early with an informational message instead of consuming a trial slot. Pass `--force` to bypass the check. The Amazee settings page shows "AI provider already configured" instead of the connection form. `ProvisioningResult` gains a `STATUS_SKIPPED_EXISTING_PROVIDER` constant and `$status` field to let callers distinguish skips from provisioned and failed outcomes.
 - **Amazee.ai integration.** Connect Scolta to Amazee.ai's privacy-respecting LiteLLM proxy.
   - `LaravelConfigStorage`: `ConfigStorageInterface` backed by the `scolta_config` database table (token encrypted via `Crypt` facade).
@@ -35,6 +26,7 @@ First stable release — all features from 0.3.x promoted to 1.0 API surface.
   - `ScoltaAiService` now detects stored Amazee credentials at container-bind time and routes requests through the LiteLLM proxy. Budget `RuntimeException`s are converted to `AmazeeBudgetExceededException`.
 
 ### Changed
+- Added `extra.branch-alias` (`dev-main` → `1.0.x-dev`) so consumers can resolve this package with `^1.0@dev` from a VCS repository.
 - **`indexer: auto` now always uses the PHP indexer.** Previously `auto` tried the Pagefind binary first and fell back to PHP. The PHP indexer works on all Laravel hosting environments without `exec()` or Node.js, uses less memory, and supports fast incremental re-indexing. Use `indexer: binary` to keep the old binary-first behaviour.
 - **`php artisan scolta:build --force` now bypasses the per-item token cache** in addition to the existing fingerprint check. Previously `--force` only skipped the `shouldBuild()` fingerprint comparison; the page-word cache (new in this release, provided by scolta-php) was still consulted. With this change, `--force` triggers a full re-tokenization of every content item.
 
