@@ -96,16 +96,17 @@ class StatusCommand extends Command
         } elseif ($indexerSetting === 'binary') {
             $activeIndexer = $binaryStatus['available'] ? 'binary' : 'binary (not found — check path)';
         } else {
-            $activeIndexer = $binaryStatus['available'] ? 'binary (auto-detected)' : 'php (binary not found)';
+            // auto: always PHP regardless of binary availability.
+            $activeIndexer = 'php (recommended)';
         }
         $this->line("  Active indexer: {$activeIndexer}");
-        if ($binaryStatus['available']) {
-            $this->line("  Binary:         {$binaryStatus['message']}");
-        } else {
-            $this->warn('  Binary:         NOT AVAILABLE');
-            $this->line("  {$binaryStatus['message']}");
-            if ($activeIndexer !== 'php (forced)') {
-                $this->warn('  To upgrade: npm install -g pagefind  OR  php artisan scolta:download-pagefind');
+        if ($indexerSetting === 'binary') {
+            if ($binaryStatus['available']) {
+                $this->line("  Binary:         {$binaryStatus['message']}");
+            } else {
+                $this->warn('  Binary:         NOT AVAILABLE');
+                $this->line("  {$binaryStatus['message']}");
+                $this->warn('  To fix: npm install -g pagefind  OR  php artisan scolta:download-pagefind');
             }
         }
 
