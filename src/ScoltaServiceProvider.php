@@ -59,36 +59,40 @@ class ScoltaServiceProvider extends ServiceProvider
 
         // Bind the AI service as a singleton — one instance per request,
         // config read once, reused across all three endpoints.
-        // If Amazee.ai credentials are stored, inject them into the config
-        // so the built-in AiClient routes through the LiteLLM proxy.
+        // Amazee.ai credentials are only injected when no explicit API key is
+        // configured so users who set SCOLTA_API_KEY are never silently rerouted.
         $this->app->singleton(ScoltaAiService::class, function ($app) {
             $config = $app['config']['scolta'];
             $amazeeActive = false;
 
-            try {
-                $storage = new LaravelConfigStorage;
-                $creds = $storage->load();
-                if ($creds !== null) {
-                    $config['ai_provider'] = 'openai';
-                    $config['ai_api_key'] = $creds['litellm_token'];
-                    $config['ai_base_url'] = $creds['litellm_api_url'];
-                    $amazeeActive = true;
-                }
+            // Explicit key (SCOLTA_API_KEY env var or published config) wins.
+            $explicitKey = $config['ai_api_key'] ?? '';
+            if ($explicitKey === '') {
+                try {
+                    $storage = new LaravelConfigStorage;
+                    $creds = $storage->load();
+                    if ($creds !== null) {
+                        $config['ai_provider'] = 'openai';
+                        $config['ai_api_key'] = $creds['litellm_token'];
+                        $config['ai_base_url'] = $creds['litellm_api_url'];
+                        $amazeeActive = true;
+                    }
 
-                // Apply auto-selected models only when the current config
-                // value is still the default (not manually overridden).
-                $models = $storage->loadModels();
-                if ($models !== null) {
-                    $defaultModel = 'claude-sonnet-4-5-20250929';
-                    if ($models['ai_model'] !== '' && $config['ai_model'] === $defaultModel) {
-                        $config['ai_model'] = $models['ai_model'];
+                    // Apply auto-selected models only when the current config
+                    // value is still the default (not manually overridden).
+                    $models = $storage->loadModels();
+                    if ($models !== null) {
+                        $defaultModel = 'claude-sonnet-4-5-20250929';
+                        if ($models['ai_model'] !== '' && $config['ai_model'] === $defaultModel) {
+                            $config['ai_model'] = $models['ai_model'];
+                        }
+                        if ($models['ai_expansion_model'] !== '' && ($config['ai_expansion_model'] ?? '') === '') {
+                            $config['ai_expansion_model'] = $models['ai_expansion_model'];
+                        }
                     }
-                    if ($models['ai_expansion_model'] !== '' && ($config['ai_expansion_model'] ?? '') === '') {
-                        $config['ai_expansion_model'] = $models['ai_expansion_model'];
-                    }
+                } catch (\Exception) {
+                    // DB not yet migrated — skip Amazee credential check.
                 }
-            } catch (\Exception) {
-                // DB not yet migrated — skip Amazee credential check.
             }
 
             return new ScoltaAiService($config, $amazeeActive);

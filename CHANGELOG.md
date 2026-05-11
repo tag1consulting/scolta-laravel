@@ -6,7 +6,8 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
-_No changes yet._
+### Fixed
+- **CRITICAL: Amazee auto-provisioning no longer silently overrides users who configured their API key.** The `ScoltaAiService` singleton in `register()` now checks `$config['ai_api_key']` (SCOLTA_API_KEY env var) before loading Amazee credentials. When an explicit key is present, Amazee credentials and model overrides are skipped entirely — previously the singleton unconditionally loaded stored Amazee credentials and overrode the configured provider on every request.
 
 ## [1.0.0-rc1] - 2026-05-11
 
