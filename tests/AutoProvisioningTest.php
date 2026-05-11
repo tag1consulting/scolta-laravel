@@ -126,4 +126,25 @@ class AutoProvisioningTest extends TestCase
             'attemptAmazeeAutoProvisioning() must catch DB exceptions (DB not migrated)'
         );
     }
+
+    public function test_singleton_guards_amazee_with_explicit_key(): void
+    {
+        // Regression: the singleton in register() must check for an explicit API
+        // key before loading Amazee credentials so users who configured their own
+        // key are never silently rerouted through the Amazee LiteLLM proxy.
+        $this->assertStringContainsString(
+            "\$explicitKey = \$config['ai_api_key']",
+            $this->providerSource,
+            "register() singleton must read \$config['ai_api_key'] before checking for Amazee credentials"
+        );
+    }
+
+    public function test_singleton_skips_amazee_when_explicit_key_set(): void
+    {
+        $this->assertStringContainsString(
+            'if ($explicitKey === \'\') {',
+            $this->providerSource,
+            'register() singleton must only load Amazee credentials when $explicitKey is empty'
+        );
+    }
 }
