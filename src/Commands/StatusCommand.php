@@ -113,11 +113,20 @@ class StatusCommand extends Command
         $this->info('--- AI Provider ---');
         if ($ai->hasLaravelAiSdk()) {
             $this->line('  Provider: Laravel AI SDK (laravel/ai)');
+        } elseif ($ai->isAmazeeActive()) {
+            $this->line('  Provider: Amazee.ai (managed gateway)');
+            $this->line('  API key:  configured (Amazee.ai credentials)');
         } else {
             $provider = $ai->getConfig()->aiProvider ?: 'anthropic';
             $hasKey = ! empty($ai->getConfig()->aiApiKey);
             $this->line("  Provider: {$provider} (built-in)");
-            $this->line('  API key:  '.($hasKey ? 'configured' : 'NOT SET'));
+            if ($hasKey) {
+                $this->line('  API key:  configured');
+            } else {
+                $this->warn('  API key:  NOT SET');
+                $this->line('  Options:  Set SCOLTA_API_KEY in .env, or run:');
+                $this->line('              php artisan scolta:amazee:provision  (free trial)');
+            }
         }
 
         // Assets published check.
