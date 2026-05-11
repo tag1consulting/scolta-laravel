@@ -27,6 +27,15 @@ class HandleAmazeeBudgetExceeded
                 'message' => $e->getMessage(),
             ]);
 
+            if (! $request->expectsJson()) {
+                session()->flash(
+                    'scolta_error',
+                    'AI search is temporarily unavailable. Your Amazee.ai trial budget has been exceeded.'
+                );
+
+                return redirect()->back();
+            }
+
             return new JsonResponse(
                 ['error' => 'AI service temporarily unavailable: Amazee.ai budget exceeded.'],
                 503,

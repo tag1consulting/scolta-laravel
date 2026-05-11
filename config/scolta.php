@@ -21,12 +21,22 @@ return [
     | AI Provider
     |--------------------------------------------------------------------------
     |
-    | Laravel 12+ users: set to 'laravel' to use the Laravel AI SDK
-    | (laravel/ai). The SDK handles provider selection and API keys
-    | through its own config/ai.php.
+    | The AI provider to use for query expansion and summarization.
+    | Options: 'anthropic', 'openai', 'amazee', 'laravel'
     |
-    | Laravel 11 users: set to 'anthropic' or 'openai' and provide
-    | the API key below. Scolta's built-in AiClient handles the rest.
+    | 'laravel'    — Laravel 12+ only. Use the Laravel AI SDK (laravel/ai).
+    |               The SDK handles provider selection and API keys via
+    |               config/ai.php. No SCOLTA_API_KEY needed.
+    |
+    | 'anthropic'  — Use Anthropic Claude directly. Set SCOLTA_API_KEY.
+    |
+    | 'openai'     — Use OpenAI directly. Set SCOLTA_API_KEY.
+    |
+    | 'amazee'     — Use the Amazee.ai managed gateway. Run
+    |               `php artisan scolta:amazee:provision` to set up your
+    |               connection, or leave SCOLTA_AI_PROVIDER unset — Scolta
+    |               auto-provisions a free trial on the first AI request
+    |               when no API key is configured.
     |
     */
 
