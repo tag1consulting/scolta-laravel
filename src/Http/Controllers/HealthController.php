@@ -7,6 +7,7 @@ namespace Tag1\ScoltaLaravel\Http\Controllers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Schema;
+use Tag1\Scolta\Config\ScoltaConfig;
 use Tag1\Scolta\Health\HealthChecker;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
@@ -93,7 +94,7 @@ class HealthController extends Controller
         $result['assets_published'] = file_exists($publishedJs);
 
         if ($result['assets_published']) {
-            $configReflection = new \ReflectionClass(\Tag1\Scolta\Config\ScoltaConfig::class);
+            $configReflection = new \ReflectionClass(ScoltaConfig::class);
             $assetsDir = dirname($configReflection->getFileName(), 3).'/assets';
             $checksumFile = $assetsDir.'/js/scolta.js.sha256';
 

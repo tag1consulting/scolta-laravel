@@ -7,6 +7,7 @@ namespace Tag1\ScoltaLaravel\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Schema;
 use Tag1\Scolta\Binary\PagefindBinary;
+use Tag1\Scolta\Config\ScoltaConfig;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 use Tag1\ScoltaLaravel\Searchable;
 use Tag1\ScoltaLaravel\Services\ContentSource;
@@ -138,7 +139,7 @@ class StatusCommand extends Command
             $this->line('  Published: no');
             $this->warn('  Run: php artisan vendor:publish --tag=scolta-assets');
         } else {
-            $coreRef = new \ReflectionClass(\Tag1\Scolta\Config\ScoltaConfig::class);
+            $coreRef = new \ReflectionClass(ScoltaConfig::class);
             $checksumFile = dirname($coreRef->getFileName(), 3).'/assets/js/scolta.js.sha256';
             if (file_exists($checksumFile)) {
                 $expectedHash = trim(file_get_contents($checksumFile));
