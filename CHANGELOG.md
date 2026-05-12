@@ -6,6 +6,10 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+_No changes yet._
+
+## [1.0.0-rc2] - 2026-05-12
+
 ### Fixed
 - **`scolta:build` now auto-publishes vendor assets.** After a successful build (PHP indexer, queue dispatch, or binary), the command runs `vendor:publish --tag=scolta-assets --force` to ensure the published JS/CSS/WASM in `public/vendor/scolta/` matches the installed package version. Previously, package updates via Composer left stale published assets in place, which could serve outdated JavaScript missing critical fixes.
 - **Health endpoint and status command now verify asset freshness.** `assets_published` was a boolean existence check that reported `true` even when published JS was outdated and missing critical fixes. The health endpoint now compares the sha256 of published JS against the canonical checksum from scolta-php. A new `assets_current` field (true/false) and `assets_warning` message appear when assets are stale. The status command shows "published (current)" vs "published (STALE)" with a remediation hint.

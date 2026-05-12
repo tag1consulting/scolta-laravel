@@ -1,6 +1,6 @@
 {
     "name": "tag1/scolta-laravel",
-    "version": "1.0.0-rc1",
+    "version": "1.0.0-rc2",
     "description": "Scolta AI Search for Laravel \u2014 zero-infrastructure AI-powered search with Pagefind",
     "type": "library",
     "license": "MIT",
