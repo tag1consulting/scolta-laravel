@@ -7,6 +7,7 @@ namespace Tag1\ScoltaLaravel\Http\Controllers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Schema;
+use Tag1\Scolta\Config\ScoltaConfig;
 use Tag1\Scolta\Health\HealthChecker;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
@@ -89,7 +90,23 @@ class HealthController extends Controller
         }
         $result['tracker'] = $tracker;
 
-        $result['assets_published'] = file_exists(public_path('vendor/scolta/scolta.js'));
+        $publishedJs = public_path('vendor/scolta/scolta.js');
+        $result['assets_published'] = file_exists($publishedJs);
+
+        if ($result['assets_published']) {
+            $configReflection = new \ReflectionClass(ScoltaConfig::class);
+            $assetsDir = dirname($configReflection->getFileName(), 3).'/assets';
+            $checksumFile = $assetsDir.'/js/scolta.js.sha256';
+
+            if (file_exists($checksumFile)) {
+                $expectedHash = trim(file_get_contents($checksumFile));
+                $actualHash = hash_file('sha256', $publishedJs);
+                $result['assets_current'] = ($actualHash === $expectedHash);
+                if (! $result['assets_current']) {
+                    $result['assets_warning'] = 'Published JS does not match package version. Run: php artisan vendor:publish --tag=scolta-assets --force';
+                }
+            }
+        }
 
         return response()->json($result);
     }

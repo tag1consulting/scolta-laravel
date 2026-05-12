@@ -7,6 +7,7 @@ namespace Tag1\ScoltaLaravel\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Schema;
 use Tag1\Scolta\Binary\PagefindBinary;
+use Tag1\Scolta\Config\ScoltaConfig;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 use Tag1\ScoltaLaravel\Searchable;
 use Tag1\ScoltaLaravel\Services\ContentSource;
@@ -132,10 +133,26 @@ class StatusCommand extends Command
 
         // Assets published check.
         $this->info('--- Assets ---');
-        $assetsPublished = file_exists(public_path('vendor/scolta/scolta.js'));
-        $this->line('  Published: '.($assetsPublished ? 'yes' : 'no'));
+        $publishedJs = public_path('vendor/scolta/scolta.js');
+        $assetsPublished = file_exists($publishedJs);
         if (! $assetsPublished) {
+            $this->line('  Published: no');
             $this->warn('  Run: php artisan vendor:publish --tag=scolta-assets');
+        } else {
+            $coreRef = new \ReflectionClass(ScoltaConfig::class);
+            $checksumFile = dirname($coreRef->getFileName(), 3).'/assets/js/scolta.js.sha256';
+            if (file_exists($checksumFile)) {
+                $expectedHash = trim(file_get_contents($checksumFile));
+                $actualHash = hash_file('sha256', $publishedJs);
+                if ($actualHash === $expectedHash) {
+                    $this->line('  Published: yes (current)');
+                } else {
+                    $this->line('  Published: yes (STALE)');
+                    $this->warn('  Run: php artisan vendor:publish --tag=scolta-assets --force');
+                }
+            } else {
+                $this->line('  Published: yes');
+            }
         }
 
         return self::SUCCESS;

@@ -169,6 +169,8 @@ class BuildCommand extends Command
             $report->peakMemoryMb(),
         ));
 
+        $this->publishAssets();
+
         return self::SUCCESS;
     }
 
@@ -248,6 +250,8 @@ class BuildCommand extends Command
         Bus::chain($jobs)->dispatch();
 
         $this->info('Rebuild dispatched to queue ('.count($chunks).' chunk(s) + finalize).');
+
+        $this->publishAssets();
 
         return self::SUCCESS;
     }
@@ -533,6 +537,8 @@ class BuildCommand extends Command
             $this->info("Pagefind index built: {$htmlCount} files, {$fragmentCount} fragments.");
             Cache::increment('scolta_expand_generation');
 
+            $this->publishAssets();
+
             return self::SUCCESS;
         }
 
@@ -540,5 +546,19 @@ class BuildCommand extends Command
         $this->line($result->errorOutput() ?: $result->output());
 
         return self::FAILURE;
+    }
+
+    private function publishAssets(): void
+    {
+        $this->info('Publishing scolta assets...');
+        $exitCode = \Artisan::call('vendor:publish', [
+            '--tag' => 'scolta-assets',
+            '--force' => true,
+        ]);
+        if ($exitCode === 0) {
+            $this->info('Assets published successfully.');
+        } else {
+            $this->warn('Asset publishing returned exit code '.$exitCode);
+        }
     }
 }
