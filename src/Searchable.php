@@ -89,7 +89,7 @@ trait Searchable
         $title = $this->title ?? $this->name ?? $this->subject ?? '';
 
         $bodyText = $this->body ?? $this->content ?? $this->description ?? '';
-        $bodyHtml = $bodyText !== '' ? '<p>'.strip_tags((string) $bodyText).'</p>' : '';
+        $bodyHtml = $bodyText !== '' ? '<p>'.strip_tags((string) $bodyText).'</p>' : ''; // strip_tags appropriate: plain-text column → safe HTML wrapper
 
         $pk = $this->getKey();
         $table = $this->getTable();
@@ -121,10 +121,9 @@ trait Searchable
      *   - Products: ->where('active', true)->where('visible', true)
      *   - Pages: ->whereNotNull('published_at')
      *
-     * @param  Builder  $query
      * @return Builder
      */
-    public function scopeSearchable($query)
+    public function scopeSearchable(Builder $query)
     {
         // Default: include all records. Override in your model for
         // status filtering, visibility checks, etc.

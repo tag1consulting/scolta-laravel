@@ -319,4 +319,31 @@ class StructuralIntegrityTest extends TestCase
             'Build command must not call private isExecutable(); use resolve() + status() instead'
         );
     }
+
+    // -------------------------------------------------------------------
+    // Code quality infrastructure files
+    // -------------------------------------------------------------------
+
+    public function test_gitattributes_exists(): void
+    {
+        $this->assertFileExists($this->root.'/.gitattributes');
+        $content = file_get_contents($this->root.'/.gitattributes');
+        $this->assertStringContainsString('tests/', $content);
+        $this->assertStringContainsString('export-ignore', $content);
+    }
+
+    public function test_phpstan_config_exists(): void
+    {
+        $this->assertFileExists($this->root.'/phpstan.neon');
+        $content = file_get_contents($this->root.'/phpstan.neon');
+        $this->assertStringContainsString('larastan', $content);
+    }
+
+    public function test_ci_workflow_includes_analyse_job(): void
+    {
+        $this->assertFileExists($this->root.'/.github/workflows/ci.yml');
+        $content = file_get_contents($this->root.'/.github/workflows/ci.yml');
+        $this->assertStringContainsString('analyse', $content,
+            'CI workflow should include a PHPStan analyse job');
+    }
 }

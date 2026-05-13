@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use Tag1\Scolta\Binary\PagefindBinary;
 use Tag1\Scolta\Config\ScoltaConfig;
@@ -64,7 +65,7 @@ class StatusCommand extends Command
         // Build directory.
         $this->info('--- Build Directory ---');
         if (is_dir($buildDir)) {
-            $htmlCount = count(glob($buildDir.'/*.html') ?: []);
+            $htmlCount = count(File::glob($buildDir.'/*.html') ?: []);
             $this->line("  Path:       {$buildDir}");
             $this->line("  HTML files: {$htmlCount}");
         } else {
@@ -75,7 +76,7 @@ class StatusCommand extends Command
         $this->info('--- Pagefind Index ---');
         $indexFile = $outputDir.'/pagefind/pagefind.js';
         if (file_exists($indexFile)) {
-            $fragmentCount = count(glob($outputDir.'/pagefind/fragment/*') ?: []);
+            $fragmentCount = count(File::glob($outputDir.'/pagefind/fragment/*') ?: []);
             $mtime = filemtime($indexFile);
             $this->line("  Path:       {$outputDir}");
             $this->line("  Fragments:  {$fragmentCount}");
@@ -142,7 +143,7 @@ class StatusCommand extends Command
             $coreRef = new \ReflectionClass(ScoltaConfig::class);
             $checksumFile = dirname($coreRef->getFileName(), 3).'/assets/js/scolta.js.sha256';
             if (file_exists($checksumFile)) {
-                $expectedHash = trim(file_get_contents($checksumFile));
+                $expectedHash = trim(File::get($checksumFile));
                 $actualHash = hash_file('sha256', $publishedJs);
                 if ($actualHash === $expectedHash) {
                     $this->line('  Published: yes (current)');

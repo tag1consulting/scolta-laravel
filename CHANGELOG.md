@@ -6,7 +6,17 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
-_No changes yet._
+### Added
+- **Larastan (PHPStan for Laravel) at level 5** with a `composer analyse` script and a new `analyse` job in CI.
+- **`.gitattributes`** to exclude dev files (`tests/`, `.github/`, `phpstan.neon`, etc.) from distribution archives.
+- **Regression tests** for env() usage, filesystem abstraction, config caching, and ServiceProvider exception handling.
+
+### Fixed
+- **Removed `env()` calls from runtime code** (`AmazeeProvisionCommand`, `AmazeeSettingsController`). These calls break silently after `php artisan config:cache` because Laravel's config cache does not call `env()`. Both locations now read from `config('scolta.ai_api_key')`, which is already populated from `SCOLTA_API_KEY` via `config/scolta.php`.
+- **Fixed nested `env()` in `config/scolta.php`**. The `ai_api_key` entry used `env('SCOLTA_API_KEY', env('SCOLTA_AI_API_KEY', ''))`, which evaluates the inner `env()` unconditionally. Replaced with `env('SCOLTA_API_KEY', '')`. The legacy `SCOLTA_AI_API_KEY` variable had no other references.
+- **Replaced raw PHP filesystem functions with Laravel's `File` facade** across 8 files (`BuildCommand`, `ExportCommand`, `RebuildIndexCommand`, `CleanupCommand`, `StatusCommand`, `DownloadPagefindCommand`, `DiscoverCommand`, `HealthController`). Raw calls (`unlink`, `glob`, `mkdir`, `chmod`, `file_get_contents`, `file_put_contents`, `@filemtime`) are now routed through the facade, which is mockable in tests.
+- **Removed error suppression operators** (`@unlink`, `@filemtime`) in favor of `File::delete()` and `rescue(fn () => File::lastModified(...))`. `File::delete()` does not throw on missing files, making the `@` operator unnecessary.
+- **ServiceProvider exception catch blocks now call `report()`** instead of silently discarding the exception. The DB-not-migrated path is expected on first install, but previously any other exception (permissions, corrupt config) was silently lost.
 
 ## [1.0.0-rc2] - 2026-05-12
 

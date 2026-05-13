@@ -198,7 +198,7 @@ class AmazeeSettingsController extends Controller
      */
     private function detectExistingProvider(): bool
     {
-        $key = config('scolta.ai_api_key', '') ?: env('SCOLTA_API_KEY', '');
+        $key = config('scolta.ai_api_key', '');
 
         return $key !== '';
     }

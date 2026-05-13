@@ -19,6 +19,7 @@
         "illuminate/routing": "^11.0|^12.0|^13.0"
     },
     "require-dev": {
+        "larastan/larastan": "^3.0",
         "laravel/pint": "^1.0",
         "orchestra/testbench": "^9.0|^10.0|^11.0",
         "phpunit/phpunit": "^10.0|^11.0"
@@ -27,6 +28,7 @@
         "test": "phpunit",
         "lint": "pint --test",
         "format": "pint",
+        "analyse": "phpstan analyse --no-progress --memory-limit=256M",
         "validate-release": "php scripts/validate-release.php"
     },
     "autoload": {

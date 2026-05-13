@@ -121,7 +121,7 @@ class AutoProvisioningTest extends TestCase
     public function test_wraps_db_call_in_try_catch(): void
     {
         $this->assertStringContainsString(
-            '} catch (\Exception) {',
+            'catch (\Exception $e)',
             $this->providerSource,
             'attemptAmazeeAutoProvisioning() must catch DB exceptions (DB not migrated)'
         );

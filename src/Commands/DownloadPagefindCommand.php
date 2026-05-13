@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use Tag1\Scolta\Binary\PagefindBinary;
@@ -33,7 +34,7 @@ class DownloadPagefindCommand extends Command
         $targetDir = $this->option('path') ?: $defaultTarget;
 
         if (! is_dir($targetDir)) {
-            mkdir($targetDir, 0755, true);
+            File::ensureDirectoryExists($targetDir, 0755);
         }
 
         // Detect platform.
@@ -89,8 +90,7 @@ class DownloadPagefindCommand extends Command
 
         if ($downloadResponse->failed()) {
             $this->error('Download failed: HTTP '.$downloadResponse->status());
-            // Suppress: best-effort cleanup of partial download, file may already be removed.
-            @unlink($tmpFile);
+            File::delete($tmpFile);
 
             return self::FAILURE;
         }
@@ -104,8 +104,7 @@ class DownloadPagefindCommand extends Command
             .' pagefind'
         );
 
-        // Suppress: best-effort cleanup of partial download, file may already be removed.
-        @unlink($tmpFile);
+        File::delete($tmpFile);
 
         if (! file_exists($targetBinary)) {
             $this->error("Extraction failed. Binary not found at {$targetBinary}");
@@ -116,14 +115,14 @@ class DownloadPagefindCommand extends Command
             return self::FAILURE;
         }
 
-        chmod($targetBinary, 0755);
+        File::chmod($targetBinary, 0755);
 
         $this->info("Pagefind v{$version} installed to {$targetBinary}");
 
         // Auto-update .env with the binary path.
         $envPath = base_path('.env');
         if (file_exists($envPath)) {
-            $env = file_get_contents($envPath);
+            $env = File::get($envPath);
             if (str_contains($env, 'SCOLTA_PAGEFIND_BINARY=')) {
                 $env = preg_replace(
                     '/^SCOLTA_PAGEFIND_BINARY=.*/m',
@@ -133,7 +132,7 @@ class DownloadPagefindCommand extends Command
             } else {
                 $env .= "\nSCOLTA_PAGEFIND_BINARY={$targetBinary}\n";
             }
-            if (file_put_contents($envPath, $env) === false) {
+            if (File::put($envPath, $env) === false) {
                 $this->error("Failed to update .env at {$envPath}");
 
                 return self::FAILURE;

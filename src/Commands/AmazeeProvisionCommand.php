@@ -42,7 +42,7 @@ class AmazeeProvisionCommand extends Command
         $hasExistingProvider = $this->option('force')
             ? null
             : function (): bool {
-                $key = config('scolta.ai_api_key', '') ?: env('SCOLTA_API_KEY', '');
+                $key = config('scolta.ai_api_key', '');
 
                 return $key !== '';
             };

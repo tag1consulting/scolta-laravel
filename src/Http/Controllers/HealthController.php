@@ -6,6 +6,7 @@ namespace Tag1\ScoltaLaravel\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use Tag1\Scolta\Config\ScoltaConfig;
 use Tag1\Scolta\Health\HealthChecker;
@@ -43,7 +44,7 @@ class HealthController extends Controller
         if ($result['index_exists']) {
             $indexFile = $outputDir.'/pagefind/pagefind.js';
             $mtime = filemtime($indexFile);
-            $fragments = glob($outputDir.'/pagefind/fragment/*') ?: [];
+            $fragments = File::glob($outputDir.'/pagefind/fragment/*') ?: [];
             $result['index'] = [
                 'built' => true,
                 'fragments' => count($fragments),
@@ -99,7 +100,7 @@ class HealthController extends Controller
             $checksumFile = $assetsDir.'/js/scolta.js.sha256';
 
             if (file_exists($checksumFile)) {
-                $expectedHash = trim(file_get_contents($checksumFile));
+                $expectedHash = trim(File::get($checksumFile));
                 $actualHash = hash_file('sha256', $publishedJs);
                 $result['assets_current'] = ($actualHash === $expectedHash);
                 if (! $result['assets_current']) {

@@ -6,6 +6,7 @@ namespace Tag1\ScoltaLaravel\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use Tag1\Scolta\Binary\PagefindBinary;
 
@@ -45,7 +46,7 @@ class RebuildIndexCommand extends Command
             return self::FAILURE;
         }
 
-        $htmlCount = count(glob($buildDir.'/*.html') ?: []);
+        $htmlCount = count(File::glob($buildDir.'/*.html') ?: []);
         if ($htmlCount === 0) {
             $this->error("No HTML files in {$buildDir}. Run scolta:export first.");
 
@@ -53,7 +54,7 @@ class RebuildIndexCommand extends Command
         }
 
         if (! is_dir($outputDir)) {
-            mkdir($outputDir, 0755, true);
+            File::ensureDirectoryExists($outputDir, 0755);
         }
 
         $this->info("Using Pagefind: {$binary} (resolved via {$resolver->resolvedVia()})");
@@ -68,7 +69,7 @@ class RebuildIndexCommand extends Command
         $result = Process::timeout(300)->run($cmd);
 
         if ($result->successful() && file_exists($pagefindOutputDir.'/pagefind.js')) {
-            $fragmentCount = count(glob($pagefindOutputDir.'/fragment/*') ?: []);
+            $fragmentCount = count(File::glob($pagefindOutputDir.'/fragment/*') ?: []);
             Cache::increment('scolta_expand_generation');
             $this->info("Pagefind index rebuilt: {$htmlCount} files, {$fragmentCount} fragments.");
 
