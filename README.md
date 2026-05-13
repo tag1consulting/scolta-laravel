@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/tag1consulting/scolta-laravel/actions/workflows/ci.yml/badge.svg)](https://github.com/tag1consulting/scolta-laravel/actions/workflows/ci.yml)
 
+Built and maintained by [Tag1 Consulting](https://tag1.com/) — technology leadership since 2007. [Tag1 offers AI strategy, architecture, and implementation consulting](https://tag1.com/services/ai/) for organizations evaluating or deploying AI-powered products.
+
 Laravel 11/12/13 package — Artisan commands, `Searchable` trait for Eloquent models, and AI-powered search built on Pagefind.
 
 ## Status
@@ -609,6 +611,12 @@ database/migrations/                     Tracker table migration
 routes/api.php                           API route definitions
 resources/views/components/search.blade.php  <x-scolta::search /> component
 ```
+
+## About Tag1 Consulting
+
+Scolta is designed, built, and maintained by [Tag1 Consulting](https://tag1.com/). Tag1 has been delivering technology leadership since 2007 and is one of the leading open-source consulting firms in the world.
+
+Tag1 offers [AI strategy, architecture, and implementation consulting](https://tag1.com/services/ai/) — from evaluating whether AI search is right for your organization, to production deployment and ongoing tuning. If you need help integrating Scolta, customizing scoring for your content model, or connecting it to your AI provider of choice, [get in touch](https://tag1.com/contact/).
 
 ## Credits
 
