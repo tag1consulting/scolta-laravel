@@ -90,8 +90,9 @@ class ScoltaServiceProvider extends ServiceProvider
                             $config['ai_expansion_model'] = $models['ai_expansion_model'];
                         }
                     }
-                } catch (\Exception) {
+                } catch (\Exception $e) {
                     // DB not yet migrated — skip Amazee credential check.
+                    report($e);
                 }
             }
 
@@ -178,8 +179,9 @@ class ScoltaServiceProvider extends ServiceProvider
                 // don't attempt (and query the DB) on every request.
                 Cache::put($cacheKey, true, now()->addDays(30));
             }
-        } catch (\Exception) {
+        } catch (\Exception $e) {
             // DB not migrated or API unreachable — silently degrade.
+            report($e);
         }
     }
 

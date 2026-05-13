@@ -301,4 +301,26 @@ class ServiceProviderTest extends TestCase
             'Provider should warn when model does not use Searchable trait'
         );
     }
+
+    // -------------------------------------------------------------------
+    // Exception handling — no silent swallowing
+    // -------------------------------------------------------------------
+
+    public function test_no_empty_catch_blocks(): void
+    {
+        $this->assertDoesNotMatchRegularExpression(
+            '/catch\s*\([^)]+\)\s*\{\s*\}/',
+            $this->providerSource,
+            'ServiceProvider has empty catch blocks — exceptions should be reported via report()'
+        );
+    }
+
+    public function test_catch_blocks_call_report(): void
+    {
+        $this->assertStringContainsString(
+            'report($e)',
+            $this->providerSource,
+            'ServiceProvider catch blocks should call report() so exceptions reach the error handler'
+        );
+    }
 }

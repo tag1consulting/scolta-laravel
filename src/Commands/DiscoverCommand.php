@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\File;
 use Tag1\ScoltaLaravel\Searchable;
 
 /**
@@ -149,9 +150,9 @@ class DiscoverCommand extends Command
      */
     private function classFromFile(string $path): ?string
     {
-        $src = file_get_contents($path);
-
-        if ($src === false) {
+        try {
+            $src = File::get($path);
+        } catch (\Exception) {
             return null;
         }
 

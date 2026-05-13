@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\File;
 use Tag1\Scolta\Index\BuildState;
 
 /**
@@ -42,13 +43,12 @@ class CleanupCommand extends Command
         // --- 1. Stale lock file (older than 1 hour) ---
         $lockFile = $stateDir.'/lock';
         if (file_exists($lockFile)) {
-            $age = time() - (int) @filemtime($lockFile);
+            $age = time() - (int) rescue(fn () => File::lastModified($lockFile), 0);
             if ($age > 3600) {
                 if ($dryRun) {
                     $this->line("[dry-run] Would remove stale lock: {$lockFile} (age: {$age}s)");
                 } else {
-                    // Suppress: best-effort cleanup, file may already be removed.
-                    @unlink($lockFile);
+                    File::delete($lockFile);
                     $this->line("Removed stale lock: {$lockFile}");
                 }
                 $removed++;
@@ -62,14 +62,13 @@ class CleanupCommand extends Command
             // getChunkFiles() returns the chunks the manifest knows about.
             $knownChunks = array_flip($state->getChunkFiles());
 
-            $allChunks = glob($stateDir.'/chunk-*.dat') ?: [];
+            $allChunks = File::glob($stateDir.'/chunk-*.dat') ?: [];
             foreach ($allChunks as $chunkFile) {
                 if (! array_key_exists($chunkFile, $knownChunks)) {
                     if ($dryRun) {
                         $this->line("[dry-run] Would remove orphaned chunk: {$chunkFile}");
                     } else {
-                        // Suppress: best-effort cleanup, file may already be removed.
-                        @unlink($chunkFile);
+                        File::delete($chunkFile);
                         $this->line("Removed orphaned chunk: {$chunkFile}");
                     }
                     $removed++;
@@ -84,16 +83,15 @@ class CleanupCommand extends Command
             $entryFile = $outputDir.'/pagefind/pagefind.js';
             if (! file_exists($entryFile)) {
                 $orphans = array_merge(
-                    glob($outputDir.'/pagefind/fragment/*.pf_fragment') ?: [],
-                    glob($outputDir.'/pagefind/index/*.pf_index') ?: [],
+                    File::glob($outputDir.'/pagefind/fragment/*.pf_fragment') ?: [],
+                    File::glob($outputDir.'/pagefind/index/*.pf_index') ?: [],
                 );
 
                 foreach ($orphans as $orphan) {
                     if ($dryRun) {
                         $this->line("[dry-run] Would remove orphaned index file: {$orphan}");
                     } else {
-                        // Suppress: best-effort cleanup, file may already be removed.
-                        @unlink($orphan);
+                        File::delete($orphan);
                         $this->line("Removed orphaned index file: {$orphan}");
                     }
                     $removed++;

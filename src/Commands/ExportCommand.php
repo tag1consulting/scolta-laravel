@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\File;
 use Tag1\Scolta\Export\ContentExporter;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 use Tag1\ScoltaLaravel\Services\ContentSource;
@@ -47,7 +48,7 @@ class ExportCommand extends Command
         foreach ($deletedIds as $id) {
             $filepath = rtrim($buildDir, '/').'/'.$id.'.html';
             if (file_exists($filepath)) {
-                unlink($filepath);
+                File::delete($filepath);
             }
         }
         if (count($deletedIds) > 0) {

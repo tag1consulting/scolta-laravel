@@ -8,6 +8,7 @@ use Illuminate\Console\Command;
 use Illuminate\Log\Logger;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use Tag1\Scolta\Binary\PagefindBinary;
 use Tag1\Scolta\Config\MemoryBudgetConfig;
@@ -301,7 +302,7 @@ class BuildCommand extends Command
         foreach ($deletedIds as $id) {
             $filepath = rtrim($buildDir, '/').'/'.$id.'.html';
             if (file_exists($filepath)) {
-                unlink($filepath);
+                File::delete($filepath);
             }
         }
         if (count($deletedIds) > 0) {
@@ -512,7 +513,7 @@ class BuildCommand extends Command
             return self::FAILURE;
         }
 
-        $htmlCount = count(glob($buildDir.'/*.html') ?: []);
+        $htmlCount = count(File::glob($buildDir.'/*.html') ?: []);
         if ($htmlCount === 0) {
             $this->error("No HTML files in {$buildDir}. Export content first.");
 
@@ -520,7 +521,7 @@ class BuildCommand extends Command
         }
 
         if (! is_dir($outputDir)) {
-            mkdir($outputDir, 0755, true);
+            File::ensureDirectoryExists($outputDir, 0755);
         }
 
         $pagefindOutputDir = $outputDir.'/pagefind';
@@ -533,7 +534,7 @@ class BuildCommand extends Command
         $result = Process::timeout(300)->run($cmd);
 
         if ($result->successful() && file_exists($pagefindOutputDir.'/pagefind.js')) {
-            $fragmentCount = count(glob($pagefindOutputDir.'/fragment/*') ?: []);
+            $fragmentCount = count(File::glob($pagefindOutputDir.'/fragment/*') ?: []);
             $this->info("Pagefind index built: {$htmlCount} files, {$fragmentCount} fragments.");
             Cache::increment('scolta_expand_generation');
 
