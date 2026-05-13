@@ -6,6 +6,10 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+_No changes yet._
+
+## [1.0.0-rc3] - 2026-05-13
+
 ### Added
 - **Larastan (PHPStan for Laravel) at level 5** with a `composer analyse` script and a new `analyse` job in CI.
 - **`.gitattributes`** to exclude dev files (`tests/`, `.github/`, `phpstan.neon`, etc.) from distribution archives.
