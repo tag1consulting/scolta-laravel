@@ -6,7 +6,8 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
-_No changes yet._
+### Fixed
+- **`scolta:build --sync` no longer exits with an error on memory pressure.** When `IndexBuildOrchestrator` returns `memory_abort` (voluntary yield at 75% of memory limit), `BuildCommand` now spawns `php artisan scolta:build --sync --resume` in the background instead of returning `FAILURE`. When all pages are indexed but the merge was deferred (`index_only_complete`), `FinalizeIndex` is dispatched to the queue. Both cases let the build continue in a fresh process with a clean heap. Requires [scolta-php#107](https://github.com/tag1consulting/scolta-php/pull/107). ([#87](https://github.com/tag1consulting/scolta-php/issues/87))
 
 ## [1.0.0-rc3] - 2026-05-13
 

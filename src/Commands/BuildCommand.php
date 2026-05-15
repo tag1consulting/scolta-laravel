@@ -157,6 +157,34 @@ class BuildCommand extends Command
         $report = $orchestrator->build($intent, $items, $logger, $reporter, force: (bool) $this->option('force'));
 
         if (! $report->success) {
+            if ($report->error === 'memory_abort' && $report->chunksWritten > 0) {
+                // Voluntary yield: RSS reached 75% of the memory limit mid-build.
+                // Spawn a fresh artisan process to resume; child starts with clean heap.
+                $this->line(sprintf(
+                    'Memory pressure after %d chunks (%d pages committed). Spawning resume...',
+                    $report->chunksWritten,
+                    $report->pagesProcessed,
+                ));
+
+                return $this->spawnResumeProcess($budget->profile(), $this->option('chunk-size'));
+            }
+
+            if ($report->error === 'index_only_complete') {
+                // All pages indexed but the merge could not run in this process
+                // (heap too fragmented). Dispatch FinalizeIndex to the queue so it
+                // runs in a fresh worker with a clean heap.
+                $this->line(sprintf(
+                    'All %d pages indexed (%d chunks). Dispatching finalize to queue...',
+                    $report->pagesProcessed,
+                    $report->chunksWritten,
+                ));
+                FinalizeIndex::dispatch($stateDir, $outputDir, $hmacSecret, $language, $budget->profile());
+
+                $this->publishAssets();
+
+                return self::SUCCESS;
+            }
+
             $this->error('Index build failed: '.($report->error ?? 'Unknown error'));
 
             return self::FAILURE;
@@ -171,6 +199,45 @@ class BuildCommand extends Command
         ));
 
         $this->publishAssets();
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Spawn a fresh artisan process to resume a memory-aborted build.
+     *
+     * Starts `php artisan scolta:build --sync --resume` in the background so
+     * the child begins with a clean heap. The parent returns immediately after
+     * launching the child — the child continues the build independently.
+     *
+     * @since 1.0.0
+     *
+     * @stability experimental
+     */
+    private function spawnResumeProcess(?string $memoryBudget, ?string $chunkSize): int
+    {
+        $artisan = base_path('artisan');
+        if (! file_exists($artisan)) {
+            $this->warn('Cannot auto-resume: artisan not found. Run: php artisan scolta:build --sync --resume');
+
+            return self::FAILURE;
+        }
+
+        $cmd = PHP_BINARY.' '.escapeshellarg($artisan).' scolta:build --sync --resume';
+
+        if (! empty($memoryBudget)) {
+            $cmd .= ' --memory-budget='.escapeshellarg($memoryBudget);
+        }
+        if (! empty($chunkSize)) {
+            $cmd .= ' --chunk-size='.escapeshellarg($chunkSize);
+        }
+
+        $logFile = sys_get_temp_dir().'/scolta-resume.log';
+
+        // Start the process without waiting — orphaned processes survive on Linux/macOS.
+        Process::start($cmd.' >> '.escapeshellarg($logFile).' 2>&1');
+
+        $this->line('Resume log: '.$logFile);
 
         return self::SUCCESS;
     }
