@@ -6,7 +6,12 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
-_No changes yet._
+### Fixed
+- **`scolta:build --sync` emits an actionable error when `memory_abort` fires before any chunks are committed.** Previously the command fell through to the generic "Index build failed: memory_abort" message. It now says "Memory limit hit before any chunks were committed. Reduce --chunk-size or increase memory_limit." to match the Drupal and WordPress adapter behaviour.
+- **`scolta:build --sync` no longer exits with an error on memory pressure.**
+
+### Tests
+- **`BuildCommandMemoryHandlingTest`** — 15 structural tests verifying `memory_abort` and `index_only_complete` branch logic in `BuildCommand::buildWithPhpIndexer()`. Guards against regressions in the conditions that trigger background resume and queue-dispatched finalize. When `IndexBuildOrchestrator` returns `memory_abort` (voluntary yield at 75% of memory limit), `BuildCommand` now spawns `php artisan scolta:build --sync --resume` in the background instead of returning `FAILURE`. When all pages are indexed but the merge was deferred (`index_only_complete`), `FinalizeIndex` is dispatched to the queue. Both cases let the build continue in a fresh process with a clean heap. Requires [scolta-php#107](https://github.com/tag1consulting/scolta-php/pull/107). ([#87](https://github.com/tag1consulting/scolta-php/issues/87))
 
 ## [1.0.0-rc3] - 2026-05-13
 
