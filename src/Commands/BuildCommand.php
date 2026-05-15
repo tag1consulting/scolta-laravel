@@ -157,16 +157,22 @@ class BuildCommand extends Command
         $report = $orchestrator->build($intent, $items, $logger, $reporter, force: (bool) $this->option('force'));
 
         if (! $report->success) {
-            if ($report->error === 'memory_abort' && $report->chunksWritten > 0) {
-                // Voluntary yield: RSS reached 75% of the memory limit mid-build.
-                // Spawn a fresh artisan process to resume; child starts with clean heap.
-                $this->line(sprintf(
-                    'Memory pressure after %d chunks (%d pages committed). Spawning resume...',
-                    $report->chunksWritten,
-                    $report->pagesProcessed,
-                ));
+            if ($report->error === 'memory_abort') {
+                if ($report->chunksWritten > 0) {
+                    // Voluntary yield: RSS reached 75% of the memory limit mid-build.
+                    // Spawn a fresh artisan process to resume; child starts with clean heap.
+                    $this->line(sprintf(
+                        'Memory pressure after %d chunks (%d pages committed). Spawning resume...',
+                        $report->chunksWritten,
+                        $report->pagesProcessed,
+                    ));
 
-                return $this->spawnResumeProcess($budget->profile(), $this->option('chunk-size'));
+                    return $this->spawnResumeProcess($budget->profile(), $this->option('chunk-size'));
+                }
+
+                $this->error('Memory limit hit before any chunks were committed. Reduce --chunk-size or increase memory_limit.');
+
+                return self::FAILURE;
             }
 
             if ($report->error === 'index_only_complete') {
