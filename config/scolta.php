@@ -339,4 +339,76 @@ return [
     'prompt_expand_query' => '',
     'prompt_summarize' => '',
     'prompt_follow_up' => '',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Sortable Fields
+    |--------------------------------------------------------------------------
+    |
+    | Field names that CMS adapters should extract as sortable attributes
+    | (data-pagefind-sort). When non-empty, the AI expansion prompt gains a
+    | SORT INTENT section so the LLM can detect sort intent in queries.
+    |
+    | Example: 'sortable_fields' => ['date', 'price', 'word_count']
+    |
+    */
+
+    'sortable_fields' => [],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Sortable Field Descriptions
+    |--------------------------------------------------------------------------
+    |
+    | Human-readable descriptions keyed by field name. When present, these
+    | descriptions appear in the sort-intent prompt so the LLM can map
+    | natural language to the correct field.
+    |
+    | Writing good descriptions matters — "Article length in words — higher
+    | values mean more comprehensive coverage" lets the LLM map "longest" and
+    | "most comprehensive" to this field. A bare field name forces guessing.
+    |
+    | Example:
+    |   'sortable_field_descriptions' => [
+    |       'price'      => 'Product price in the store currency',
+    |       'word_count' => 'Article length in words',
+    |   ]
+    |
+    */
+
+    'sortable_field_descriptions' => [],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Filter Fields
+    |--------------------------------------------------------------------------
+    |
+    | Filter dimension names for filter-intent detection. Must match the
+    | filter names emitted as data-pagefind-filter attributes by your content
+    | gatherer. When non-empty, the AI expansion prompt gains a FILTER INTENT
+    | section so the LLM can detect filter intent in queries.
+    |
+    | Example: 'filter_fields' => ['topic', 'era', 'region']
+    |
+    */
+
+    'filter_fields' => [],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Filter Field Descriptions
+    |--------------------------------------------------------------------------
+    |
+    | Human-readable descriptions keyed by filter name. Listing valid values
+    | helps the LLM map user language to the correct filter value.
+    |
+    | Example:
+    |   'filter_field_descriptions' => [
+    |       'topic' => 'Subject area or domain. Values: Science, History, Biography, Geography, Arts, Technology',
+    |       'era'   => 'Historical period. Values: Ancient, Medieval, Modern, Contemporary',
+    |   ]
+    |
+    */
+
+    'filter_field_descriptions' => [],
 ];

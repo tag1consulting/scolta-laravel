@@ -6,6 +6,10 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+### Added
+- **`sortable_field_descriptions` config key** — human-readable descriptions for each sortable field, passed to the LLM so it can map natural language like "longest" or "most recent" to the correct `data-pagefind-sort` attribute. Set as an associative array in `config/scolta.php` or via environment variables.
+- **`filter_fields` and `filter_field_descriptions` config keys** — list the Pagefind filter dimensions your site emits (via `data-pagefind-filter`) and provide descriptions that help the LLM detect filter intent in queries. When non-empty, the expand-query prompt gains a FILTER INTENT section.
+
 ### Fixed
 - **`scolta:build --sync` emits an actionable error when `memory_abort` fires before any chunks are committed.** Previously the command fell through to the generic "Index build failed: memory_abort" message. It now says "Memory limit hit before any chunks were committed. Reduce --chunk-size or increase memory_limit." to match the Drupal and WordPress adapter behaviour.
 - **`scolta:build --sync` no longer exits with an error on memory pressure.**
