@@ -6,6 +6,9 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+### Fixed
+- **Add `## External Services` section to `README.md`.** Documents all external HTTP connections: GitHub API (pagefind download via `php artisan scolta:download-pagefind`), Pagefind binary from GitHub Releases, and AI provider APIs (Anthropic, OpenAI, OpenAI-compatible endpoints). Includes terms of service and privacy policy links for each service, consistent with scolta-wp's `readme.txt` disclosure.
+
 ### Added
 - **`show_attribution` config key** — opt-in "Powered by Scolta" attribution rendered below the search widget. Set `SCOLTA_SHOW_ATTRIBUTION=true` in `.env` or `'show_attribution' => true` in `config/scolta.php`. Defaults to `false`. When enabled, the Blade component appends `<p class="scolta-attribution">Powered by Scolta</p>` after the search container. ([#102](https://github.com/tag1consulting/scolta-php/issues/102))
 - **`sortable_field_descriptions` config key** — human-readable descriptions for each sortable field, passed to the LLM so it can map natural language like "longest" or "most recent" to the correct `data-pagefind-sort` attribute. Set as an associative array in `config/scolta.php` or via environment variables.

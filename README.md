@@ -612,6 +612,43 @@ routes/api.php                           API route definitions
 resources/views/components/search.blade.php  <x-scolta::search /> component
 ```
 
+## External Services
+
+Scolta connects to external services under specific conditions. No data is sent automatically — all connections are triggered by developer action or explicit configuration.
+
+### GitHub API (api.github.com)
+
+**When:** A developer runs `php artisan scolta:download-pagefind` to download the Pagefind binary.
+**What is sent:** A standard HTTPS GET request to `https://api.github.com/repos/CloudCannon/pagefind/releases/latest`. No personally identifiable information is transmitted beyond standard HTTP request headers (IP address, user agent).
+**Service:** GitHub, operated by GitHub, Inc. (a subsidiary of Microsoft Corporation).
+**Terms of Service:** https://docs.github.com/en/site-policy/github-terms/github-terms-of-service
+**Privacy Statement:** https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement
+
+### Pagefind Binary (GitHub Releases / Pagefind)
+
+**When:** `php artisan scolta:download-pagefind` downloads the Pagefind binary from GitHub Releases after querying the GitHub API above.
+**What is sent:** A standard HTTPS GET request to download the release archive. No personally identifiable information is transmitted beyond standard HTTP request headers.
+**Service:** Pagefind is an open-source project (MIT license) maintained by the Pagefind project.
+**Pagefind:** https://pagefind.app/
+**CloudCannon:** https://cloudcannon.com/
+**Pagefind License:** https://github.com/Pagefind/pagefind/blob/main/LICENSE
+
+### AI Provider APIs
+
+**When:** A visitor performs a search and AI features are enabled (`SCOLTA_AI_EXPAND=true` or `SCOLTA_AI_SUMMARIZE=true` in `.env`). AI features are disabled by default and require an API key to be configured.
+**What is sent:** The user's search query text and selected page content excerpts (for result summarization) are sent to the configured AI provider's API endpoint. See [AI Features and Privacy](#ai-features-and-privacy) for full details on what is and is not transmitted.
+**Providers:** The specific provider depends on the `SCOLTA_AI_PROVIDER` setting:
+
+- **Anthropic (Claude)** — processes search queries and page excerpts.
+  Terms of Service: https://www.anthropic.com/legal/consumer-terms
+  Privacy Policy: https://www.anthropic.com/legal/privacy
+- **OpenAI** — processes search queries and page excerpts.
+  Terms of Use: https://openai.com/policies/terms-of-use
+  Privacy Policy: https://openai.com/policies/privacy-policy
+- **OpenAI-compatible endpoints** (including self-hosted Ollama and other providers) — any endpoint configured via `SCOLTA_AI_BASE_URL`. Review the terms and privacy policy of your chosen provider.
+
+No AI API calls are made unless `SCOLTA_API_KEY` is set and AI features are enabled.
+
 ## About Tag1 Consulting
 
 Scolta is designed, built, and maintained by [Tag1 Consulting](https://www.tag1.com/). Tag1 has been delivering technology leadership since 2007 and is one of the leading open-source consulting firms in the world.
