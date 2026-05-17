@@ -231,4 +231,35 @@ class BladeComponentTest extends TestCase
         $this->assertStringNotContainsString('@auth', $this->templateContent,
             'The "index not built" warning must not be wrapped in @auth — anonymous visitors should also see it.');
     }
+
+    // -------------------------------------------------------------------
+    // Attribution markup — opt-in, guarded by $config->showAttribution
+    // -------------------------------------------------------------------
+
+    public function test_attribution_markup_is_present(): void
+    {
+        $this->assertStringContainsString('scolta-attribution', $this->templateContent,
+            'Blade template must contain the scolta-attribution element for when attribution is enabled.');
+    }
+
+    public function test_attribution_text_is_powered_by_scolta(): void
+    {
+        $this->assertStringContainsString('Powered by Scolta', $this->templateContent,
+            'Attribution text must read "Powered by Scolta".');
+    }
+
+    public function test_attribution_is_gated_by_show_attribution_flag(): void
+    {
+        $this->assertStringContainsString('showAttribution', $this->templateContent,
+            'Attribution must be conditional on $config->showAttribution.');
+    }
+
+    public function test_attribution_uses_blade_if_directive(): void
+    {
+        $this->assertMatchesRegularExpression(
+            '/@if\s*\(\s*\$config->showAttribution\s*\)/',
+            $this->templateContent,
+            'Attribution block must use @if($config->showAttribution) to guard the markup.'
+        );
+    }
 }

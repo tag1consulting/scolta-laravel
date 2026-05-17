@@ -164,6 +164,18 @@ class ConfigTest extends TestCase
         $this->assertEquals(4000, $this->config['ai_summary_max_chars']);
     }
 
+    public function test_show_attribution_key_exists(): void
+    {
+        $this->assertArrayHasKey('show_attribution', $this->config,
+            'show_attribution key must be present in the config array.');
+    }
+
+    public function test_show_attribution_defaults_to_false(): void
+    {
+        $this->assertFalse($this->config['show_attribution'],
+            'show_attribution must default to false — attribution is opt-in.');
+    }
+
     // -------------------------------------------------------------------
     // Caching and rate limiting
     // -------------------------------------------------------------------

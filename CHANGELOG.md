@@ -7,6 +7,7 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 ## [Unreleased]
 
 ### Added
+- **`show_attribution` config key** — opt-in "Powered by Scolta" attribution rendered below the search widget. Set `SCOLTA_SHOW_ATTRIBUTION=true` in `.env` or `'show_attribution' => true` in `config/scolta.php`. Defaults to `false`. When enabled, the Blade component appends `<p class="scolta-attribution">Powered by Scolta</p>` after the search container. ([#102](https://github.com/tag1consulting/scolta-php/issues/102))
 - **`sortable_field_descriptions` config key** — human-readable descriptions for each sortable field, passed to the LLM so it can map natural language like "longest" or "most recent" to the correct `data-pagefind-sort` attribute. Set as an associative array in `config/scolta.php` or via environment variables.
 - **`filter_fields` and `filter_field_descriptions` config keys** — list the Pagefind filter dimensions your site emits (via `data-pagefind-filter`) and provide descriptions that help the LLM detect filter intent in queries. When non-empty, the expand-query prompt gains a FILTER INTENT section.
 
