@@ -190,16 +190,16 @@ class ExternalServicesDocTest extends TestCase
             $ch = curl_init($url);
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_HEADER         => true,
-                CURLOPT_NOBODY         => true,
+                CURLOPT_HEADER => true,
+                CURLOPT_NOBODY => true,
                 CURLOPT_FOLLOWLOCATION => true,
-                CURLOPT_MAXREDIRS      => 5,
-                CURLOPT_TIMEOUT        => 10,
-                CURLOPT_USERAGENT      => 'Mozilla/5.0 (compatible; scolta-laravel-test/1.0)',
+                CURLOPT_MAXREDIRS => 5,
+                CURLOPT_TIMEOUT => 10,
+                CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; scolta-laravel-test/1.0)',
                 CURLOPT_SSL_VERIFYPEER => true,
             ]);
             curl_exec($ch);
-            $code  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             $error = curl_error($ch);
             curl_close($ch);
 
