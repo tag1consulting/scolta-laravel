@@ -72,6 +72,11 @@
     {{-- Search container --}}
     <div id="scolta-search" {{ $attributes }}></div>
 
+    {{-- Optional attribution (opt-in via show_attribution config) --}}
+    @if($config->showAttribution)
+        <p class="scolta-attribution">Powered by Scolta</p>
+    @endif
+
     {{-- Scolta JS from published assets --}}
     @if(file_exists(public_path('vendor/scolta/scolta.js')))
         <script src="{{ asset('vendor/scolta/scolta.js') }}" defer></script>

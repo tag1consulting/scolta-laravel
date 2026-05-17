@@ -240,7 +240,19 @@ return [
     |--------------------------------------------------------------------------
     | Display
     |--------------------------------------------------------------------------
+    |
+    | show_attribution — Render "Powered by Scolta" below the search widget.
+    |
+    | Defaults to false. Set to true if you wish to credit Scolta publicly,
+    | for example to meet WordPress.org plugin directory guidelines that
+    | encourage attribution for free, open-source tools.
+    |
+    | When true, the Blade component appends:
+    |   <p class="scolta-attribution">Powered by Scolta</p>
+    |
     */
+
+    'show_attribution' => env('SCOLTA_SHOW_ATTRIBUTION', false),
 
     'excerpt_length' => 300,
     'results_per_page' => 10,
