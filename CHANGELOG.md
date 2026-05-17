@@ -11,6 +11,7 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 - **`filter_fields` and `filter_field_descriptions` config keys** — list the Pagefind filter dimensions your site emits (via `data-pagefind-filter`) and provide descriptions that help the LLM detect filter intent in queries. When non-empty, the expand-query prompt gains a FILTER INTENT section.
 
 ### Fixed
+- **`auto_rebuild` now defaults to `true`**, matching WordPress and Drupal adapter behavior. Previously defaulted to `false`, causing new Laravel users' content changes to silently not appear in search results. Users with `SCOLTA_AUTO_REBUILD=false` in `.env` are unaffected. ([#51](https://github.com/tag1consulting/scolta-laravel/issues/51))
 - **`scolta:build --sync` emits an actionable error when `memory_abort` fires before any chunks are committed.** Previously the command fell through to the generic "Index build failed: memory_abort" message. It now says "Memory limit hit before any chunks were committed. Reduce --chunk-size or increase memory_limit." to match the Drupal and WordPress adapter behaviour.
 - **`scolta:build --sync` no longer exits with an error on memory pressure.**
 
