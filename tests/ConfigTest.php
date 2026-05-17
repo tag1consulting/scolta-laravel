@@ -142,6 +142,16 @@ class ConfigTest extends TestCase
     }
 
     // -------------------------------------------------------------------
+    // Auto rebuild
+    // -------------------------------------------------------------------
+
+    public function test_auto_rebuild_defaults_to_true(): void
+    {
+        $this->assertArrayHasKey('auto_rebuild', $this->config);
+        $this->assertTrue($this->config['auto_rebuild']);
+    }
+
+    // -------------------------------------------------------------------
     // Display
     // -------------------------------------------------------------------
 

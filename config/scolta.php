@@ -185,7 +185,7 @@ return [
     |
     */
 
-    'auto_rebuild' => env('SCOLTA_AUTO_REBUILD', false),
+    'auto_rebuild' => env('SCOLTA_AUTO_REBUILD', true),
     'auto_rebuild_delay' => env('SCOLTA_AUTO_REBUILD_DELAY', 300),
 
     'pagefind' => [
