@@ -50,7 +50,16 @@ jobs:
             --exclude "scolta-laravel/.git*" \
             --exclude "scolta-laravel/tests/*" \
             --exclude "scolta-laravel/node_modules/*" \
-            --exclude "scolta-laravel/.claude/*"
+            --exclude "scolta-laravel/.claude/*" \
+            --exclude "scolta-laravel/vendor/*/tests" \
+            --exclude "scolta-laravel/vendor/*/tests/*" \
+            --exclude "scolta-laravel/vendor/*/test" \
+            --exclude "scolta-laravel/vendor/*/test/*" \
+            --exclude "scolta-laravel/vendor/*/phpunit.xml*" \
+            --exclude "scolta-laravel/vendor/*/phpstan.neon*" \
+            --exclude "scolta-laravel/vendor/*/.php-cs-fixer*" \
+            --exclude "*.log" \
+            --exclude "*.sh"
 
       - name: Extract CHANGELOG entry
         run: |
@@ -103,6 +112,24 @@ jobs:
 
           if ! grep -q 'scolta-laravel/src/ScoltaServiceProvider.php' zip-contents.txt; then
             echo "ERROR: src/ScoltaServiceProvider.php is missing from archive"
+            exit 1
+          fi
+
+          # No tests/ or test/ content in vendor directories
+          if grep -qE 'scolta-laravel/vendor/.+/tests/' zip-contents.txt; then
+            echo "ERROR: Archive contains vendor tests/ content (must be excluded):"
+            grep -E 'scolta-laravel/vendor/.+/tests/' zip-contents.txt
+            exit 1
+          fi
+          if grep -qE 'scolta-laravel/vendor/.+/test/' zip-contents.txt; then
+            echo "ERROR: Archive contains vendor test/ content (must be excluded):"
+            grep -E 'scolta-laravel/vendor/.+/test/' zip-contents.txt
+            exit 1
+          fi
+          # No .log files
+          if grep -q '\.log$' zip-contents.txt; then
+            echo "ERROR: Archive contains .log files:"
+            grep '\.log$' zip-contents.txt
             exit 1
           fi
 
