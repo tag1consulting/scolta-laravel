@@ -346,4 +346,24 @@ class StructuralIntegrityTest extends TestCase
         $this->assertStringContainsString('analyse', $content,
             'CI workflow should include a PHPStan analyse job');
     }
+
+    public function test_release_workflow_excludes_vendor_test_singular(): void
+    {
+        $workflow = file_get_contents($this->root.'/.github/workflows/release.yml');
+        $this->assertStringContainsString(
+            '--exclude "scolta-laravel/vendor/*/test/*"',
+            $workflow,
+            'Release workflow must exclude vendor test/ directories (singular — e.g. wamania/php-stemmer/test/files/)'
+        );
+    }
+
+    public function test_release_workflow_validate_zip_checks_test_singular(): void
+    {
+        $workflow = file_get_contents($this->root.'/.github/workflows/release.yml');
+        $this->assertStringContainsString(
+            'scolta-laravel/vendor/.+/test/',
+            $workflow,
+            'validate-zip job must check for vendor test/ directories (singular)'
+        );
+    }
 }
