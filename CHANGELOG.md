@@ -6,7 +6,9 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
-_No changes yet._
+### Changed
+- **Added `@RC` stability flag to `tag1/scolta-php` constraint for Packagist compatibility.** Without `@RC`, consumers with default `minimum-stability: stable` cannot resolve scolta-php because only RC versions exist. Drop `@RC` when 1.0.0 stable ships.
+- **`minimum-stability` changed from `dev` to `RC`.** Accurate for RC phase; local dev unaffected due to path repo.
 
 ## [1.0.0-rc4] - 2026-05-18
 
