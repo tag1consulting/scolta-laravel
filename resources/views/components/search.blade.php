@@ -18,7 +18,20 @@
 
 @php
     $outputDir = config('scolta.pagefind.output_dir', public_path('scolta-pagefind'));
-    $indexExists = file_exists($outputDir . '/pagefind/pagefind-entry.json');
+
+    // The PHP indexer writes to {output_dir}/pagefind/ (nested layout).
+    // The binary pipeline / Cloud flatten step writes directly to {output_dir}/ (flat layout).
+    // Detect which layout exists so URLs point to the right location.
+    if (file_exists($outputDir . '/pagefind/pagefind-entry.json')) {
+        $indexDir = $outputDir . '/pagefind';
+        $indexExists = true;
+    } elseif (file_exists($outputDir . '/pagefind-entry.json')) {
+        $indexDir = $outputDir;
+        $indexExists = true;
+    } else {
+        $indexDir = $outputDir;
+        $indexExists = false;
+    }
 @endphp
 
 @if(!$indexExists)
@@ -32,8 +45,8 @@
 
         // Convert filesystem path to URL path.
         $publicPath = public_path();
-        $pagefindUrl = str_starts_with($outputDir, $publicPath)
-            ? substr($outputDir, strlen($publicPath))
+        $indexUrl = str_starts_with($indexDir, $publicPath)
+            ? substr($indexDir, strlen($publicPath))
             : '/scolta-pagefind';
 
         $routePrefix = config('scolta.route_prefix', 'api/scolta/v1');
@@ -45,7 +58,7 @@
                 'followup' => url($routePrefix . '/followup'),
             ],
             'wasmPath' => asset('vendor/scolta/wasm/scolta_core.js'),
-            'pagefindPath' => asset(ltrim($pagefindUrl, '/') . '/pagefind/pagefind.js'),
+            'pagefindPath' => asset(ltrim($indexUrl, '/') . '/pagefind.js'),
             'siteName' => $config->siteName ?: config('app.name', 'Laravel'),
             'container' => '#scolta-search',
             'allowedLinkDomains' => [],
@@ -55,8 +68,8 @@
     @endphp
 
     {{-- Pagefind UI CSS --}}
-    @if(file_exists($outputDir . '/pagefind/pagefind-ui.css'))
-        <link rel="stylesheet" href="{{ asset(ltrim($pagefindUrl, '/') . '/pagefind/pagefind-ui.css') }}" />
+    @if(file_exists($indexDir . '/pagefind-ui.css'))
+        <link rel="stylesheet" href="{{ asset(ltrim($indexUrl, '/') . '/pagefind-ui.css') }}" />
     @endif
 
     {{-- Scolta CSS from published assets --}}
