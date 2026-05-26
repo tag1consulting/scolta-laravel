@@ -6,6 +6,9 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+### Fixed
+- **Blade component detects search index in both nested and flat layouts.** The `<x-scolta::search />` component now checks `output_dir/pagefind/pagefind-entry.json` (nested — PHP indexer) and falls back to `output_dir/pagefind-entry.json` (flat — binary pipeline / Cloud flatten step). Previously only the nested path was checked, causing a false "index not built" warning on Laravel Cloud deploys. The `pagefindPath` URL and CSS include are also derived from the detected layout. ([#60](https://github.com/tag1consulting/scolta-laravel/issues/60))
+
 ### Changed
 - **Added `@RC` stability flag to `tag1/scolta-php` constraint for Packagist compatibility.** Without `@RC`, consumers with default `minimum-stability: stable` cannot resolve scolta-php because only RC versions exist. Drop `@RC` when 1.0.0 stable ships.
 - **`minimum-stability` changed from `dev` to `RC`.** Accurate for RC phase; local dev unaffected due to path repo.

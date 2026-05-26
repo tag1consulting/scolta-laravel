@@ -197,29 +197,70 @@ class BladeComponentTest extends TestCase
     }
 
     // -------------------------------------------------------------------
-    // Index existence check uses correct pagefind/ subdirectory
+    // Index existence check supports both nested and flat layouts
     // -------------------------------------------------------------------
 
-    public function test_index_exists_check_uses_pagefind_subdir(): void
+    public function test_index_exists_check_uses_nested_pagefind_subdir(): void
     {
         $this->assertStringContainsString("'/pagefind/pagefind-entry.json'", $this->templateContent,
-            'Index existence check must use the pagefind/ subdirectory path.');
+            'Index existence check must check the nested pagefind/ subdirectory path.');
     }
 
-    public function test_index_exists_check_does_not_use_flat_path(): void
+    public function test_index_exists_check_uses_flat_path_as_fallback(): void
     {
-        $this->assertStringNotContainsString("'/pagefind-entry.json'", $this->templateContent,
-            'Index existence check must not use the flat (non-pagefind-subdir) path.');
+        $this->assertStringContainsString("'/pagefind-entry.json'", $this->templateContent,
+            'Index existence check must also check the flat (root-level) path as a fallback.');
+    }
+
+    public function test_nested_path_checked_before_flat_path(): void
+    {
+        $nestedPos = strpos($this->templateContent, "'/pagefind/pagefind-entry.json'");
+        $flatPos = strpos($this->templateContent, "'/pagefind-entry.json'");
+
+        $this->assertNotFalse($nestedPos, 'Nested path check must be present.');
+        $this->assertNotFalse($flatPos, 'Flat path check must be present.');
+        $this->assertLessThan($flatPos, $nestedPos,
+            'Nested pagefind/ path must be checked before flat path (prefer nested layout).');
+    }
+
+    public function test_index_dir_set_for_nested_layout(): void
+    {
+        $this->assertMatchesRegularExpression(
+            '/\$indexDir\s*=\s*\$outputDir\s*\.\s*\'\/pagefind\'/',
+            $this->templateContent,
+            'When nested layout detected, $indexDir must be set to $outputDir/pagefind.'
+        );
+    }
+
+    public function test_index_dir_set_for_flat_layout(): void
+    {
+        $this->assertMatchesRegularExpression(
+            '/\$indexDir\s*=\s*\$outputDir;/',
+            $this->templateContent,
+            'When flat layout detected, $indexDir must be set to $outputDir.'
+        );
+    }
+
+    public function test_no_index_shows_warning(): void
+    {
+        $this->assertStringContainsString('Search index has not been built yet', $this->templateContent,
+            'Template must show a build warning when no index is found in either location.');
     }
 
     // -------------------------------------------------------------------
-    // pagefindPath URL points into pagefind/ subdirectory
+    // pagefindPath URL derives from detected $indexDir
     // -------------------------------------------------------------------
 
-    public function test_pagefind_path_url_includes_pagefind_subdir(): void
+    public function test_pagefind_path_url_uses_index_url(): void
     {
-        $this->assertStringContainsString("'/pagefind/pagefind.js'", $this->templateContent,
-            'pagefindPath asset URL must include the pagefind/ subdirectory.');
+        $this->assertStringContainsString("'/pagefind.js'", $this->templateContent,
+            'pagefindPath asset URL must reference pagefind.js.');
+    }
+
+    public function test_pagefind_path_uses_index_url_variable(): void
+    {
+        $this->assertStringContainsString('$indexUrl', $this->templateContent,
+            'pagefindPath must be derived from $indexUrl (which follows the detected layout).');
     }
 
     // -------------------------------------------------------------------
