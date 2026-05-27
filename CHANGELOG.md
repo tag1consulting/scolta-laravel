@@ -6,6 +6,10 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+_No changes yet._
+
+## [1.0.0] - 2026-05-27
+
 ### Documentation
 - **README: document all Artisan commands.** Added `scolta:amazee:provision`, `scolta:cleanup`, and `scolta:memory-budget` to the Artisan Commands section.
 - **README: document all API routes.** Added `build-progress` and `rebuild-now` endpoints to the API Endpoints table, with note about Sanctum authentication requirement.
