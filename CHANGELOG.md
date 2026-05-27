@@ -6,6 +6,14 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+### Documentation
+- **README: document all Artisan commands.** Added `scolta:amazee:provision`, `scolta:cleanup`, and `scolta:memory-budget` to the Artisan Commands section.
+- **README: document all API routes.** Added `build-progress` and `rebuild-now` endpoints to the API Endpoints table, with note about Sanctum authentication requirement.
+- **README: document `ai_expansion_model` config key.** Added to configuration table with env var and description.
+
+### Tests
+- **Replace tautological `ControllerValidationTest`.** Tests now exercise real `AiEndpointHandler` code paths instead of testing PHP built-in functions against hardcoded values.
+
 ### Fixed
 - **Blade component detects search index in both nested and flat layouts.** The `<x-scolta::search />` component now checks `output_dir/pagefind/pagefind-entry.json` (nested — PHP indexer) and falls back to `output_dir/pagefind-entry.json` (flat — binary pipeline / Cloud flatten step). Previously only the nested path was checked, causing a false "index not built" warning on Laravel Cloud deploys. The `pagefindPath` URL and CSS include are also derived from the detected layout. ([#60](https://github.com/tag1consulting/scolta-laravel/issues/60))
 - **`state_dir` path mismatch (runtime bug).** `BuildCommand` and `TriggerRebuild` used `storage_path('scolta/state')` while `CleanupCommand` and `ProgressController` used `config('scolta.state_dir')` with a default of `storage_path('app/scolta')`. All callers now consistently use `config('scolta.state_dir')`, and the key is explicitly defined in `config/scolta.php`.
