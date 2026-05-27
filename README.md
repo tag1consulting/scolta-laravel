@@ -212,6 +212,7 @@ All settings live in `config/scolta.php` with `.env` overrides. After editing `c
 | Provider | `SCOLTA_AI_PROVIDER` | `ai_provider` | `anthropic` | `anthropic` or `openai` |
 | API key | `SCOLTA_API_KEY` | `ai_api_key` | — | Authentication for AI features |
 | Model | `SCOLTA_AI_MODEL` | `ai_model` | `claude-sonnet-4-5-20250929` | LLM model identifier |
+| Expansion model | `SCOLTA_EXPANSION_MODEL` | `ai_expansion_model` | `''` (same as `ai_model`) | Optional separate model for query expansion. When set, `expand-query` uses this model while `summarize` and `followup` use `ai_model`. Empty means all AI operations use `ai_model`. |
 | Base URL | `SCOLTA_AI_BASE_URL` | `ai_base_url` | provider default | Custom endpoint for proxies or Azure OpenAI |
 | Query expansion | `SCOLTA_AI_EXPAND` | `ai_expand_query` | `true` | Toggle AI query expansion on/off |
 | Summarization | `SCOLTA_AI_SUMMARIZE` | `ai_summarize` | `true` | Toggle AI result summarization on/off |
@@ -562,8 +563,14 @@ php artisan scolta:rebuild-index            # Rebuild index from existing HTML f
 php artisan scolta:status                   # Show tracker, content, index, and AI status
 php artisan scolta:discover                 # Find Searchable models not yet in config
 php artisan scolta:clear-cache              # Clear Scolta AI response caches
+php artisan scolta:cleanup                  # Remove stale index artifacts and orphaned state files
+php artisan scolta:cleanup --dry-run        # Show what would be removed without deleting
+php artisan scolta:memory-budget            # Show the current memory budget profile
+php artisan scolta:memory-budget --set=balanced  # Set profile: conservative, balanced, or aggressive
 php artisan scolta:download-pagefind        # Download Pagefind binary for your platform
 php artisan scolta:check-setup              # Verify PHP, indexer, and configuration
+php artisan scolta:amazee:provision {email}  # Provision a free Amazee.ai trial account
+php artisan scolta:amazee:provision {email} --force  # Provision even if a provider is already configured
 ```
 
 ## API Endpoints
@@ -574,8 +581,14 @@ php artisan scolta:check-setup              # Verify PHP, indexer, and configura
 | POST | `/api/scolta/v1/summarize` | api, throttle:scolta | Summarize search results |
 | POST | `/api/scolta/v1/followup` | api, throttle:scolta | Continue a conversation |
 | GET | `/api/scolta/v1/health` | api | Health check |
+| GET | `/api/scolta/v1/build-progress` | api, auth:sanctum | Build progress status |
+| POST | `/api/scolta/v1/rebuild-now` | api, auth:sanctum | Dispatch a rebuild job |
 
 Route prefix and middleware are configurable via `route_prefix` and `middleware` in `config/scolta.php`.
+
+The `build-progress` and `rebuild-now` endpoints require Sanctum authentication and are intended for admin dashboards. The AI endpoints (`expand-query`, `summarize`, `followup`) use the configurable `middleware` array and are typically public-facing.
+
+> **Note:** Amazee.ai admin routes (`/scolta/amazee/*`) use `web` middleware and are documented in the [Amazee.ai Integration](#amazeeai-integration) section below.
 
 ## Searchable Trait API
 
