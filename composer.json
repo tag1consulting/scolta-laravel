@@ -4,15 +4,20 @@
     "description": "Scolta AI Search for Laravel \u2014 zero-infrastructure AI-powered search with Pagefind",
     "type": "library",
     "license": "MIT",
+    "keywords": ["laravel", "search", "pagefind", "ai", "scolta"],
     "authors": [
         {
             "name": "Tag1 Consulting",
             "homepage": "https://www.tag1.com"
         }
     ],
+    "support": {
+        "issues": "https://github.com/tag1consulting/scolta-laravel/issues",
+        "source": "https://github.com/tag1consulting/scolta-laravel"
+    },
     "require": {
         "php": ">=8.1",
-        "tag1/scolta-php": "^1.0@RC",
+        "tag1/scolta-php": "^1.0",
         "illuminate/support": "^11.0|^12.0|^13.0",
         "illuminate/console": "^11.0|^12.0|^13.0",
         "illuminate/database": "^11.0|^12.0|^13.0",
@@ -51,10 +56,11 @@
             ]
         }
     },
-    "minimum-stability": "RC",
+    "minimum-stability": "stable",
     "prefer-stable": true,
     "repositories": [
         {
+            "_comment": "Development only — local path to scolta-php for symlink installs. Consumers resolve from Packagist.",
             "type": "path",
             "url": "../scolta-php"
         }

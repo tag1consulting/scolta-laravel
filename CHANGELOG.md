@@ -8,10 +8,21 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ### Fixed
 - **Blade component detects search index in both nested and flat layouts.** The `<x-scolta::search />` component now checks `output_dir/pagefind/pagefind-entry.json` (nested — PHP indexer) and falls back to `output_dir/pagefind-entry.json` (flat — binary pipeline / Cloud flatten step). Previously only the nested path was checked, causing a false "index not built" warning on Laravel Cloud deploys. The `pagefindPath` URL and CSS include are also derived from the detected layout. ([#60](https://github.com/tag1consulting/scolta-laravel/issues/60))
+- **`state_dir` path mismatch (runtime bug).** `BuildCommand` and `TriggerRebuild` used `storage_path('scolta/state')` while `CleanupCommand` and `ProgressController` used `config('scolta.state_dir')` with a default of `storage_path('app/scolta')`. All callers now consistently use `config('scolta.state_dir')`, and the key is explicitly defined in `config/scolta.php`.
+- **Stale version annotations in config comments.** Replaced `(0.2.2+)` with `(1.0.0+)` in `config/scolta.php`.
+- **Stale `@deprecated 0.3.2` annotation.** Updated to `@deprecated 1.0.0` in `BuildCommand::gatherContentItems()`.
 
 ### Changed
-- **Added `@RC` stability flag to `tag1/scolta-php` constraint for Packagist compatibility.** Without `@RC`, consumers with default `minimum-stability: stable` cannot resolve scolta-php because only RC versions exist. Drop `@RC` when 1.0.0 stable ships.
-- **`minimum-stability` changed from `dev` to `RC`.** Accurate for RC phase; local dev unaffected due to path repo.
+- **`minimum-stability` set to `stable` and `@RC` dropped from `scolta-php` constraint.** Ready for 1.0.0 stable release.
+- **Removed duplicate `auto_rebuild` from `pagefind` config group.** The top-level `auto_rebuild` is the canonical key; the nested `pagefind.auto_rebuild` was unused.
+
+### Added
+- **`state_dir` config key** — explicit directory for PHP indexer build state. Default: `storage_path('app/scolta')`.
+- **`amazee_route_prefix` and `amazee_middleware` config keys** — previously only defined inline in `routes/scolta-amazee.php`. Now visible in the published config file.
+- **Composer `support` and `keywords` metadata** for Packagist discoverability.
+- **`.gitattributes` export-ignore entries** for `CLAUDE.md`, `.env.example`, `composer.lock`, `.phpunit.cache/`, and `.editorconfig`.
+- **Complete `.env.example`** covering all `env()` calls in `config/scolta.php`.
+- **README documentation** for preset, indexer/memory, pagefind, caching, routes, auto-rebuild, sort/filter fields, Amazee.ai integration, and database migrations.
 
 ## [1.0.0-rc4] - 2026-05-18
 
@@ -291,3 +302,25 @@ Coordinated release. Ports the streaming gather and CLI wiring pattern from scol
 - Eloquent-based content source with model registration in config
 - Rate limiting via Laravel's throttle middleware
 - Environment variable overrides for all key settings (`SCOLTA_*`)
+
+[Unreleased]: https://github.com/tag1consulting/scolta-laravel/compare/1.0.0-rc4...HEAD
+[1.0.0-rc4]: https://github.com/tag1consulting/scolta-laravel/compare/1.0.0-rc3...1.0.0-rc4
+[1.0.0-rc3]: https://github.com/tag1consulting/scolta-laravel/compare/1.0.0-rc2...1.0.0-rc3
+[1.0.0-rc2]: https://github.com/tag1consulting/scolta-laravel/compare/1.0.0-rc1...1.0.0-rc2
+[1.0.0-rc1]: https://github.com/tag1consulting/scolta-laravel/compare/0.3.10...1.0.0-rc1
+[0.3.10]: https://github.com/tag1consulting/scolta-laravel/compare/0.3.9...0.3.10
+[0.3.9]: https://github.com/tag1consulting/scolta-laravel/compare/0.3.8...0.3.9
+[0.3.8]: https://github.com/tag1consulting/scolta-laravel/compare/0.3.7...0.3.8
+[0.3.7]: https://github.com/tag1consulting/scolta-laravel/compare/0.3.6...0.3.7
+[0.3.6]: https://github.com/tag1consulting/scolta-laravel/compare/0.3.5...0.3.6
+[0.3.5]: https://github.com/tag1consulting/scolta-laravel/compare/0.3.4...0.3.5
+[0.3.4]: https://github.com/tag1consulting/scolta-laravel/compare/0.3.3...0.3.4
+[0.3.3]: https://github.com/tag1consulting/scolta-laravel/compare/0.3.2...0.3.3
+[0.3.2]: https://github.com/tag1consulting/scolta-laravel/compare/0.3.1...0.3.2
+[0.3.1]: https://github.com/tag1consulting/scolta-laravel/compare/0.3.0...0.3.1
+[0.3.0]: https://github.com/tag1consulting/scolta-laravel/compare/0.2.4...0.3.0
+[0.2.4]: https://github.com/tag1consulting/scolta-laravel/compare/0.2.3...0.2.4
+[0.2.3]: https://github.com/tag1consulting/scolta-laravel/compare/0.2.2...0.2.3
+[0.2.2]: https://github.com/tag1consulting/scolta-laravel/compare/0.2.1...0.2.2
+[0.2.1]: https://github.com/tag1consulting/scolta-laravel/compare/0.2.0...0.2.1
+[0.2.0]: https://github.com/tag1consulting/scolta-laravel/releases/tag/0.2.0

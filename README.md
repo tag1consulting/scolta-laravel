@@ -289,13 +289,14 @@ Scoring settings live under the `scoring` key in `config/scolta.php`.
 
 ### Display
 
-Display settings live under the `display` key in `config/scolta.php`.
+Display settings are top-level keys in `config/scolta.php`.
 
-| Setting | `config/scolta.php` path | Default | Description |
-| ------- | ------------------------ | ------- | ----------- |
-| Excerpt length | `display.excerpt_length` | `300` | Characters shown in result excerpts |
-| Results per page | `display.results_per_page` | `10` | Results shown per page |
-| Max Pagefind results | `display.max_pagefind_results` | `50` | Total results fetched from index before scoring |
+| Setting | `config/scolta.php` key | Default | Description |
+| ------- | ----------------------- | ------- | ----------- |
+| Excerpt length | `excerpt_length` | `300` | Characters shown in result excerpts |
+| Results per page | `results_per_page` | `10` | Results shown per page |
+| Max Pagefind results | `max_pagefind_results` | `50` | Total results fetched from index before scoring |
+| Show attribution | `show_attribution` | `false` | Render "Powered by Scolta" below the search widget |
 
 ### Site Identity
 
@@ -306,7 +307,7 @@ Display settings live under the `display` key in `config/scolta.php`.
 
 ### Custom Prompts
 
-Override prompts in `config/scolta.php` under the `prompts` key, or use an event listener:
+Override prompts via the top-level keys `prompt_expand_query`, `prompt_summarize`, and `prompt_follow_up` in `config/scolta.php`, or use an event listener:
 
 ```php
 // app/Listeners/EnrichScoltaPrompt.php
@@ -332,6 +333,114 @@ protected $listen = [
     ],
 ];
 ```
+
+### Preset
+
+Set `SCOLTA_PRESET` in `.env` (or edit `config/scolta.php`) to apply a named scoring preset. Any explicit values in the `scoring` array override the preset.
+
+| Preset | Description |
+| ------ | ----------- |
+| `content_catalog` | Recipe sites, wikis, content collections |
+| `reference` | Documentation, knowledge bases, encyclopedias |
+| `ecommerce` | Online stores, product catalogs |
+| `blog` | Blogs, news, editorial content |
+| `none` | No preset (default) — all values from `scoring` array |
+
+```env
+SCOLTA_PRESET=blog
+```
+
+### Indexer and Memory
+
+| Setting | `.env` key | `config/scolta.php` key | Default | Description |
+| ------- | ---------- | ----------------------- | ------- | ----------- |
+| Indexer backend | `SCOLTA_INDEXER` | `indexer` | `auto` | `auto` (always PHP), `php`, or `binary` |
+| Memory budget | `SCOLTA_MEMORY_BUDGET` | `memory_budget.profile` | `conservative` | `conservative`, `balanced`, or `aggressive` |
+| Chunk size | `SCOLTA_CHUNK_SIZE` | `memory_budget.chunk_size` | profile default | Pages per chunk during PHP indexer build |
+
+### Pagefind
+
+| Setting | `.env` key | `config/scolta.php` path | Default | Description |
+| ------- | ---------- | ------------------------ | ------- | ----------- |
+| Binary path | `SCOLTA_PAGEFIND_BINARY` | `pagefind.binary` | `pagefind` | Path to Pagefind CLI binary |
+| Build dir | `SCOLTA_BUILD_DIR` | `pagefind.build_dir` | `storage/scolta/build` | HTML export directory for binary pipeline |
+| Output dir | `SCOLTA_OUTPUT_DIR` | `pagefind.output_dir` | `public/scolta-pagefind` | Pagefind index output directory |
+
+### Caching and Rate Limiting
+
+| Setting | `.env` key | `config/scolta.php` key | Default | Description |
+| ------- | ---------- | ----------------------- | ------- | ----------- |
+| Cache TTL | `SCOLTA_CACHE_TTL` | `cache_ttl` | `2592000` (30 days) | AI response cache TTL in seconds |
+| Rate limit | `SCOLTA_RATE_LIMIT` | `rate_limit` | `30` | Max API requests per minute per IP |
+
+### Routes and Middleware
+
+| Setting | `config/scolta.php` key | Default | Description |
+| ------- | ----------------------- | ------- | ----------- |
+| Route prefix | `route_prefix` | `api/scolta/v1` | Prefix for all Scolta API routes |
+| API middleware | `middleware` | `['api']` | Middleware for AI API routes |
+| Health middleware | `health_middleware` | `['api']` | Middleware for the health check endpoint |
+| Amazee route prefix | `amazee_route_prefix` | `scolta/amazee` | Prefix for Amazee.ai admin settings routes |
+| Amazee middleware | `amazee_middleware` | `['web']` | Middleware for Amazee.ai settings routes |
+
+### Auto Rebuild
+
+| Setting | `.env` key | `config/scolta.php` key | Default | Description |
+| ------- | ---------- | ----------------------- | ------- | ----------- |
+| Auto rebuild | `SCOLTA_AUTO_REBUILD` | `auto_rebuild` | `true` | Dispatch rebuild to queue on content changes |
+| Rebuild delay | `SCOLTA_AUTO_REBUILD_DELAY` | `auto_rebuild_delay` | `300` | Debounce delay in seconds |
+
+### Sort and Filter Fields
+
+| Setting | `config/scolta.php` key | Default | Description |
+| ------- | ----------------------- | ------- | ----------- |
+| Sortable fields | `sortable_fields` | `[]` | Field names for `data-pagefind-sort` attributes |
+| Sort descriptions | `sortable_field_descriptions` | `[]` | Human-readable sort field descriptions for LLM |
+| Filter fields | `filter_fields` | `[]` | Pagefind filter dimension names |
+| Filter descriptions | `filter_field_descriptions` | `[]` | Human-readable filter descriptions for LLM |
+
+### Amazee.ai Integration
+
+Amazee.ai provides a managed LiteLLM proxy with a free trial. Scolta auto-provisions a trial on the first AI request when no `SCOLTA_API_KEY` is configured.
+
+**CLI provisioning:**
+
+```bash
+php artisan scolta:amazee:provision user@example.com
+```
+
+**Admin UI:** Visit `/scolta/amazee` (configurable via `amazee_route_prefix`) for the multi-step connection flow. Protect the route with auth middleware in production:
+
+```php
+// config/scolta.php
+'amazee_middleware' => ['web', 'auth'],
+```
+
+**Routes:**
+
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| GET | `/scolta/amazee` | Settings page |
+| POST | `/scolta/amazee/trial` | Start free trial |
+| POST | `/scolta/amazee/request-code` | Request OTP code |
+| POST | `/scolta/amazee/verify-code` | Verify OTP code |
+| GET | `/scolta/amazee/regions` | List available regions |
+| POST | `/scolta/amazee/connect` | Complete connection |
+| DELETE | `/scolta/amazee/disconnect` | Disconnect |
+
+### Migrations
+
+Scolta uses two database tables. Publish and run migrations during installation:
+
+```bash
+php artisan vendor:publish --tag=scolta-migrations
+php artisan migrate
+```
+
+| Table | Description |
+| ----- | ----------- |
+| `scolta_tracker` | Change tracking for Eloquent models. The `ScoltaObserver` writes here when models are created, updated, or deleted. Used by incremental builds to process only changed content. |
+| `scolta_config` | Key/value config store for Amazee.ai credentials and auto-configured model settings. Tokens are encrypted via Laravel's `Crypt` facade. |
 
 ## Debugging
 

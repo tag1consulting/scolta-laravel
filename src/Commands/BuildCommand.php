@@ -121,7 +121,7 @@ class BuildCommand extends Command
      */
     private function buildWithPhpIndexer(string $outputDir): int
     {
-        $stateDir = storage_path('scolta/state');
+        $stateDir = config('scolta.state_dir', storage_path('app/scolta'));
         $hmacSecret = config('app.key');
         $language = config('scolta.ai_languages.0', 'en');
         $budget = MemoryBudgetConfig::fromCliAndConfig(
@@ -274,7 +274,7 @@ class BuildCommand extends Command
 
         $this->info('  Found '.count($items).' content items.');
 
-        $stateDir = storage_path('scolta/state');
+        $stateDir = config('scolta.state_dir', storage_path('app/scolta'));
         $hmacSecret = config('app.key');
         $language = config('scolta.ai_languages.0', 'en');
         $budget = MemoryBudgetConfig::fromCliAndConfig(
@@ -524,7 +524,7 @@ class BuildCommand extends Command
     /**
      * Gather content items from all configured Eloquent models.
      *
-     * @deprecated 0.3.2 Use streamContentItems() for bounded-memory streaming.
+     * @deprecated 1.0.0 Use streamContentItems() for bounded-memory streaming.
      *   This method is retained for the queue dispatch path which splits items
      *   into discrete jobs and requires an array to chunk.
      *
