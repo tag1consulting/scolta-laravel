@@ -72,7 +72,7 @@ class TriggerRebuild implements ShouldQueue
         // Clear debounce flag so future changes can schedule new rebuilds.
         Cache::forget('scolta_rebuild_scheduled');
 
-        $stateDir = storage_path('scolta/state');
+        $stateDir = config('scolta.state_dir', storage_path('app/scolta'));
         $outputDir = config('scolta.pagefind.output_dir', public_path('scolta-pagefind'));
         $hmacSecret = config('app.key');
         $language = config('scolta.ai_languages.0', 'en');

@@ -93,7 +93,8 @@ class ConfigTest extends TestCase
         $this->assertArrayHasKey('binary', $pf);
         $this->assertArrayHasKey('build_dir', $pf);
         $this->assertArrayHasKey('output_dir', $pf);
-        $this->assertArrayHasKey('auto_rebuild', $pf);
+        // auto_rebuild is a top-level key, not nested under pagefind
+        $this->assertArrayNotHasKey('auto_rebuild', $pf);
     }
 
     // -------------------------------------------------------------------

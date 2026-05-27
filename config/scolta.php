@@ -188,11 +188,22 @@ return [
     'auto_rebuild' => env('SCOLTA_AUTO_REBUILD', true),
     'auto_rebuild_delay' => env('SCOLTA_AUTO_REBUILD_DELAY', 300),
 
+    /*
+    |--------------------------------------------------------------------------
+    | State Directory
+    |--------------------------------------------------------------------------
+    |
+    | Directory where the PHP indexer stores build state (lock files, chunk
+    | manifests, partial index data). Must be writable by the web server.
+    |
+    */
+
+    'state_dir' => storage_path('app/scolta'),
+
     'pagefind' => [
         'binary' => env('SCOLTA_PAGEFIND_BINARY', 'pagefind'),
         'build_dir' => env('SCOLTA_BUILD_DIR', storage_path('scolta/build')),
         'output_dir' => env('SCOLTA_OUTPUT_DIR', public_path('scolta-pagefind')),
-        'auto_rebuild' => env('SCOLTA_AUTO_REBUILD', true),
     ],
 
     /*
@@ -218,7 +229,7 @@ return [
         'recency_max_penalty' => 0.3,
         'expand_primary_weight' => 0.5,
 
-        // Language-aware stop words (0.2.2+)
+        // Language-aware stop words (1.0.0+)
         // ISO 639-1 code for stop word filtering. Supported: ar, ca, da, de, el,
         // en, es, et, eu, fi, fr, ga, hi, hu, hy, id, it, lt, ne, nl, no, pl,
         // pt, ro, ru, sr, sv, ta, tr, yi. CJK/unknown → no filtering.
@@ -228,7 +239,7 @@ return [
             explode(',', env('SCOLTA_CUSTOM_STOP_WORDS', ''))
         )),
 
-        // Pluggable recency functions (0.2.2+)
+        // Pluggable recency functions (1.0.0+)
         // Strategies: 'exponential' (default), 'linear', 'step', 'none', 'custom'.
         'recency_strategy' => env('SCOLTA_RECENCY_STRATEGY', 'exponential'),
         // For 'custom': JSON array of [[days, boost], …] control points.
@@ -364,6 +375,20 @@ return [
     | Example: 'sortable_fields' => ['date', 'price', 'word_count']
     |
     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | Amazee.ai Route Prefix and Middleware
+    |--------------------------------------------------------------------------
+    |
+    | Prefix and middleware for the Amazee.ai admin settings UI routes.
+    | These are web (session-aware) routes used by the multi-step
+    | provisioning and connection flow.
+    |
+    */
+
+    'amazee_route_prefix' => 'scolta/amazee',
+    'amazee_middleware' => ['web'],
 
     'sortable_fields' => [],
 
