@@ -19,18 +19,42 @@ class ControllerValidationTest extends TestCase
 {
     private function makeHandler(int $maxFollowUps = 3, bool $expandEnabled = true, bool $summarizeEnabled = true): AiEndpointHandler
     {
-        $stub = new class {
-            public function getExpandPrompt(): string { return 'expand'; }
-            public function getSummarizePrompt(): string { return 'summarize'; }
-            public function getFollowUpPrompt(): string { return 'followup'; }
-            public function messageForOperation(string $op, string $sys, string $user, int $max): string { return '["term1", "term2"]'; }
-            public function message(string $sys, string $user, int $max): string { return 'Summary text'; }
-            public function conversation(string $sys, array $msgs, int $max): string { return 'Follow-up response'; }
+        $stub = new class
+        {
+            public function getExpandPrompt(): string
+            {
+                return 'expand';
+            }
+
+            public function getSummarizePrompt(): string
+            {
+                return 'summarize';
+            }
+
+            public function getFollowUpPrompt(): string
+            {
+                return 'followup';
+            }
+
+            public function messageForOperation(string $op, string $sys, string $user, int $max): string
+            {
+                return '["term1", "term2"]';
+            }
+
+            public function message(string $sys, string $user, int $max): string
+            {
+                return 'Summary text';
+            }
+
+            public function conversation(string $sys, array $msgs, int $max): string
+            {
+                return 'Follow-up response';
+            }
         };
 
         return new AiEndpointHandler(
             aiService: $stub,
-            cache: new NullCacheDriver(),
+            cache: new NullCacheDriver,
             generation: 0,
             cacheTtl: 0,
             maxFollowUps: $maxFollowUps,
@@ -241,18 +265,42 @@ class ControllerValidationTest extends TestCase
 
     public function test_cache_key_includes_generation(): void
     {
-        $stub = new class {
-            public function getExpandPrompt(): string { return ''; }
-            public function getSummarizePrompt(): string { return ''; }
-            public function getFollowUpPrompt(): string { return ''; }
-            public function messageForOperation(string $op, string $sys, string $user, int $max): string { return '[]'; }
-            public function message(string $sys, string $user, int $max): string { return ''; }
-            public function conversation(string $sys, array $msgs, int $max): string { return ''; }
+        $stub = new class
+        {
+            public function getExpandPrompt(): string
+            {
+                return '';
+            }
+
+            public function getSummarizePrompt(): string
+            {
+                return '';
+            }
+
+            public function getFollowUpPrompt(): string
+            {
+                return '';
+            }
+
+            public function messageForOperation(string $op, string $sys, string $user, int $max): string
+            {
+                return '[]';
+            }
+
+            public function message(string $sys, string $user, int $max): string
+            {
+                return '';
+            }
+
+            public function conversation(string $sys, array $msgs, int $max): string
+            {
+                return '';
+            }
         };
 
         $handler = new AiEndpointHandler(
             aiService: $stub,
-            cache: new NullCacheDriver(),
+            cache: new NullCacheDriver,
             generation: 5,
             cacheTtl: 0,
             maxFollowUps: 3,
