@@ -20,13 +20,10 @@ jobs:
             lint: false
           - php: '8.3'
             laravel: '12'
-            lint: true
-          - php: '8.3'
-            laravel: '13'
             lint: false
           - php: '8.4'
             laravel: '13'
-            lint: false
+            lint: true
     steps:
       - uses: actions/checkout@v4
 
@@ -155,12 +152,15 @@ jobs:
           extensions: intl
           coverage: none
 
-      - name: Replace path repo with GitHub VCS repo
+      - name: Replace path repo with GitHub VCS repo and pin Laravel 12
         run: |
           php -r '
             $j = json_decode(file_get_contents("composer.json"), true);
             $j["repositories"] = [["type" => "vcs", "url" => "https://github.com/tag1consulting/scolta-php.git"]];
             $j["require"]["tag1/scolta-php"] = "dev-main@dev";
+            foreach (["illuminate/support","illuminate/console","illuminate/database","illuminate/routing"] as $pkg) {
+                $j["require"][$pkg] = "^12.0";
+            }
             file_put_contents("composer.json", json_encode($j, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
           '
 
@@ -169,6 +169,28 @@ jobs:
 
       - name: Run PHPStan (Larastan)
         run: composer analyse
+
+  lock-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check scolta-php is stable and from Packagist
+        run: |
+          python3 - <<'PY'
+          import json,sys,re
+          lock=json.load(open("composer.lock"))
+          pkgs=lock.get("packages",[])+lock.get("packages-dev",[])
+          p=next((x for x in pkgs if x["name"]=="tag1/scolta-php"),None)
+          if not p: sys.exit("scolta-php not in lock")
+          dist=(p.get("dist") or {}).get("type")
+          ver=p.get("version","")
+          bad=[]
+          if dist=="path": bad.append(f"dist.type=path ({(p.get('dist') or {}).get('url')})")
+          if not re.fullmatch(r"\d+\.\d+\.\d+", ver): bad.append(f"non-stable version {ver}")
+          if bad: sys.exit("LOCK GUARD FAILED for tag1/scolta-php: "+"; ".join(bad))
+          print(f"Lock guard OK: tag1/scolta-php {ver} via {dist}")
+          PY
 
   antipatterns:
     runs-on: ubuntu-latest
