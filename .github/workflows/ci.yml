@@ -148,16 +148,19 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.4'
+          php-version: '8.3'
           extensions: intl
           coverage: none
 
-      - name: Replace path repo with GitHub VCS repo
+      - name: Replace path repo with GitHub VCS repo and pin Laravel 12
         run: |
           php -r '
             $j = json_decode(file_get_contents("composer.json"), true);
             $j["repositories"] = [["type" => "vcs", "url" => "https://github.com/tag1consulting/scolta-php.git"]];
             $j["require"]["tag1/scolta-php"] = "dev-main@dev";
+            foreach (["illuminate/support","illuminate/console","illuminate/database","illuminate/routing"] as $pkg) {
+                $j["require"][$pkg] = "^12.0";
+            }
             file_put_contents("composer.json", json_encode($j, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
           '
 
