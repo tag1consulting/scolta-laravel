@@ -20,13 +20,10 @@ jobs:
             lint: false
           - php: '8.3'
             laravel: '12'
-            lint: true
-          - php: '8.3'
-            laravel: '13'
             lint: false
           - php: '8.4'
             laravel: '13'
-            lint: false
+            lint: true
     steps:
       - uses: actions/checkout@v4
 
@@ -151,7 +148,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.4'
           extensions: intl
           coverage: none
 
