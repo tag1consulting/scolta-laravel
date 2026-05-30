@@ -1,6 +1,6 @@
 {
     "name": "tag1/scolta-laravel",
-    "version": "1.0.1-dev",
+    "version": "1.0.1",
     "description": "Scolta AI Search for Laravel \u2014 zero-infrastructure AI-powered search with Pagefind",
     "type": "library",
     "license": "MIT",
@@ -17,11 +17,11 @@
     },
     "require": {
         "php": ">=8.1",
-        "tag1/scolta-php": "^1.0",
-        "illuminate/support": "^11.0|^12.0|^13.0",
         "illuminate/console": "^11.0|^12.0|^13.0",
         "illuminate/database": "^11.0|^12.0|^13.0",
-        "illuminate/routing": "^11.0|^12.0|^13.0"
+        "illuminate/routing": "^11.0|^12.0|^13.0",
+        "illuminate/support": "^11.0|^12.0|^13.0",
+        "tag1/scolta-php": "^1.0"
     },
     "require-dev": {
         "larastan/larastan": "^3.0",
