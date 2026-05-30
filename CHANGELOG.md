@@ -7,6 +7,8 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 ## [Unreleased]
 
 ### Changed
+- **Export files now use nested directory layout mirroring canonical URLs** instead of flat `{id}.html`, aligning binary indexer output with PHP indexer (scolta-php#157).
+- **HTML file counting uses recursive directory walk** instead of flat glob.
 - **Decoupled release build from lockstep scolta-php tagging.** `release.yml` no longer checks out scolta-php at the same tag or runs `composer update tag1/scolta-php`. The committed `composer.lock` pins scolta-php to a stable Packagist release (currently 1.0.0), and the release job uses `composer install --no-dev` against that lock. A new `lock-guard` CI job (in both `ci.yml` and `release.yml`) fails if the committed lock pins scolta-php to a path, dev, or pre-release source.
 - **Release archive uses fail-closed allowlist.** The ZIP build now copies enumerated root files and source dirs by extension, rather than using a denylist of `--exclude` patterns. Vendor is pruned of test dirs and dev config files. A disallowed-extension content guard in `validate-zip` catches regressions.
 
