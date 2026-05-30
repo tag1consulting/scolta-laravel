@@ -373,10 +373,7 @@ class BuildCommand extends Command
         // Handle deletions first.
         $deletedIds = $source->getDeletedIds();
         foreach ($deletedIds as $id) {
-            $filepath = rtrim($buildDir, '/').'/'.$id.'.html';
-            if (file_exists($filepath)) {
-                File::delete($filepath);
-            }
+            $exporter->deleteById($id);
         }
         if (count($deletedIds) > 0) {
             $this->info('  Removed '.count($deletedIds).' deleted items.');
@@ -416,6 +413,8 @@ class BuildCommand extends Command
                 }
             }
         }
+
+        $exporter->writeManifest();
 
         $this->info("  Exported: {$exported}, Skipped (insufficient content): {$skipped}");
 
@@ -586,7 +585,7 @@ class BuildCommand extends Command
             return self::FAILURE;
         }
 
-        $htmlCount = count(File::glob($buildDir.'/*.html') ?: []);
+        $htmlCount = ContentExporter::countHtmlFiles($buildDir);
         if ($htmlCount === 0) {
             $this->error("No HTML files in {$buildDir}. Export content first.");
 
