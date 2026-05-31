@@ -122,14 +122,16 @@ class ConfigTest extends TestCase
     public function test_scoring_defaults(): void
     {
         $scoring = $this->config['scoring'];
-        $this->assertEquals(1.0, $scoring['title_match_boost']);
+        $this->assertEquals(2.0, $scoring['title_match_boost']);
         $this->assertEquals(1.5, $scoring['title_all_terms_multiplier']);
         $this->assertEquals(0.4, $scoring['content_match_boost']);
-        $this->assertEquals(0.5, $scoring['recency_boost_max']);
+        $this->assertEquals(0.25, $scoring['recency_boost_max']);
         $this->assertEquals(365, $scoring['recency_half_life_days']);
         $this->assertEquals(1825, $scoring['recency_penalty_after_days']);
         $this->assertEquals(0.3, $scoring['recency_max_penalty']);
         $this->assertEquals(0.5, $scoring['expand_primary_weight']);
+        $this->assertEquals(0.05, $scoring['cross_list_bonus']);
+        $this->assertEquals(0.05, $scoring['expand_subword_max_frequency']);
         $this->assertEquals('en', $scoring['language']);
         $this->assertEquals('exponential', $scoring['recency_strategy']);
         $this->assertIsArray($scoring['recency_curve']);

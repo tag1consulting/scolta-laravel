@@ -54,10 +54,10 @@ class ScoltaConfigIntegrationTest extends TestCase
     {
         $js = $this->makeConfig()->toJsScoringConfig();
 
-        $this->assertEquals(1.0, $js['TITLE_MATCH_BOOST']);
+        $this->assertEquals(2.0, $js['TITLE_MATCH_BOOST']);
         $this->assertEquals(1.5, $js['TITLE_ALL_TERMS_MULTIPLIER']);
         $this->assertEquals(0.4, $js['CONTENT_MATCH_BOOST']);
-        $this->assertEquals(0.5, $js['RECENCY_BOOST_MAX']);
+        $this->assertEquals(0.25, $js['RECENCY_BOOST_MAX']);
         $this->assertEquals(365, $js['RECENCY_HALF_LIFE_DAYS']);
         $this->assertEquals(1825, $js['RECENCY_PENALTY_AFTER_DAYS']);
         $this->assertEquals(0.3, $js['RECENCY_MAX_PENALTY']);

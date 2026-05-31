@@ -6,8 +6,14 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+### Added
+- **`expand_subword_max_frequency` scoring config (default `0.05`).** Threads through to the JS scoring config for the scolta-php sub-word frequency guard (scolta-php#156) — a multi-word expansion term's constituent words are searched on their own only when below this corpus frequency, restoring broad-query recall while blocking high-frequency noise. Also added `cross_list_bonus` (`0.05`) to the published config.
+
 ### Changed
 - Opened 1.0.2-dev development cycle.
+- **Scoring default tuning (matches scolta-php):** `title_match_boost` `1.0` → `2.0`, `recency_boost_max` `0.5` → `0.25` in the published `config/scolta.php`.
+
+> Note: scolta-laravel serves `scolta.js` directly from the scolta-php dependency (no committed copy), so the frequency-guarded build ships automatically once the scolta-php dependency is updated to the release that contains it. This PR adds the config plumbing so the new control is wired and ready.
 
 ## [1.0.1] - 2026-05-30
 

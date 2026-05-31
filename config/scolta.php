@@ -220,14 +220,22 @@ return [
     */
 
     'scoring' => [
-        'title_match_boost' => 1.0,
+        'title_match_boost' => 2.0,
         'title_all_terms_multiplier' => 1.5,
         'content_match_boost' => 0.4,
-        'recency_boost_max' => 0.5,
+        'recency_boost_max' => 0.25,
         'recency_half_life_days' => 365,
         'recency_penalty_after_days' => 1825,
         'recency_max_penalty' => 0.3,
         'expand_primary_weight' => 0.5,
+        'cross_list_bonus' => 0.05,
+
+        // Sub-word frequency guard (scolta-php#156): maximum corpus frequency
+        // (fraction of indexed docs) for a multi-word expansion term's
+        // constituent word to be searched on its own. Recovers broad-query
+        // recall while blocking high-frequency noise words. Set to 0 to disable
+        // sub-word expansion; values >= 1 search every sub-word.
+        'expand_subword_max_frequency' => 0.05,
 
         // Language-aware stop words (1.0.0+)
         // ISO 639-1 code for stop word filtering. Supported: ar, ca, da, de, el,
