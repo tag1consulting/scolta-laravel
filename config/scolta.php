@@ -247,6 +247,18 @@ return [
             explode(',', env('SCOLTA_CUSTOM_STOP_WORDS', ''))
         )),
 
+        // Sub-word guard denylist (scolta-php#156 follow-up)
+        // Words that are NEVER auto-exempted from the sub-word frequency guard
+        // even when the user types them — so a typed-but-generic word (e.g.
+        // "hot" on a recipe site) cannot re-flood results via the query-term
+        // exemption. Unlike custom_stop_words this does NOT affect relevance
+        // scoring or query tokenization; listed words stay searchable. Comma-
+        // separated, lowercased. Leave empty unless a typed common word floods.
+        'expand_subword_deny_list' => array_filter(array_map(
+            fn ($w) => strtolower(trim($w)),
+            explode(',', env('SCOLTA_EXPAND_SUBWORD_DENYLIST', ''))
+        )),
+
         // Pluggable recency functions (1.0.0+)
         // Strategies: 'exponential' (default), 'linear', 'step', 'none', 'custom'.
         'recency_strategy' => env('SCOLTA_RECENCY_STRATEGY', 'exponential'),
