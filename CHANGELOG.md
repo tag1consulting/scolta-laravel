@@ -7,6 +7,7 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 ## [Unreleased]
 
 ### Added
+- **`expand_subword_deny_list` scoring config (default empty).** Reads from `SCOLTA_EXPAND_SUBWORD_DENYLIST` (comma-separated). Guard-only veto list for the scolta-php sub-word query-term exemption (scolta-php#156 follow-up): words listed here are never auto-exempted from the sub-word frequency guard even when the user types them, so a typed-but-generic word (e.g. `hot` on a recipe site) cannot re-flood results. Unlike `custom_stop_words` this does not affect relevance scoring or query tokenization; listed words stay searchable and scorable.
 - **`expand_subword_max_frequency` scoring config (default `0.05`).** Threads through to the JS scoring config for the scolta-php sub-word frequency guard (scolta-php#156) — a multi-word expansion term's constituent words are searched on their own only when below this corpus frequency, restoring broad-query recall while blocking high-frequency noise. Also added `cross_list_bonus` (`0.05`) to the published config.
 
 ### Changed

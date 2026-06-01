@@ -112,11 +112,18 @@ class ConfigTest extends TestCase
             'recency_half_life_days', 'recency_penalty_after_days',
             'recency_max_penalty', 'expand_primary_weight',
             'language', 'recency_strategy', 'recency_curve',
+            'expand_subword_deny_list',
         ];
 
         foreach ($expectedKeys as $key) {
             $this->assertArrayHasKey($key, $scoring, "Missing scoring key: {$key}");
         }
+    }
+
+    public function test_expand_subword_deny_list_defaults_empty(): void
+    {
+        $this->assertIsArray($this->config['scoring']['expand_subword_deny_list']);
+        $this->assertSame([], $this->config['scoring']['expand_subword_deny_list']);
     }
 
     public function test_scoring_defaults(): void
