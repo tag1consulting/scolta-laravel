@@ -72,9 +72,12 @@
         <link rel="stylesheet" href="{{ asset(ltrim($indexUrl, '/') . '/pagefind-ui.css') }}" />
     @endif
 
-    {{-- Scolta CSS from published assets --}}
+    {{-- Scolta CSS from published assets. Cache-bust on the published file's
+         mtime so a deploy that replaces the asset is picked up on a normal
+         reload — asset() alone emits no version token, so HTTP caches would
+         otherwise keep serving the old CSS. --}}
     @if(file_exists(public_path('vendor/scolta/scolta.css')))
-        <link rel="stylesheet" href="{{ asset('vendor/scolta/scolta.css') }}" />
+        <link rel="stylesheet" href="{{ asset('vendor/scolta/scolta.css') . '?v=' . filemtime(public_path('vendor/scolta/scolta.css')) }}" />
     @endif
 
     {{-- Scolta config — sets window.scolta before scolta.js loads --}}
@@ -90,9 +93,12 @@
         <p class="scolta-attribution">Powered by Scolta</p>
     @endif
 
-    {{-- Scolta JS from published assets --}}
+    {{-- Scolta JS from published assets. Cache-bust on the published file's
+         mtime so a deploy that replaces the asset is picked up on a normal
+         reload — asset() alone emits no version token, so HTTP caches would
+         otherwise keep serving the old JS. --}}
     @if(file_exists(public_path('vendor/scolta/scolta.js')))
-        <script src="{{ asset('vendor/scolta/scolta.js') }}" defer></script>
+        <script src="{{ asset('vendor/scolta/scolta.js') . '?v=' . filemtime(public_path('vendor/scolta/scolta.js')) }}" defer></script>
     @else
         <!-- Scolta JS not published. Run: php artisan vendor:publish --tag=scolta-assets -->
     @endif

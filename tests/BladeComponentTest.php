@@ -113,6 +113,30 @@ class BladeComponentTest extends TestCase
     }
 
     // -------------------------------------------------------------------
+    // Asset cache-busting — the asset URL must carry a content-changing
+    // ?v= token. asset() alone emits no version, so a deploy that replaces
+    // the published file would otherwise keep serving stale JS/CSS.
+    // -------------------------------------------------------------------
+
+    public function test_scolta_js_url_has_filemtime_cache_token(): void
+    {
+        $this->assertMatchesRegularExpression(
+            "/asset\('vendor\/scolta\/scolta\.js'\)\s*\.\s*'\?v='\s*\.\s*filemtime\(public_path\('vendor\/scolta\/scolta\.js'\)\)/",
+            $this->templateContent,
+            'scolta.js src must append ?v=filemtime(public_path(...)) so a normal reload picks up fresh JS after a deploy.'
+        );
+    }
+
+    public function test_scolta_css_url_has_filemtime_cache_token(): void
+    {
+        $this->assertMatchesRegularExpression(
+            "/asset\('vendor\/scolta\/scolta\.css'\)\s*\.\s*'\?v='\s*\.\s*filemtime\(public_path\('vendor\/scolta\/scolta\.css'\)\)/",
+            $this->templateContent,
+            'scolta.css href must append ?v=filemtime(public_path(...)) so a normal reload picks up fresh CSS after a deploy.'
+        );
+    }
+
+    // -------------------------------------------------------------------
     // Includes scolta.css reference
     // -------------------------------------------------------------------
 
