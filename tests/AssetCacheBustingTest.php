@@ -49,7 +49,13 @@ class AssetCacheBustingTest extends TestCase
      */
     private function token(string $asset): string
     {
-        return '?v='.filemtime(public_path('vendor/scolta/'.$asset));
+        $path = public_path('vendor/scolta/'.$asset);
+        // filemtime() is served from PHP's stat cache; clear it so the token
+        // reflects the current file after a mid-test rewrite (mirrors a deploy
+        // replacing the asset in a fresh request).
+        clearstatcache(true, $path);
+
+        return '?v='.filemtime($path);
     }
 
     public function test_js_token_is_nonempty_and_numeric(): void
