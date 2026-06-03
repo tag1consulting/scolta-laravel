@@ -6,6 +6,8 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-06-02
+
 ### Fixed
 - **Browsers no longer serve a stale `scolta.js`/`scolta.css` after a deploy.** Root cause: the search Blade component emitted the published asset URL via `asset('vendor/scolta/scolta.js')` with **no version or hash at all**, so the URL was byte-identical across deploys and HTTP caches kept serving the old file. The asset URLs now append `?v=filemtime(public_path(...))` (guarded by the existing `file_exists` check), a token that changes whenever the published file changes, so a normal reload picks up fresh JS/CSS. Added `AssetCacheBustingTest` (behavioral) plus `BladeComponentTest` coverage asserting the rendered URLs carry a non-empty `?v=` token derived from the asset mtime.
 
@@ -16,6 +18,8 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 ### Changed
 - Opened 1.0.2-dev development cycle.
 - **Scoring default tuning (matches scolta-php):** `title_match_boost` `1.0` → `2.0`, `recency_boost_max` `0.5` → `0.25` in the published `config/scolta.php`.
+- **Updated bundled scolta-php dependency to 1.0.2.** The committed `composer.lock` pin moves from 1.0.1 to the 1.0.2 Packagist release, so the `scolta.js` served from the dependency now ships the #156 frequency-guard follow-ups (Fix A/D typed-query-term exemption + `expand_subword_deny_list`) and the reverted query-word-importance line.
+- **Release archive cleanup now strips all vendored `*.neon`/`*.dist`/`*.log` dev-config files.** The build-stage `find` glob only removed `phpstan.neon*`, so newer transitive dependencies shipping other `.neon` files (e.g. `nesbot/carbon`'s `extension.neon`) survived cleanup and tripped the `validate-zip` disallowed-extension guard, leaving the release CI red. The cleanup glob is now a superset of the validator's denylist, so the archive stays clean and `validate-zip` passes.
 
 > Note: scolta-laravel serves `scolta.js` directly from the scolta-php dependency (no committed copy), so the frequency-guarded build ships automatically once the scolta-php dependency is updated to the release that contains it. This PR adds the config plumbing so the new control is wired and ready.
 
