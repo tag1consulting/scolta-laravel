@@ -42,51 +42,14 @@ class ScoltaAiService extends AiServiceAdapter
 
     /**
      * {@inheritdoc}
-     */
-    public function message(string $systemPrompt, string $userMessage, int $maxTokens = 512): string
-    {
-        try {
-            return parent::message($systemPrompt, $userMessage, $maxTokens);
-        } catch (\RuntimeException $e) {
-            $this->handlePossibleBudgetException($e);
-            throw $e;
-        }
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function conversation(string $systemPrompt, array $messages, int $maxTokens = 512): string
-    {
-        try {
-            return parent::conversation($systemPrompt, $messages, $maxTokens);
-        } catch (\RuntimeException $e) {
-            $this->handlePossibleBudgetException($e);
-            throw $e;
-        }
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function messageForOperation(string $operation, string $systemPrompt, string $userMessage, int $maxTokens = 512): string
-    {
-        try {
-            return parent::messageForOperation($operation, $systemPrompt, $userMessage, $maxTokens);
-        } catch (\RuntimeException $e) {
-            $this->handlePossibleBudgetException($e);
-            throw $e;
-        }
-    }
-
-    /**
-     * Convert a budget-exceeded RuntimeException to AmazeeBudgetExceededException.
      *
+     * Convert a budget-exceeded RuntimeException to AmazeeBudgetExceededException.
      * No-op if the exception message does not contain the Amazee budget signal.
+     * Invoked by the base AI methods' catch block.
      *
      * @throws AmazeeBudgetExceededException When the budget message is detected.
      */
-    private function handlePossibleBudgetException(\RuntimeException $e): void
+    protected function handlePossibleBudgetException(\RuntimeException $e): void
     {
         if (! str_contains($e->getMessage(), 'Budget has been exceeded!')) {
             return;

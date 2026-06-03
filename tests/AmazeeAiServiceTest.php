@@ -25,28 +25,43 @@ class AmazeeAiServiceTest extends TestCase
         $this->assertTrue($service->isAmazeeActive());
     }
 
-    public function test_has_message_override(): void
+    public function test_overrides_budget_exception_hook(): void
     {
+        // The budget-conversion logic now lives in a single protected hook that
+        // overrides AiServiceAdapter::handlePossibleBudgetException(). The base
+        // class owns the try/catch around the AI calls.
         $ref = new ReflectionClass(ScoltaAiService::class);
-        $this->assertTrue($ref->hasMethod('message'));
-        $method = $ref->getMethod('message');
+        $this->assertTrue($ref->hasMethod('handlePossibleBudgetException'));
+        $method = $ref->getMethod('handlePossibleBudgetException');
         $this->assertSame(ScoltaAiService::class, $method->getDeclaringClass()->getName());
+        $this->assertTrue($method->isProtected(), 'Hook must be protected to override the base method');
     }
 
-    public function test_has_conversation_override(): void
+    public function test_ai_methods_inherited_from_base(): void
     {
+        // message()/conversation()/messageForOperation() are no longer overridden
+        // here — they resolve to the base AiServiceAdapter, which now wraps them
+        // in the budget try/catch.
         $ref = new ReflectionClass(ScoltaAiService::class);
-        $this->assertTrue($ref->hasMethod('conversation'));
-        $method = $ref->getMethod('conversation');
-        $this->assertSame(ScoltaAiService::class, $method->getDeclaringClass()->getName());
+        foreach (['message', 'conversation', 'messageForOperation'] as $name) {
+            $this->assertTrue($ref->hasMethod($name));
+            $declaring = $ref->getMethod($name)->getDeclaringClass()->getName();
+            $this->assertNotSame(
+                ScoltaAiService::class,
+                $declaring,
+                "$name() must be inherited from the base, not overridden here"
+            );
+        }
     }
 
-    public function test_has_message_for_operation_override(): void
+    public function test_no_redundant_ai_method_overrides_in_source(): void
     {
         $src = file_get_contents(
             dirname(__DIR__).'/src/Services/ScoltaAiService.php'
         );
-        $this->assertStringContainsString('public function messageForOperation(', $src);
+        $this->assertStringNotContainsString('public function messageForOperation(', $src);
+        $this->assertStringNotContainsString('public function message(string', $src);
+        $this->assertStringNotContainsString('public function conversation(string', $src);
     }
 
     public function test_imports_amazee_budget_exception(): void
