@@ -6,6 +6,9 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+### Added
+- Added `SearchComponentRenderTest` — renders the search Blade component in a booted app and asserts the emitted `window.scolta` `pagefindPath`/`wasmPath`/endpoint URLs (parsed out of the script block) against both the nested and flat Pagefind layouts, plus the not-built warning path. The prior `BladeComponentTest` only string-matched the template source and was blind to wrong emitted URL values; this is the first true render test (uses the already-present `orchestra/testbench` dev dependency).
+
 ### Changed
 - **Dropped the redundant `message()`/`conversation()`/`messageForOperation()` overrides in `ScoltaAiService`; the base `AiServiceAdapter` now owns the budget-exception try/catch.** Each override existed only to wrap the `parent::` call in `try/catch (\RuntimeException)` → `handlePossibleBudgetException()`. scolta-php's base class now does that wrapping and calls a protected `handlePossibleBudgetException()` hook, so the adapter keeps only its hook override (visibility changed `private`→`protected`). Behavior is identical — an Amazee budget error still converts to `AmazeeBudgetExceededException`. Requires scolta-php ≥ 1.0.3 (the release that adds the hook). ([scolta-php#173](https://github.com/tag1consulting/scolta-php/pull/173))
 - Opened 1.0.3-dev development cycle.
