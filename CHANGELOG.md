@@ -7,7 +7,11 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 ## [Unreleased]
 
 ### Changed
+- **Dropped the redundant `message()`/`conversation()`/`messageForOperation()` overrides in `ScoltaAiService`; the base `AiServiceAdapter` now owns the budget-exception try/catch.** Each override existed only to wrap the `parent::` call in `try/catch (\RuntimeException)` → `handlePossibleBudgetException()`. scolta-php's base class now does that wrapping and calls a protected `handlePossibleBudgetException()` hook, so the adapter keeps only its hook override (visibility changed `private`→`protected`). Behavior is identical — an Amazee budget error still converts to `AmazeeBudgetExceededException`. Requires scolta-php ≥ 1.0.3 (the release that adds the hook). ([scolta-php#173](https://github.com/tag1consulting/scolta-php/pull/173))
 - Opened 1.0.3-dev development cycle.
+
+### Internal
+- **Block-scoped ignores for the security advisories that broke CI dependency resolution on the EOL Laravel 11 matrix row.** Newly-published advisories against laravel/framework 11.x made `composer update` refuse to install on the Laravel 11/12 CI rows. Migrated `config.audit.ignore` to the detailed object form with `apply: "block"` (resolver stops blocking; `composer audit` still reports), one documented + tagged entry per advisory ID. The five laravel/framework IDs are tagged `[PERMANENT:laravel-11-eol]` (Laravel 11 reached EOL 2026-03-12; the genuine blocker `CVE-2026-48019` covers all 11.x with no 11.x fix coming, and the other four are already patched in 11.x but enumerated across the candidate range) — remove them when Laravel 11 is dropped from the matrix. The two pre-existing PHPUnit IDs are re-tagged `[DEV-ONLY:phpunit]`. No runtime/dependency change; supported Laravel 12/13 are unaffected (already patched).
 
 ## [1.0.2] - 2026-06-02
 

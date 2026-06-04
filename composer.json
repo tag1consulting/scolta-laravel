@@ -68,10 +68,36 @@
     "config": {
         "sort-packages": true,
         "audit": {
-            "ignore": [
-                "PKSA-5jz8-6tcw-pbk4",
-                "PKSA-z3gr-8qht-p93v"
-            ]
+            "ignore": {
+                "PKSA-mdq4-51ck-6kdq": {
+                    "apply": "block",
+                    "reason": "[PERMANENT:laravel-11-eol] CVE-2026-48019 (CRLF injection in default email rule) affects all laravel/framework 11.x and was reported 2026-05-19, after Laravel 11 reached EOL on 2026-03-12, so no 11.x fix will ship. Only reached via the EOL Laravel 11 CI matrix row; supported 12.x/13.x are already patched (12.60.0 / 13.10.0). apply:block stops the resolver blocking while composer audit still reports it. Remove when Laravel 11 is dropped from the test matrix."
+                },
+                "PKSA-8qx3-n5y5-vvnd": {
+                    "apply": "block",
+                    "reason": "[PERMANENT:laravel-11-eol] CVE-2025-27515 (file validation bypass) is patched in 11.44.1 / 12.1.1; only pre-patch 11.x is affected and CI installs the latest (patched) 11.x. Enumerated by the resolver across the Laravel 11 candidate range. apply:block stops the resolver blocking while composer audit still reports it. Remove when Laravel 11 is dropped from the test matrix."
+                },
+                "PKSA-w7xr-vk7n-rstm": {
+                    "apply": "block",
+                    "reason": "[PERMANENT:laravel-11-eol] CVE-2024-52301 (environment manipulation via query string) is patched in 11.31.0; only pre-patch 11.x is affected and CI installs the latest (patched) 11.x. Enumerated across the Laravel 11 candidate range. apply:block stops the resolver blocking while composer audit still reports it. Remove when Laravel 11 is dropped from the test matrix."
+                },
+                "PKSA-q46n-4fdk-zjr4": {
+                    "apply": "block",
+                    "reason": "[PERMANENT:laravel-11-eol] CVE-2024-13919 (debug-mode-only reflected XSS via route parameter) is patched in 11.36.0; only pre-patch 11.x is affected and CI installs the latest (patched) 11.x. Enumerated across the Laravel 11 candidate range. apply:block stops the resolver blocking while composer audit still reports it. Remove when Laravel 11 is dropped from the test matrix."
+                },
+                "PKSA-qzrn-rnz3-85w1": {
+                    "apply": "block",
+                    "reason": "[PERMANENT:laravel-11-eol] CVE-2024-13918 (debug-mode-only reflected XSS via request parameter) is patched in 11.36.0; only pre-patch 11.x is affected and CI installs the latest (patched) 11.x. Enumerated across the Laravel 11 candidate range. apply:block stops the resolver blocking while composer audit still reports it. Remove when Laravel 11 is dropped from the test matrix."
+                },
+                "PKSA-5jz8-6tcw-pbk4": {
+                    "apply": "block",
+                    "reason": "[DEV-ONLY:phpunit] CVE-2026-41570 (argument injection via newline in PHP INI values forwarded to child processes) in phpunit/phpunit, a dev-only dependency that is never shipped; patched in 12.5.22 / 13.1.6. apply:block stops the resolver blocking while composer audit still reports it."
+                },
+                "PKSA-z3gr-8qht-p93v": {
+                    "apply": "block",
+                    "reason": "[DEV-ONLY:phpunit] CVE-2026-24765 (unsafe deserialization in PHPT code-coverage handling) in phpunit/phpunit, a dev-only dependency that is never shipped (test-time path only). apply:block stops the resolver blocking while composer audit still reports it."
+                }
+            }
         }
     }
 }
