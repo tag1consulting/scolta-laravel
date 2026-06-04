@@ -674,6 +674,16 @@ Simpler than the Scheduler but without Laravel's logging integration and overlap
 
 The Pagefind binary is optional — the PHP indexer works without it.
 
+### Laravel 11 and end-of-life versions
+
+Scolta runs on Laravel 11, 12, and 13, and its test suite covers all three so apps on older releases aren't stranded. Be aware of what that means for Laravel 11 specifically:
+
+**Laravel 11 reached end of life on 12 March 2026.** The Laravel team no longer ships security patches for it, so advisories against `laravel/framework` 11.x stay open with no fix. To see which advisories affect the version you're actually running, run `composer audit` in your project — it reports the affected and fixed version ranges from the same database Scolta's CI uses. The published list is maintained at [Laravel's security advisories](https://github.com/laravel/framework/security/advisories).
+
+Scolta installs and tests cleanly on Laravel 11 because it deliberately allows these upstream framework advisories in its own CI, which keeps the 11.x compatibility check green. **That does not make your application secure** — the Laravel version your app runs is your responsibility, and on 11.x you are running an unsupported framework with known, unpatched holes.
+
+If you are on Laravel 11, upgrade to Laravel 12 (security-supported through 24 February 2027) or Laravel 13. If you must stay on 11 for now, treat it as temporary and plan the upgrade.
+
 ## Testing
 
 **Unit tests** (no Laravel bootstrap required):
