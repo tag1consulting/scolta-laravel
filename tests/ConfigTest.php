@@ -113,7 +113,7 @@ class ConfigTest extends TestCase
             'recency_max_penalty', 'expand_primary_weight',
             'language', 'recency_strategy', 'recency_curve',
             'expand_subword_deny_list',
-            'expansion_combine_mode', 'expansion_per_term_top_k',
+            'expansion_combine_mode',
         ];
 
         foreach ($expectedKeys as $key) {
@@ -132,10 +132,11 @@ class ConfigTest extends TestCase
         $this->assertSame('relevance_union', $this->config['scoring']['expansion_combine_mode']);
     }
 
-    public function test_expansion_per_term_top_k_defaults_to_int_three(): void
+    public function test_expansion_per_term_top_k_is_not_a_config_key(): void
     {
-        $this->assertSame(3, $this->config['scoring']['expansion_per_term_top_k']);
-        $this->assertIsInt($this->config['scoring']['expansion_per_term_top_k']);
+        // K is locked at 3 inside scolta-php and is no longer a configurable
+        // setting, so it must not appear in the published Laravel config.
+        $this->assertArrayNotHasKey('expansion_per_term_top_k', $this->config['scoring']);
     }
 
     public function test_scoring_defaults(): void
