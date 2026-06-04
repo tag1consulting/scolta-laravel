@@ -214,28 +214,40 @@ return [
     | Fine-tune how search results are ranked. These values are passed
     | to the JavaScript scoring algorithm via the Blade component.
     |
-    | Any value you set here overrides the preset above. Leave a value at
-    | its default to use the preset's recommendation.
+    | Preset-overridable fields default to null, which means "use the value
+    | from the Site Type preset selected above" (or the scolta-php base default
+    | when the preset is 'none'). Set the matching SCOLTA_* env var — or replace
+    | null with a literal value — to override the preset for that field.
     |
     */
 
     'scoring' => [
-        'title_match_boost' => 2.0,
-        'title_all_terms_multiplier' => 1.5,
-        'content_match_boost' => 0.4,
-        'recency_boost_max' => 0.25,
-        'recency_half_life_days' => 365,
+        // Preset-overridable fields default to null = "use the selected Site
+        // Type preset's value" (scolta-php's fromArray() treats null as unset
+        // and falls through to the preset, or to the base default when no
+        // preset is selected). Set the matching SCOLTA_* env var to override
+        // the preset explicitly. Fields NOT in any preset keep concrete
+        // defaults (recency_penalty_after_days, recency_max_penalty,
+        // cross_list_bonus).
+        'title_match_boost' => env('SCOLTA_TITLE_MATCH_BOOST'),
+        'title_all_terms_multiplier' => env('SCOLTA_TITLE_ALL_TERMS_MULTIPLIER'),
+        'content_match_boost' => env('SCOLTA_CONTENT_MATCH_BOOST'),
+        'recency_boost_max' => env('SCOLTA_RECENCY_BOOST_MAX'),
+        'recency_half_life_days' => env('SCOLTA_RECENCY_HALF_LIFE_DAYS'),
         'recency_penalty_after_days' => 1825,
         'recency_max_penalty' => 0.3,
-        'expand_primary_weight' => 0.5,
+        'expand_primary_weight' => env('SCOLTA_EXPAND_PRIMARY_WEIGHT'),
         'cross_list_bonus' => 0.05,
 
         // Sub-word frequency guard (scolta-php#156): maximum corpus frequency
         // (fraction of indexed docs) for a multi-word expansion term's
         // constituent word to be searched on its own. Recovers broad-query
-        // recall while blocking high-frequency noise words. Set to 0 to disable
-        // sub-word expansion; values >= 1 search every sub-word.
-        'expand_subword_max_frequency' => 0.05,
+        // recall while blocking high-frequency noise words. Preset-overridable:
+        // null falls through to the preset (e.g. 'none' and 'content_catalog'
+        // broaden this to 0.10). Set SCOLTA_EXPAND_SUBWORD_MAX_FREQUENCY to a
+        // value to override; 0 disables sub-word expansion, >= 1 searches every
+        // sub-word.
+        'expand_subword_max_frequency' => env('SCOLTA_EXPAND_SUBWORD_MAX_FREQUENCY'),
 
         // Language-aware stop words (1.0.0+)
         // ISO 639-1 code for stop word filtering. Supported: ar, ca, da, de, el,
@@ -268,14 +280,17 @@ return [
         //       the summarizer sees breadth across expansion terms.
         // This is preset-defaulted in scolta-php (round_robin on the
         // content_catalog, blog, and ecommerce presets; relevance_union
-        // otherwise); an explicit value here overrides the preset. The
-        // per-sub-query count (K) is locked at 3 inside scolta-php and is no
-        // longer configurable.
-        'expansion_combine_mode' => env('SCOLTA_EXPANSION_COMBINE_MODE', 'relevance_union'),
+        // otherwise). Defaults to null = use the preset's value; set
+        // SCOLTA_EXPANSION_COMBINE_MODE to override. The per-sub-query count
+        // (K) is locked at 3 inside scolta-php and is no longer configurable.
+        'expansion_combine_mode' => env('SCOLTA_EXPANSION_COMBINE_MODE'),
 
         // Pluggable recency functions (1.0.0+)
-        // Strategies: 'exponential' (default), 'linear', 'step', 'none', 'custom'.
-        'recency_strategy' => env('SCOLTA_RECENCY_STRATEGY', 'exponential'),
+        // Strategies: 'exponential' (base default), 'linear', 'step', 'none',
+        // 'custom'. Preset-overridable: null falls through to the preset (the
+        // catalog/reference/ecommerce/blog presets set their own strategy). Set
+        // SCOLTA_RECENCY_STRATEGY to override.
+        'recency_strategy' => env('SCOLTA_RECENCY_STRATEGY'),
         // For 'custom': JSON array of [[days, boost], …] control points.
         // e.g. SCOLTA_RECENCY_CURVE='[[0,1.0],[180,0.5],[365,0.0]]'
         'recency_curve' => json_decode(env('SCOLTA_RECENCY_CURVE', '[]'), true) ?: [],
@@ -299,10 +314,15 @@ return [
 
     'show_attribution' => env('SCOLTA_SHOW_ATTRIBUTION', false),
 
-    'excerpt_length' => 300,
-    'results_per_page' => 10,
-    'max_pagefind_results' => 50,
-    'ai_summary_top_n' => 10,
+    // Preset-overridable display fields default to null = "use the selected
+    // Site Type preset's value" (set the SCOLTA_* env var to override). The
+    // presets tune these for browsing (e.g. content_catalog/reference raise
+    // results_per_page to 12 and ai_summary_top_n to 15). ai_summary_max_chars
+    // is not preset-overridable and keeps its concrete default.
+    'excerpt_length' => env('SCOLTA_EXCERPT_LENGTH'),
+    'results_per_page' => env('SCOLTA_RESULTS_PER_PAGE'),
+    'max_pagefind_results' => env('SCOLTA_MAX_PAGEFIND_RESULTS'),
+    'ai_summary_top_n' => env('SCOLTA_AI_SUMMARY_TOP_N'),
     'ai_summary_max_chars' => 4000,
 
     /*
