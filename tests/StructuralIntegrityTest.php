@@ -209,25 +209,6 @@ class StructuralIntegrityTest extends TestCase
     }
 
     // -------------------------------------------------------------------
-    // Release workflow ZIP folder structure
-    // -------------------------------------------------------------------
-
-    public function test_release_workflow_creates_correct_zip_folder(): void
-    {
-        $workflow = file_get_contents($this->root.'/.github/workflows/release.yml');
-        $this->assertStringContainsString(
-            'PKG="scolta-laravel"',
-            $workflow,
-            'Release workflow must set PKG to scolta-laravel for the zip folder name'
-        );
-        $this->assertStringNotContainsString(
-            'zip -r ../scolta-laravel-${VERSION}.zip .',
-            $workflow,
-            'Must not zip from current dir (creates flat archive without scolta-laravel/ folder)'
-        );
-    }
-
-    // -------------------------------------------------------------------
     // Pagefind output subdirectory path consistency
     //
     // The PHP indexer (IndexBuildOrchestrator::atomicSwap) writes the index
@@ -347,26 +328,6 @@ class StructuralIntegrityTest extends TestCase
             'CI workflow should include a PHPStan analyse job');
     }
 
-    public function test_release_workflow_prunes_vendor_test_dirs(): void
-    {
-        $workflow = file_get_contents($this->root.'/.github/workflows/release.yml');
-        $this->assertStringContainsString(
-            '-name tests -o -name test',
-            $workflow,
-            'Release workflow must prune vendor test/ and tests/ directories from the staged archive'
-        );
-    }
-
-    public function test_release_workflow_validate_zip_checks_test_singular(): void
-    {
-        $workflow = file_get_contents($this->root.'/.github/workflows/release.yml');
-        $this->assertStringContainsString(
-            'scolta-laravel/vendor/.+/test/',
-            $workflow,
-            'validate-zip job must check for vendor test/ directories (singular)'
-        );
-    }
-
     public function test_release_workflow_has_lock_guard(): void
     {
         $workflow = file_get_contents($this->root.'/.github/workflows/release.yml');
@@ -377,18 +338,28 @@ class StructuralIntegrityTest extends TestCase
         );
     }
 
-    public function test_release_workflow_has_disallowed_extension_guard(): void
+    /**
+     * The release is notes-only: Composer resolves this library from Packagist's
+     * source zipball, so a vendor-bundled release asset has no consumer. Guard
+     * against silently re-adding a custom build artifact or validate-zip job.
+     */
+    public function test_release_workflow_uploads_no_build_artifact(): void
     {
         $workflow = file_get_contents($this->root.'/.github/workflows/release.yml');
-        $this->assertStringContainsString(
-            '.sha256',
+        $this->assertStringNotContainsString(
+            'scolta-laravel-',
             $workflow,
-            'validate-zip must check for disallowed .sha256 files'
+            'Release workflow must not build or upload a scolta-laravel-*.zip asset'
         );
-        $this->assertStringContainsString(
-            '.toml',
+        $this->assertStringNotContainsString(
+            'validate-zip',
             $workflow,
-            'validate-zip must check for disallowed .toml files'
+            'Release workflow must not include a validate-zip job (no release asset to validate)'
+        );
+        $this->assertStringNotContainsString(
+            'files:',
+            $workflow,
+            'Release workflow must be notes-only (no files: upload to the release)'
         );
     }
 }
