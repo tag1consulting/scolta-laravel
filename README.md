@@ -337,19 +337,23 @@ protected $listen = [
 
 ### Preset
 
-Set `SCOLTA_PRESET` in `.env` (or edit `config/scolta.php`) to apply a named scoring preset. Any explicit values in the `scoring` array override the preset.
+**Getting fewer results than you expect on a recipe, product, or catalog site?** Set `SCOLTA_PRESET=content_catalog` and rebuild your index — the **Recipe & Content Catalog** preset widens search breadth so ingredient, technique, and product-attribute searches return the fuller set of matches you'd expect.
 
-| Preset | Description |
-| ------ | ----------- |
-| `content_catalog` | Recipe sites, wikis, content collections |
+A preset is the recommended way to tune scoring: pick the one that matches your site instead of setting individual numbers. Set `SCOLTA_PRESET` in `.env` (or edit `config/scolta.php`) to apply one. Any explicit values in the `scoring` array still override the preset.
+
+| Preset | Best for |
+| ------ | -------- |
+| `content_catalog` | Recipe sites, product/content catalogs, wikis |
 | `reference` | Documentation, knowledge bases, encyclopedias |
 | `ecommerce` | Online stores, product catalogs |
 | `blog` | Blogs, news, editorial content |
-| `none` | No preset (default) — all values from `scoring` array |
+| `none` | No preset (default) — all values from the `scoring` array |
 
 ```env
-SCOLTA_PRESET=blog
+SCOLTA_PRESET=content_catalog
 ```
+
+For the evidence behind each preset — the scoring sweeps and per-parameter data — see [scolta-php's `docs/TUNING.md`](https://github.com/tag1consulting/scolta-php/blob/main/docs/TUNING.md).
 
 ### Indexer and Memory
 
