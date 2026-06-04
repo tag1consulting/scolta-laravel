@@ -264,14 +264,14 @@ return [
         // into the AI-summary candidate set:
         //   'relevance_union' (default) — historical behavior; merge all
         //       sub-query hits and rank by relevance.
-        //   'round_robin' — deal the top-K hits from each sub-query in turn so
+        //   'round_robin' — deal the top few hits from each sub-query in turn so
         //       the summarizer sees breadth across expansion terms.
+        // This is preset-defaulted in scolta-php (round_robin on the
+        // content_catalog, blog, and ecommerce presets; relevance_union
+        // otherwise); an explicit value here overrides the preset. The
+        // per-sub-query count (K) is locked at 3 inside scolta-php and is no
+        // longer configurable.
         'expansion_combine_mode' => env('SCOLTA_EXPANSION_COMBINE_MODE', 'relevance_union'),
-
-        // Per-sub-query candidate count when round-robin combine is active
-        // (scolta-php#170). K hits taken from each sub-query before dealing the
-        // next round. Ignored under 'relevance_union'.
-        'expansion_per_term_top_k' => (int) env('SCOLTA_EXPANSION_PER_TERM_TOP_K', 3),
 
         // Pluggable recency functions (1.0.0+)
         // Strategies: 'exponential' (default), 'linear', 'step', 'none', 'custom'.
