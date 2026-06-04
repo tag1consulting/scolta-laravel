@@ -113,6 +113,7 @@ class ConfigTest extends TestCase
             'recency_max_penalty', 'expand_primary_weight',
             'language', 'recency_strategy', 'recency_curve',
             'expand_subword_deny_list',
+            'expansion_combine_mode', 'expansion_per_term_top_k',
         ];
 
         foreach ($expectedKeys as $key) {
@@ -124,6 +125,17 @@ class ConfigTest extends TestCase
     {
         $this->assertIsArray($this->config['scoring']['expand_subword_deny_list']);
         $this->assertSame([], $this->config['scoring']['expand_subword_deny_list']);
+    }
+
+    public function test_expansion_combine_mode_defaults_to_relevance_union(): void
+    {
+        $this->assertSame('relevance_union', $this->config['scoring']['expansion_combine_mode']);
+    }
+
+    public function test_expansion_per_term_top_k_defaults_to_int_three(): void
+    {
+        $this->assertSame(3, $this->config['scoring']['expansion_per_term_top_k']);
+        $this->assertIsInt($this->config['scoring']['expansion_per_term_top_k']);
     }
 
     public function test_scoring_defaults(): void

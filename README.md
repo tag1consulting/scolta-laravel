@@ -255,6 +255,8 @@ Scoring settings live under the `scoring` key in `config/scolta.php`.
 | Recency max penalty | — | `scoring.recency_max_penalty` | Maximum negative penalty for very old content |
 | Language | `SCOLTA_LANGUAGE` | `scoring.language` | ISO 639-1 code for stop word filtering |
 | Custom stop words | — | `scoring.custom_stop_words` | Extra stop words beyond the language's built-in list |
+| Expansion combine mode | `SCOLTA_EXPANSION_COMBINE_MODE` | `scoring.expansion_combine_mode` | How multi-term expansion sub-query results are combined for the AI summary: `relevance_union` (default) or `round_robin` |
+| Expansion per-term top K | `SCOLTA_EXPANSION_PER_TERM_TOP_K` | `scoring.expansion_per_term_top_k` | Candidates taken per sub-query under `round_robin` (default `3`; ignored under `relevance_union`) |
 
 Defaults and the full reference: [scolta-php `docs/CONFIG_REFERENCE.md`](https://github.com/tag1consulting/scolta-php/blob/main/docs/CONFIG_REFERENCE.md).
 
