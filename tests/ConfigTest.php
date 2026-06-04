@@ -7,6 +7,8 @@ namespace Tag1\ScoltaLaravel\Tests;
 use Illuminate\Container\Container;
 use Illuminate\Foundation\Application;
 use PHPUnit\Framework\TestCase;
+use Tag1\Scolta\Config\ScoltaConfig;
+use Tag1\ScoltaLaravel\Services\ScoltaAiService;
 
 /**
  * Tests for the Laravel config file structure.
@@ -28,6 +30,23 @@ class ConfigTest extends TestCase
     protected function tearDown(): void
     {
         Container::setInstance(null);
+    }
+
+    /**
+     * Resolve the published config into a ScoltaConfig the same way the runtime
+     * does (flatten + fromArray), optionally with a different preset and
+     * explicit scoring overrides — so tests can assert the *resolved* defaults
+     * now that the config literals are null and fall through to the preset.
+     */
+    private function resolve(?string $preset = null, array $scoringOverrides = []): ScoltaConfig
+    {
+        $config = $this->config;
+        if ($preset !== null) {
+            $config['preset'] = $preset;
+        }
+        $config['scoring'] = array_replace($config['scoring'], $scoringOverrides);
+
+        return ScoltaConfig::fromArray(ScoltaAiService::flattenConfig($config));
     }
 
     public function test_config_is_array(): void
@@ -129,7 +148,36 @@ class ConfigTest extends TestCase
 
     public function test_expansion_combine_mode_defaults_to_relevance_union(): void
     {
-        $this->assertSame('relevance_union', $this->config['scoring']['expansion_combine_mode']);
+        // The config literal is now null (env-driven, no fallback) so it falls
+        // through to the preset. With no preset selected (preset='none'), the
+        // resolved default is the scolta-php base default.
+        $this->assertNull($this->config['scoring']['expansion_combine_mode']);
+        $this->assertSame('relevance_union', $this->resolve()->expansionCombineMode);
+    }
+
+    /**
+     * The Site Type preset now actually drives the resolved config — previously
+     * the concrete config defaults always overrode it, leaving the whole preset
+     * inert (scolta-laravel#82). This is the bug-fix assertion.
+     */
+    public function test_preset_drives_resolved_config(): void
+    {
+        // content_catalog's tuning reaches the resolved config.
+        $cc = $this->resolve('content_catalog');
+        $this->assertSame('round_robin', $cc->expansionCombineMode);
+        $this->assertSame(0.0, $cc->recencyBoostMax);
+        $this->assertSame(0.10, $cc->expandSubwordMaxFrequency);
+        $this->assertSame(15, $cc->aiSummaryTopN);
+
+        // reference's tuning reaches the resolved config.
+        $ref = $this->resolve('reference');
+        $this->assertSame('relevance_union', $ref->expansionCombineMode);
+        $this->assertSame(0.0, $ref->recencyBoostMax);
+
+        // An explicit value (e.g. SCOLTA_EXPANSION_COMBINE_MODE) still wins over
+        // the preset: explicit > preset > base.
+        $explicit = $this->resolve('reference', ['expansion_combine_mode' => 'round_robin']);
+        $this->assertSame('round_robin', $explicit->expansionCombineMode);
     }
 
     public function test_expansion_per_term_top_k_is_not_a_config_key(): void
@@ -142,19 +190,37 @@ class ConfigTest extends TestCase
     public function test_scoring_defaults(): void
     {
         $scoring = $this->config['scoring'];
-        $this->assertEquals(2.0, $scoring['title_match_boost']);
-        $this->assertEquals(1.5, $scoring['title_all_terms_multiplier']);
-        $this->assertEquals(0.4, $scoring['content_match_boost']);
-        $this->assertEquals(0.25, $scoring['recency_boost_max']);
-        $this->assertEquals(365, $scoring['recency_half_life_days']);
+
+        // Preset-overridable fields default to null in the config literal so
+        // they fall through to the selected Site Type preset.
+        $this->assertNull($scoring['title_match_boost']);
+        $this->assertNull($scoring['title_all_terms_multiplier']);
+        $this->assertNull($scoring['content_match_boost']);
+        $this->assertNull($scoring['recency_boost_max']);
+        $this->assertNull($scoring['recency_half_life_days']);
+        $this->assertNull($scoring['expand_primary_weight']);
+        $this->assertNull($scoring['expand_subword_max_frequency']);
+        $this->assertNull($scoring['recency_strategy']);
+
+        // Non-preset-overridable fields keep their concrete defaults.
         $this->assertEquals(1825, $scoring['recency_penalty_after_days']);
         $this->assertEquals(0.3, $scoring['recency_max_penalty']);
-        $this->assertEquals(0.5, $scoring['expand_primary_weight']);
         $this->assertEquals(0.05, $scoring['cross_list_bonus']);
-        $this->assertEquals(0.05, $scoring['expand_subword_max_frequency']);
         $this->assertEquals('en', $scoring['language']);
-        $this->assertEquals('exponential', $scoring['recency_strategy']);
         $this->assertIsArray($scoring['recency_curve']);
+
+        // With no preset (preset='none'), the nulled fields resolve to the
+        // scolta-php base defaults.
+        $resolved = $this->resolve();
+        $this->assertEquals(2.0, $resolved->titleMatchBoost);
+        $this->assertEquals(1.5, $resolved->titleAllTermsMultiplier);
+        $this->assertEquals(0.4, $resolved->contentMatchBoost);
+        $this->assertEquals(0.25, $resolved->recencyBoostMax);
+        $this->assertEquals(365, $resolved->recencyHalfLifeDays);
+        $this->assertEquals(0.5, $resolved->expandPrimaryWeight);
+        $this->assertEquals('exponential', $resolved->recencyStrategy);
+        // 'none' broadens sub-word recall to 0.10 (was hard-coded 0.05).
+        $this->assertEquals(0.10, $resolved->expandSubwordMaxFrequency);
     }
 
     public function test_ai_languages_default(): void
@@ -180,11 +246,20 @@ class ConfigTest extends TestCase
 
     public function test_display_defaults(): void
     {
-        $this->assertEquals(300, $this->config['excerpt_length']);
-        $this->assertEquals(10, $this->config['results_per_page']);
-        $this->assertEquals(50, $this->config['max_pagefind_results']);
-        $this->assertEquals(10, $this->config['ai_summary_top_n']);
+        // Preset-overridable display fields default to null (fall through to
+        // the preset); ai_summary_max_chars is not preset-overridable.
+        $this->assertNull($this->config['excerpt_length']);
+        $this->assertNull($this->config['results_per_page']);
+        $this->assertNull($this->config['max_pagefind_results']);
+        $this->assertNull($this->config['ai_summary_top_n']);
         $this->assertEquals(4000, $this->config['ai_summary_max_chars']);
+
+        // Resolved defaults with no preset come from the scolta-php base.
+        $resolved = $this->resolve();
+        $this->assertEquals(300, $resolved->excerptLength);
+        $this->assertEquals(10, $resolved->resultsPerPage);
+        $this->assertEquals(50, $resolved->maxPagefindResults);
+        $this->assertEquals(10, $resolved->aiSummaryTopN);
     }
 
     public function test_show_attribution_key_exists(): void
