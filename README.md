@@ -242,19 +242,21 @@ For multilingual sites:
 
 Scoring settings live under the `scoring` key in `config/scolta.php`.
 
-| Setting | `.env` key | `config/scolta.php` path | Default | Description |
-| ------- | ---------- | ------------------------ | ------- | ----------- |
-| Title match boost | — | `scoring.title_match_boost` | `1.0` | Boost when query terms appear in the title |
-| Title all-terms multiplier | — | `scoring.title_all_terms_multiplier` | `1.5` | Extra multiplier when ALL terms match the title |
-| Content match boost | — | `scoring.content_match_boost` | `0.4` | Boost for query term matches in body/excerpt |
-| Expand primary weight | — | `scoring.expand_primary_weight` | `0.5` | Weight for original query results vs AI-expanded results (higher = original query dominates; raise to 0.7+ if you want literal keyword matches to win) |
-| Recency strategy | `SCOLTA_RECENCY_STRATEGY` | `scoring.recency_strategy` | `exponential` | `exponential`, `linear`, `step`, `none`, or `custom` |
-| Recency boost max | — | `scoring.recency_boost_max` | `0.5` | Maximum positive boost for very recent content |
-| Recency half-life days | — | `scoring.recency_half_life_days` | `365` | Days until recency boost halves |
-| Recency penalty after days | — | `scoring.recency_penalty_after_days` | `1825` | Age before content gets a penalty (~5 years) |
-| Recency max penalty | — | `scoring.recency_max_penalty` | `0.3` | Maximum negative penalty for very old content |
-| Language | `SCOLTA_LANGUAGE` | `scoring.language` | `en` | ISO 639-1 code for stop word filtering |
-| Custom stop words | — | `scoring.custom_stop_words` | `[]` | Extra stop words beyond the language's built-in list |
+| Setting | `.env` key | `config/scolta.php` path | Description |
+| ------- | ---------- | ------------------------ | ----------- |
+| Title match boost | — | `scoring.title_match_boost` | Boost when query terms appear in the title |
+| Title all-terms multiplier | — | `scoring.title_all_terms_multiplier` | Extra multiplier when ALL terms match the title |
+| Content match boost | — | `scoring.content_match_boost` | Boost for query term matches in body/excerpt |
+| Expand primary weight | — | `scoring.expand_primary_weight` | Weight for original query results vs AI-expanded results (higher = original query dominates; raise to 0.7+ if you want literal keyword matches to win) |
+| Recency strategy | `SCOLTA_RECENCY_STRATEGY` | `scoring.recency_strategy` | `exponential`, `linear`, `step`, `none`, or `custom` |
+| Recency boost max | — | `scoring.recency_boost_max` | Maximum positive boost for very recent content |
+| Recency half-life days | — | `scoring.recency_half_life_days` | Days until recency boost halves |
+| Recency penalty after days | — | `scoring.recency_penalty_after_days` | Age before content gets a penalty (~5 years) |
+| Recency max penalty | — | `scoring.recency_max_penalty` | Maximum negative penalty for very old content |
+| Language | `SCOLTA_LANGUAGE` | `scoring.language` | ISO 639-1 code for stop word filtering |
+| Custom stop words | — | `scoring.custom_stop_words` | Extra stop words beyond the language's built-in list |
+
+Defaults and the full reference: [scolta-php `docs/CONFIG_REFERENCE.md`](https://github.com/tag1consulting/scolta-php/blob/main/docs/CONFIG_REFERENCE.md).
 
 **News site** (recency matters a lot):
 
@@ -292,12 +294,14 @@ Scoring settings live under the `scoring` key in `config/scolta.php`.
 
 Display settings are top-level keys in `config/scolta.php`.
 
-| Setting | `config/scolta.php` key | Default | Description |
-| ------- | ----------------------- | ------- | ----------- |
-| Excerpt length | `excerpt_length` | `300` | Characters shown in result excerpts |
-| Results per page | `results_per_page` | `10` | Results shown per page |
-| Max Pagefind results | `max_pagefind_results` | `50` | Total results fetched from index before scoring |
-| Show attribution | `show_attribution` | `false` | Render "Powered by Scolta" below the search widget |
+| Setting | `config/scolta.php` key | Description |
+| ------- | ----------------------- | ----------- |
+| Excerpt length | `excerpt_length` | Characters shown in result excerpts |
+| Results per page | `results_per_page` | Results shown per page |
+| Max Pagefind results | `max_pagefind_results` | Total results fetched from index before scoring |
+| Show attribution | `show_attribution` | Render "Powered by Scolta" below the search widget |
+
+Defaults and the full reference: [scolta-php `docs/CONFIG_REFERENCE.md`](https://github.com/tag1consulting/scolta-php/blob/main/docs/CONFIG_REFERENCE.md).
 
 ### Site Identity
 
