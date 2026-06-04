@@ -7,6 +7,7 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 ## [Unreleased]
 
 ### Added
+- **`expansion_combine_mode` / `expansion_per_term_top_k` scoring config.** Expose the two browser-side query-expansion candidate-selection knobs added in scolta-php ([tag1consulting/scolta-php#170](https://github.com/tag1consulting/scolta-php/issues/170)) in the published `config/scolta.php`. `expansion_combine_mode` (`SCOLTA_EXPANSION_COMBINE_MODE`, default `relevance_union`) controls how a multi-term expansion's per-sub-query result sets are combined into the AI-summary candidate set — `relevance_union` keeps the historical behavior, `round_robin` deals top-K from each sub-query so the summarizer sees breadth across expansion terms. `expansion_per_term_top_k` (`SCOLTA_EXPANSION_PER_TERM_TOP_K`, default `3`, int) sets K per sub-query when round-robin is active and is ignored under `relevance_union`. The `relevance_union` default preserves existing behavior. Requires scolta-php#179 (merged) to take effect at runtime.
 - Added `SearchComponentRenderTest` — renders the search Blade component in a booted app and asserts the emitted `window.scolta` `pagefindPath`/`wasmPath`/endpoint URLs (parsed out of the script block) against both the nested and flat Pagefind layouts, plus the not-built warning path. The prior `BladeComponentTest` only string-matched the template source and was blind to wrong emitted URL values; this is the first true render test (uses the already-present `orchestra/testbench` dev dependency).
 
 ### Changed

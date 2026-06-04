@@ -259,6 +259,20 @@ return [
             explode(',', env('SCOLTA_EXPAND_SUBWORD_DENYLIST', ''))
         )),
 
+        // Query-expansion candidate combination (scolta-php#170)
+        // How a multi-term expansion's per-sub-query result sets are combined
+        // into the AI-summary candidate set:
+        //   'relevance_union' (default) — historical behavior; merge all
+        //       sub-query hits and rank by relevance.
+        //   'round_robin' — deal the top-K hits from each sub-query in turn so
+        //       the summarizer sees breadth across expansion terms.
+        'expansion_combine_mode' => env('SCOLTA_EXPANSION_COMBINE_MODE', 'relevance_union'),
+
+        // Per-sub-query candidate count when round-robin combine is active
+        // (scolta-php#170). K hits taken from each sub-query before dealing the
+        // next round. Ignored under 'relevance_union'.
+        'expansion_per_term_top_k' => (int) env('SCOLTA_EXPANSION_PER_TERM_TOP_K', 3),
+
         // Pluggable recency functions (1.0.0+)
         // Strategies: 'exponential' (default), 'linear', 'step', 'none', 'custom'.
         'recency_strategy' => env('SCOLTA_RECENCY_STRATEGY', 'exponential'),
