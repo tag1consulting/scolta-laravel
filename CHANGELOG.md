@@ -6,6 +6,10 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+### Security
+- **Amazee.ai admin settings routes are no longer registered with the default configuration.** `routes/scolta-amazee.php` (settings page, `POST /scolta/amazee/trial`, `DELETE /scolta/amazee/disconnect`, …) was registered behind `config('scolta.amazee_middleware')`, which defaults to `['web']` — no authentication. Any anonymous visitor could wipe the stored AI credentials via `disconnect` or bind a trial to an arbitrary email via `trial`; the README's "protect the route in production" note was the only safeguard. The routes are now registered **only when** `scolta.amazee_middleware` is configured beyond the bare `['web']` group (e.g. `['web', 'auth']`); with the shipped default they do not exist and requests return 404. Added `AmazeeAdminRouteSecurityTest` (booted-kernel feature tests): anonymous trial/disconnect requests 404 by default, a configured guard middleware blocks anonymous access, and a satisfied guard restores access. **⚠️ Upgrade note:** if you use the admin UI at `/scolta/amazee`, set `'amazee_middleware' => ['web', 'auth']` (or your own guard) in `config/scolta.php` — with the previous default your routes were publicly reachable, so adding a guard is required anyway. CLI provisioning (`artisan scolta:amazee:provision`) and first-request auto-provisioning are unaffected.
+- **The public follow-up endpoint now caps conversation payload size.** `POST /api/scolta/v1/followup` validated `messages.*.content` with no `max:` while the sibling endpoints cap their inputs (expand 500 chars, summarize 50,000 chars), so an anonymous client could POST arbitrarily large conversation payloads straight into an LLM prompt. Validation now enforces 10,000 chars per message, 50,000 chars combined across the conversation (matching the summarize cap), and at most 25 messages. Added `FollowUpValidationTest` covering all three caps plus the in-cap happy path.
+
 ## [1.0.3] - 2026-06-05
 
 ### Fixed
