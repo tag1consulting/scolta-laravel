@@ -7,24 +7,21 @@ namespace Tag1\ScoltaLaravel\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Log\Logger;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Process;
 use Tag1\Scolta\Binary\PagefindBinary;
 use Tag1\Scolta\Config\MemoryBudgetConfig;
 use Tag1\Scolta\Config\ScoltaConfig;
 use Tag1\Scolta\Export\ContentExporter;
-use Tag1\Scolta\Export\ContentItem;
 use Tag1\Scolta\Index\BuildIntentFactory;
 use Tag1\Scolta\Index\IndexBuildOrchestrator;
-use Tag1\Scolta\Index\PhpIndexer;
 use Tag1\ScoltaLaravel\Jobs\FinalizeIndex;
-use Tag1\ScoltaLaravel\Jobs\ProcessIndexChunk;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 use Tag1\ScoltaLaravel\Progress\ArtisanProgressReporter;
 use Tag1\ScoltaLaravel\Services\AssetStatus;
 use Tag1\ScoltaLaravel\Services\ContentSource;
 use Tag1\ScoltaLaravel\Services\PagefindRunner;
+use Tag1\ScoltaLaravel\Services\QueueRebuildDispatcher;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
 
 /**
@@ -84,10 +81,10 @@ class BuildCommand extends Command
 
         if ($indexer === 'php') {
             if ($this->option('sync')) {
-                return $this->buildWithPhpIndexer($outputDir);
+                return $this->buildWithPhpIndexer($source, $outputDir);
             }
 
-            return $this->dispatchToQueue($outputDir);
+            return $this->dispatchToQueue($source);
         }
 
         return $this->buildWithBinary($source, $outputDir);
@@ -127,11 +124,15 @@ class BuildCommand extends Command
     /**
      * Build the search index using the pure-PHP indexer via IndexBuildOrchestrator.
      *
+     * Content is streamed through ContentSource::getPublishedContent() so the
+     * documented publish filters (scopeSearchable + shouldBeSearchable) apply,
+     * exactly as on the binary and queue paths.
+     *
      * @since 0.2.0 (rewritten 0.3.0)
      *
      * @stability experimental
      */
-    private function buildWithPhpIndexer(string $outputDir): int
+    private function buildWithPhpIndexer(ContentSource $source, string $outputDir): int
     {
         $stateDir = config('scolta.state_dir', storage_path('app/scolta'));
         $hmacSecret = config('app.key');
@@ -145,16 +146,16 @@ class BuildCommand extends Command
             ],
         );
 
-        $totalCount = $this->gatherItemCount();
+        $totalCount = $source->getTotalCount();
         if ($totalCount === 0) {
             $this->warn('No searchable content found. Check scolta.models config.');
 
             return self::SUCCESS;
         }
 
-        // Stream content one model at a time — no full pre-load into RAM.
+        // Stream content one record at a time — no full pre-load into RAM.
         $exporter = new ContentExporter($outputDir);
-        $items = $exporter->filterItems($this->streamContentItems());
+        $items = $exporter->filterItems($source->getPublishedContent());
 
         $intent = BuildIntentFactory::fromFlags(
             (bool) $this->option('resume'),
@@ -263,32 +264,19 @@ class BuildCommand extends Command
     /**
      * Dispatch index build to the queue.
      *
-     * Gathers content from Eloquent models, checks the fingerprint,
-     * chunks the items, and dispatches ProcessIndexChunk + FinalizeIndex
-     * jobs via Bus::chain(). Each chunk runs as an independent queue job,
-     * enabling parallel processing across workers.
+     * Delegates to QueueRebuildDispatcher — the same path the observer-driven
+     * TriggerRebuild job uses — which streams content through ContentSource,
+     * writes chunk payload files, checks the fingerprint, and dispatches
+     * ProcessIndexChunk + FinalizeIndex jobs via Bus::chain().
      *
      * @since 0.2.0
      *
      * @stability experimental
      */
-    private function dispatchToQueue(string $outputDir): int
+    private function dispatchToQueue(ContentSource $source): int
     {
         $this->info('Dispatching index build to queue...');
 
-        $items = $this->gatherContentItems();
-
-        if (count($items) === 0) {
-            $this->warn('No searchable content found. Check scolta.models config.');
-
-            return self::SUCCESS;
-        }
-
-        $this->info('  Found '.count($items).' content items.');
-
-        $stateDir = config('scolta.state_dir', storage_path('app/scolta'));
-        $hmacSecret = config('app.key');
-        $language = config('scolta.ai_languages.0', 'en');
         $budget = MemoryBudgetConfig::fromCliAndConfig(
             $this->option('memory-budget'),
             $this->option('chunk-size'),
@@ -298,44 +286,23 @@ class BuildCommand extends Command
             ],
         );
 
-        if (! $this->option('force')) {
-            $indexer = new PhpIndexer($stateDir, $outputDir, $hmacSecret, $language);
-            if ($indexer->shouldBuild($items) === null) {
-                $this->info('Content unchanged. Index is up to date (use --force to rebuild).');
+        $result = (new QueueRebuildDispatcher($source))->dispatch($budget, (bool) $this->option('force'));
 
-                return self::SUCCESS;
-            }
+        if ($result['status'] === QueueRebuildDispatcher::STATUS_EMPTY) {
+            $this->warn('No searchable content found. Check scolta.models config.');
+
+            return self::SUCCESS;
         }
 
-        $effectiveChunkSize = $budget->chunkSize();
-        $chunks = array_chunk($items, $effectiveChunkSize);
-        $jobs = [];
+        $this->info('  Found '.$result['items'].' content items.');
 
-        foreach ($chunks as $idx => $chunk) {
-            $jobs[] = new ProcessIndexChunk(
-                $idx,
-                $chunk,
-                count($items),
-                $stateDir,
-                $outputDir,
-                $hmacSecret,
-                $language,
-                $budget->profile(),
-                $budget->chunkSize(),
-            );
+        if ($result['status'] === QueueRebuildDispatcher::STATUS_UNCHANGED) {
+            $this->info('Content unchanged. Index is up to date (use --force to rebuild).');
+
+            return self::SUCCESS;
         }
 
-        $jobs[] = new FinalizeIndex(
-            $stateDir,
-            $outputDir,
-            $hmacSecret,
-            $language,
-            $budget->profile(),
-        );
-
-        Bus::chain($jobs)->dispatch();
-
-        $this->info('Rebuild dispatched to queue ('.count($chunks).' chunk(s) + finalize).');
+        $this->info('Rebuild dispatched to queue ('.$result['chunks'].' chunk(s) + finalize).');
 
         $this->publishAssets();
 
@@ -451,136 +418,6 @@ class BuildCommand extends Command
         $this->info("Using Pagefind: {$binary} (resolved via {$resolver->resolvedVia()})");
 
         return $this->runPagefind($binary, $buildDir, $outputDir);
-    }
-
-    /**
-     * Count content items across all configured Eloquent models without loading bodies.
-     *
-     * Uses Model::count() (a single SELECT COUNT query per model) so that
-     * gatherItemCount() is O(1) in memory regardless of corpus size.
-     *
-     * @return int Total count across all configured model classes.
-     *
-     * @since 0.3.2
-     *
-     * @stability experimental
-     */
-    private function gatherItemCount(): int
-    {
-        $models = config('scolta.models', []);
-        $total = 0;
-
-        foreach ($models as $modelClass) {
-            if (class_exists($modelClass)) {
-                $total += (int) $modelClass::count();
-            }
-        }
-
-        return $total;
-    }
-
-    /**
-     * Stream content items from all configured Eloquent models as a generator.
-     *
-     * Uses Model::cursor() which returns a lazy collection backed by a PDO
-     * cursor, hydrating one model at a time. Peak RSS stays bounded because
-     * only one model's fields are resident in memory at any given moment.
-     *
-     * Callers must NOT convert this generator to an array — that restores
-     * the pre-0.3.2 eager-load behaviour. Pass it directly to
-     * ContentExporter::filterItems() or IndexBuildOrchestrator::build().
-     *
-     * @return \Generator<ContentItem>
-     *
-     * @since 0.3.2
-     *
-     * @stability experimental
-     */
-    private function streamContentItems(): \Generator
-    {
-        $models = config('scolta.models', []);
-        $siteName = config('scolta.site_name', config('app.name'));
-
-        foreach ($models as $modelClass) {
-            if (! class_exists($modelClass)) {
-                $this->warn("  Model class not found: {$modelClass}");
-
-                continue;
-            }
-
-            foreach ($modelClass::cursor() as $model) {
-                if (! method_exists($model, 'toSearchableContent')) {
-                    continue;
-                }
-
-                $content = $model->toSearchableContent();
-
-                if ($content instanceof ContentItem) {
-                    yield $content;
-                } else {
-                    // Fallback for models returning an array.
-                    yield new ContentItem(
-                        id: $modelClass.'-'.$model->getKey(),
-                        title: $content['title'] ?? '',
-                        bodyHtml: $content['body'] ?? '',
-                        url: $content['url'] ?? '',
-                        date: $model->updated_at?->format('Y-m-d') ?? '',
-                        siteName: $siteName,
-                    );
-                }
-            }
-        }
-    }
-
-    /**
-     * Gather content items from all configured Eloquent models.
-     *
-     * @deprecated 1.0.0 Use streamContentItems() for bounded-memory streaming.
-     *   This method is retained for the queue dispatch path which splits items
-     *   into discrete jobs and requires an array to chunk.
-     *
-     * @return ContentItem[]
-     *
-     * @since 0.2.0
-     *
-     * @stability experimental
-     */
-    private function gatherContentItems(): array
-    {
-        $models = config('scolta.models', []);
-        $items = [];
-        $siteName = config('scolta.site_name', config('app.name'));
-
-        foreach ($models as $modelClass) {
-            if (! class_exists($modelClass)) {
-                $this->warn("  Model class not found: {$modelClass}");
-
-                continue;
-            }
-
-            foreach ($modelClass::all() as $model) {
-                if (method_exists($model, 'toSearchableContent')) {
-                    $content = $model->toSearchableContent();
-
-                    // The Searchable trait returns a ContentItem directly.
-                    if ($content instanceof ContentItem) {
-                        $items[] = $content;
-                    } else {
-                        // Fallback for models returning an array.
-                        $items[] = new ContentItem(
-                            id: $modelClass.'-'.$model->getKey(),
-                            title: $content['title'] ?? '',
-                            bodyHtml: $content['body'] ?? '',
-                            url: $content['url'] ?? '',
-                            date: $model->updated_at?->format('Y-m-d') ?? '',
-                            siteName: $siteName,
-                        );
-                    }
-                }
-            }
-        }
-
-        return $items;
     }
 
     /**

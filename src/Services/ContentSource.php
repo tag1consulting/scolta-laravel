@@ -36,7 +36,13 @@ class ContentSource implements ContentSourceInterface
      * Yield all published content as ContentItem objects.
      *
      * Iterates through all configured models, applying the searchable
-     * scope and converting each to a ContentItem via the trait method.
+     * scope, the per-record shouldBeSearchable() check, and converting
+     * each to a ContentItem via the trait method.
+     *
+     * This is the single content-gathering path for ALL index builds —
+     * the binary pipeline, the synchronous PHP indexer, and the queue
+     * dispatch path all consume this generator, so the documented publish
+     * filters (scopeSearchable + shouldBeSearchable) apply everywhere.
      *
      * @param  array<string, mixed>  $options
      * @return Generator<ContentItem>
@@ -47,6 +53,8 @@ class ContentSource implements ContentSourceInterface
 
         foreach ($models as $modelClass) {
             if (! class_exists($modelClass)) {
+                logger()->warning("[scolta] Configured model class not found: {$modelClass}, skipping.");
+
                 continue;
             }
 
@@ -64,11 +72,15 @@ class ContentSource implements ContentSourceInterface
                 ? $modelClass::searchable()
                 : $modelClass::query();
 
-            // Chunk to keep memory flat. Laravel's chunk() method is the
-            // equivalent of WordPress's paginated WP_Query — it processes
-            // N records at a time, freeing memory between chunks.
+            // lazy() keeps memory flat: it pages through the table 100
+            // records at a time behind a generator, the equivalent of
+            // WordPress's paginated WP_Query, freeing memory as it goes.
             foreach ($query->lazy(100) as $record) {
                 if (! method_exists($record, 'toSearchableContent')) {
+                    continue;
+                }
+
+                if (method_exists($record, 'shouldBeSearchable') && ! $record->shouldBeSearchable()) {
                     continue;
                 }
 

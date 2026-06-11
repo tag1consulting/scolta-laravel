@@ -1,34 +1,10 @@
 parameters:
 	ignoreErrors:
 		-
-			message: '#^Cannot access property \$updated_at on class\-string\|object\.$#'
-			identifier: property.nonObject
-			count: 2
-			path: src/Commands/BuildCommand.php
-
-		-
-			message: '#^Cannot call method getKey\(\) on class\-string\|object\.$#'
-			identifier: method.nonObject
-			count: 2
-			path: src/Commands/BuildCommand.php
-
-		-
 			message: '#^Parameter \#1 \$view of function view expects view\-string\|null, string given\.$#'
 			identifier: argument.type
 			count: 1
 			path: src/Http/Controllers/AmazeeSettingsController.php
-
-		-
-			message: '#^Cannot access property \$updated_at on class\-string\|object\.$#'
-			identifier: property.nonObject
-			count: 1
-			path: src/Jobs/TriggerRebuild.php
-
-		-
-			message: '#^Cannot call method getKey\(\) on class\-string\|object\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: src/Jobs/TriggerRebuild.php
 
 		-
 			message: '#^Offset ''limit'' does not exist on array\{ok\: false, data\?\: mixed, status\?\: int, error\?\: string\}\.$#'
