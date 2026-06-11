@@ -439,6 +439,13 @@ return [
     | These are web (session-aware) routes used by the multi-step
     | provisioning and connection flow.
     |
+    | SECURE BY DEFAULT: the admin routes can disconnect stored AI
+    | credentials and start trials, so they are only registered when you
+    | set 'amazee_middleware' to something beyond the bare ['web'] group —
+    | typically ['web', 'auth']. With the default value below, the routes
+    | do not exist (requests get 404). CLI provisioning
+    | (artisan scolta:amazee:provision) and auto-provisioning still work.
+    |
     */
 
     'amazee_route_prefix' => 'scolta/amazee',

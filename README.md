@@ -391,7 +391,7 @@ For the evidence behind each preset — the scoring sweeps and per-parameter dat
 | API middleware | `middleware` | `['api']` | Middleware for AI API routes |
 | Health middleware | `health_middleware` | `['api']` | Middleware for the health check endpoint |
 | Amazee route prefix | `amazee_route_prefix` | `scolta/amazee` | Prefix for Amazee.ai admin settings routes |
-| Amazee middleware | `amazee_middleware` | `['web']` | Middleware for Amazee.ai settings routes |
+| Amazee middleware | `amazee_middleware` | `['web']` | Middleware for Amazee.ai settings routes. With the default, the routes are **not registered** — set it beyond the bare `['web']` group (e.g. `['web', 'auth']`) to enable the admin UI |
 
 ### Auto Rebuild
 
@@ -419,14 +419,16 @@ Amazee.ai provides a managed LiteLLM proxy with a free trial. Scolta auto-provis
 php artisan scolta:amazee:provision user@example.com
 ```
 
-**Admin UI:** Visit `/scolta/amazee` (configurable via `amazee_route_prefix`) for the multi-step connection flow. Protect the route with auth middleware in production:
+**Admin UI:** The admin settings UI at `/scolta/amazee` (configurable via `amazee_route_prefix`) provides the multi-step connection flow. Its routes can disconnect stored AI credentials, so they are **disabled by default** — they are only registered when you configure `amazee_middleware` with protection beyond the bare `['web']` group:
 
 ```php
 // config/scolta.php
 'amazee_middleware' => ['web', 'auth'],
 ```
 
-**Routes:**
+With the shipped default (`['web']`), requests to these routes return 404. CLI provisioning and first-request auto-provisioning work without the admin UI.
+
+**Routes (when enabled):**
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
