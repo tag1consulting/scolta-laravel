@@ -22,6 +22,20 @@ use Tag1\Scolta\Service\AiServiceAdapter;
  */
 class ScoltaAiService extends AiServiceAdapter
 {
+    /**
+     * The default AI model shipped in config/scolta.php.
+     *
+     * Referenced by both the published config and the service provider's
+     * "is the model still the default?" check for Amazee auto-selected
+     * models — a single constant so the two cannot silently diverge when
+     * the default is bumped.
+     *
+     * @since 1.0.4
+     *
+     * @stability experimental
+     */
+    public const DEFAULT_MODEL = 'claude-sonnet-4-5-20250929';
+
     private bool $amazeeActive;
 
     public function __construct(array $configArray, bool $amazeeActive = false)

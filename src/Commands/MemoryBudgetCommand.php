@@ -12,7 +12,8 @@ use Tag1\Scolta\Index\MemoryBudgetSuggestion;
  *
  * Usage:
  *   artisan scolta:memory-budget          — show current setting and suggestion
- *   artisan scolta:memory-budget --set=balanced  — write to .env / display instruction
+ *   artisan scolta:memory-budget --set=balanced  — validate the profile and
+ *     print the SCOLTA_MEMORY_BUDGET .env instruction (no files are written)
  */
 class MemoryBudgetCommand extends Command
 {

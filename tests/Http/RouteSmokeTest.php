@@ -20,8 +20,7 @@ use PHPUnit\Framework\TestCase;
  *      in their middleware group.
  *   4. AI routes (expand-query, summarize, followup) are NOT in the
  *      auth:sanctum group (they are publicly rate-limited, not auth-gated).
- *   5. Each named route references the expected controller class (or a
- *      closure for rebuild-now).
+ *   5. Each named route references the expected controller class.
  *
  * This is the Laravel equivalent of Drupal's YamlIntegrityTest and
  * the WP RestApiSmokeTest: it catches the class of regression where a
@@ -229,6 +228,20 @@ class RouteSmokeTest extends TestCase
             'ProgressController::class',
             $this->routesSource,
             '/build-progress must reference ProgressController.'
+        );
+    }
+
+    public function test_rebuild_now_references_rebuild_now_controller(): void
+    {
+        $this->assertStringContainsString(
+            'RebuildNowController::class',
+            $this->routesSource,
+            '/rebuild-now must reference RebuildNowController (not a logic-bearing closure).'
+        );
+        $this->assertStringNotContainsString(
+            'function (Request $request)',
+            $this->routesSource,
+            'routes/api.php must not contain logic-bearing closures.'
         );
     }
 }

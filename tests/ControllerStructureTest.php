@@ -15,6 +15,8 @@ use ReflectionNamedType;
 use Tag1\ScoltaLaravel\Http\Controllers\ExpandQueryController;
 use Tag1\ScoltaLaravel\Http\Controllers\FollowUpController;
 use Tag1\ScoltaLaravel\Http\Controllers\HealthController;
+use Tag1\ScoltaLaravel\Http\Controllers\ProgressController;
+use Tag1\ScoltaLaravel\Http\Controllers\RebuildNowController;
 use Tag1\ScoltaLaravel\Http\Controllers\SummarizeController;
 
 /**
@@ -27,6 +29,8 @@ class ControllerStructureTest extends TestCase
         'Summarize' => SummarizeController::class,
         'FollowUp' => FollowUpController::class,
         'Health' => HealthController::class,
+        'Progress' => ProgressController::class,
+        'RebuildNow' => RebuildNowController::class,
     ];
 
     // -------------------------------------------------------------------
@@ -115,6 +119,7 @@ class ControllerStructureTest extends TestCase
             'ExpandQuery' => [ExpandQueryController::class],
             'Summarize' => [SummarizeController::class],
             'FollowUp' => [FollowUpController::class],
+            'RebuildNow' => [RebuildNowController::class],
         ];
     }
 

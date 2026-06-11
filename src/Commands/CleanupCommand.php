@@ -13,8 +13,8 @@ use Tag1\Scolta\Index\BuildState;
  *
  * Scans the state directory and Pagefind output directory for files that
  * are no longer referenced by the current build manifest. Stale lock files
- * older than one hour are always removed. Runs in dry-run mode by default
- * with --dry-run to show what would be removed without deleting.
+ * older than one hour are removed. Deletes by default; pass --dry-run to
+ * preview what would be removed without deleting anything.
  *
  * @since 0.2.0
  *

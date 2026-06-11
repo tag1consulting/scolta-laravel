@@ -8,9 +8,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
-use ReflectionClass;
 use Tag1\Scolta\AiProvider\Amazee\AutoProvisioner;
-use Tag1\Scolta\Config\ScoltaConfig;
 use Tag1\ScoltaLaravel\AiProvider\Amazee\LaravelConfigStorage;
 use Tag1\ScoltaLaravel\Commands\AmazeeProvisionCommand;
 use Tag1\ScoltaLaravel\Commands\BuildCommand;
@@ -26,6 +24,7 @@ use Tag1\ScoltaLaravel\Commands\StatusCommand;
 use Tag1\ScoltaLaravel\Http\Middleware\HandleAmazeeBudgetExceeded;
 use Tag1\ScoltaLaravel\Jobs\TriggerRebuild;
 use Tag1\ScoltaLaravel\Observers\ScoltaObserver;
+use Tag1\ScoltaLaravel\Services\AssetStatus;
 use Tag1\ScoltaLaravel\Services\ContentSource;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
 
@@ -82,7 +81,7 @@ class ScoltaServiceProvider extends ServiceProvider
                     // value is still the default (not manually overridden).
                     $models = $storage->loadModels();
                     if ($models !== null) {
-                        $defaultModel = 'claude-sonnet-4-5-20250929';
+                        $defaultModel = ScoltaAiService::DEFAULT_MODEL;
                         if ($models['ai_model'] !== '' && $config['ai_model'] === $defaultModel) {
                             $config['ai_model'] = $models['ai_model'];
                         }
@@ -210,31 +209,24 @@ class ScoltaServiceProvider extends ServiceProvider
                 __DIR__.'/../resources/views' => resource_path('views/vendor/scolta'),
             ], 'scolta-views');
 
-            // Frontend assets from scolta-php.
-            // Resolve the scolta-php package path via ReflectionClass to avoid
-            // hardcoding vendor paths — works in monorepo and standard installs.
-            try {
-                $coreRef = new ReflectionClass(ScoltaConfig::class);
-                $corePath = dirname($coreRef->getFileName(), 3);
-                $assetsPath = $corePath.'/assets';
+            // Frontend assets from scolta-php. AssetStatus resolves the
+            // package path via reflection — works in monorepo and standard
+            // installs, and returns null when scolta-php is not installed.
+            $assetsPath = (new AssetStatus)->packageAssetsPath();
+            if ($assetsPath !== null) {
+                $publishable = [
+                    $assetsPath.'/js/scolta.js' => public_path('vendor/scolta/scolta.js'),
+                    $assetsPath.'/css/scolta.css' => public_path('vendor/scolta/scolta.css'),
+                ];
 
-                if (is_dir($assetsPath)) {
-                    $publishable = [
-                        $assetsPath.'/js/scolta.js' => public_path('vendor/scolta/scolta.js'),
-                        $assetsPath.'/css/scolta.css' => public_path('vendor/scolta/scolta.css'),
-                    ];
-
-                    // Include browser WASM assets for client-side scoring.
-                    $wasmPath = $assetsPath.'/wasm';
-                    if (is_dir($wasmPath)) {
-                        $publishable[$wasmPath.'/scolta_core.js'] = public_path('vendor/scolta/wasm/scolta_core.js');
-                        $publishable[$wasmPath.'/scolta_core_bg.wasm'] = public_path('vendor/scolta/wasm/scolta_core_bg.wasm');
-                    }
-
-                    $this->publishes($publishable, 'scolta-assets');
+                // Include browser WASM assets for client-side scoring.
+                $wasmPath = $assetsPath.'/wasm';
+                if (is_dir($wasmPath)) {
+                    $publishable[$wasmPath.'/scolta_core.js'] = public_path('vendor/scolta/wasm/scolta_core.js');
+                    $publishable[$wasmPath.'/scolta_core_bg.wasm'] = public_path('vendor/scolta/wasm/scolta_core_bg.wasm');
                 }
-            } catch (\ReflectionException $e) {
-                // scolta-php not installed — skip asset publishing.
+
+                $this->publishes($publishable, 'scolta-assets');
             }
         }
     }

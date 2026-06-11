@@ -217,28 +217,20 @@ class StructuralIntegrityTest extends TestCase
     // reads the index looks in one place.
     // -------------------------------------------------------------------
 
-    public function test_build_command_binary_output_path_uses_pagefind_subdir(): void
+    public function test_pagefind_runner_output_path_uses_pagefind_subdir(): void
     {
-        $src = file_get_contents($this->root.'/src/Commands/BuildCommand.php');
+        // Binary invocation lives in the shared PagefindRunner since the
+        // BuildCommand/RebuildIndexCommand dedup.
+        $src = file_get_contents($this->root.'/src/Services/PagefindRunner.php');
         $this->assertStringContainsString(
             "'/pagefind'",
             $src,
-            'BuildCommand must append /pagefind to outputDir when invoking the binary.'
+            'PagefindRunner must append /pagefind to outputDir when invoking the binary.'
         );
         $this->assertStringNotContainsString(
             "--output-path '.escapeshellarg(\$outputDir)",
             $src,
-            'BuildCommand must not pass $outputDir directly to --output-path.'
-        );
-    }
-
-    public function test_rebuild_command_binary_output_path_uses_pagefind_subdir(): void
-    {
-        $src = file_get_contents($this->root.'/src/Commands/RebuildIndexCommand.php');
-        $this->assertStringContainsString(
-            "'/pagefind'",
-            $src,
-            'RebuildIndexCommand must append /pagefind to outputDir when invoking the binary.'
+            'PagefindRunner must not pass $outputDir directly to --output-path.'
         );
     }
 

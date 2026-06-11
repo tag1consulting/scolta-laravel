@@ -25,30 +25,6 @@ parameters:
 			path: src/Http/Controllers/AmazeeSettingsController.php
 
 		-
-			message: '#^Offset ''exception'' on array\{ok\: false, data\?\: mixed, status\?\: int, error\?\: string\} in isset\(\) does not exist\.$#'
-			identifier: isset.offset
-			count: 1
-			path: src/Http/Controllers/ExpandQueryController.php
-
-		-
-			message: '#^Offset ''exception'' on array\{ok\: false, data\?\: mixed, status\?\: int, error\?\: string\} in isset\(\) does not exist\.$#'
-			identifier: isset.offset
-			count: 1
-			path: src/Http/Controllers/FollowUpController.php
-
-		-
-			message: '#^Offset ''limit'' on array\{ok\: false, data\?\: mixed, status\?\: int, error\?\: string\} in isset\(\) does not exist\.$#'
-			identifier: isset.offset
-			count: 1
-			path: src/Http/Controllers/FollowUpController.php
-
-		-
-			message: '#^Offset ''exception'' on array\{ok\: false, data\?\: mixed, status\?\: int, error\?\: string\} in isset\(\) does not exist\.$#'
-			identifier: isset.offset
-			count: 1
-			path: src/Http/Controllers/SummarizeController.php
-
-		-
 			message: '#^Cannot access property \$updated_at on class\-string\|object\.$#'
 			identifier: property.nonObject
 			count: 1
