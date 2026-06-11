@@ -38,15 +38,34 @@ class AutoProvisioningTest extends TestCase
     }
 
     // -------------------------------------------------------------------
-    // boot() calls attemptAmazeeAutoProvisioning().
+    // Provisioning is deferred to the first AI request — NOT run in boot().
     // -------------------------------------------------------------------
 
-    public function test_boot_calls_attempt_auto_provisioning(): void
+    public function test_provisioning_is_called_from_singleton_factory(): void
     {
         $this->assertStringContainsString(
             'attemptAmazeeAutoProvisioning()',
             $this->providerSource,
-            'boot() must call $this->attemptAmazeeAutoProvisioning()'
+            'The ScoltaAiService singleton factory must call $this->attemptAmazeeAutoProvisioning()'
+        );
+    }
+
+    public function test_boot_does_not_call_attempt_auto_provisioning(): void
+    {
+        // Extract the boot() method body and assert provisioning is not
+        // invoked there — a blocking provisioning HTTP call inside provider
+        // boot runs on every user-facing request before any AI is needed.
+        preg_match(
+            '/public function boot\(\): void\s*\{(.*?)\n    \}/s',
+            $this->providerSource,
+            $matches
+        );
+
+        $this->assertNotEmpty($matches[1] ?? '', 'Could not locate boot() body in ScoltaServiceProvider.');
+        $this->assertStringNotContainsString(
+            'attemptAmazeeAutoProvisioning()',
+            $matches[1],
+            'boot() must not call attemptAmazeeAutoProvisioning() — provisioning is deferred to the first AI request.'
         );
     }
 
