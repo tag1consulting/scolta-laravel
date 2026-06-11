@@ -7,6 +7,7 @@ namespace Tag1\ScoltaLaravel\Http\Controllers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Tag1\Scolta\Health\HealthChecker;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
@@ -17,6 +18,11 @@ use Tag1\ScoltaLaravel\Services\ScoltaAiService;
  * GET /api/scolta/v1/health
  *
  * Returns JSON status for monitoring tools, load balancers, and dashboards.
+ *
+ * Anonymous callers receive only the overall status — enough for uptime
+ * monitors. The full diagnostic payload (provider, index integrity, tracker
+ * counts, asset staleness) requires the 'scolta.health-detail' Gate, which
+ * defaults to any authenticated user and can be redefined by the host app.
  *
  * @since 0.1.0
  *
@@ -111,6 +117,27 @@ class HealthController extends Controller
             }
         }
 
-        return response()->json($result);
+        return response()->json(
+            self::shapePayload($result, Gate::allows('scolta.health-detail'))
+        );
+    }
+
+    /**
+     * Shape the health payload for the caller's authorization level.
+     *
+     * The full report is always computed first so the trimmed status still
+     * reflects integrity degradation; unauthorized callers then get exactly
+     * ['status' => ...] and nothing else.
+     *
+     * @param  array<string, mixed>  $result
+     * @return array<string, mixed>
+     *
+     * @since 1.0.4
+     *
+     * @stability experimental
+     */
+    public static function shapePayload(array $result, bool $detail): array
+    {
+        return $detail ? $result : ['status' => $result['status']];
     }
 }

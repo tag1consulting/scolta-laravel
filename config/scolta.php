@@ -386,6 +386,11 @@ return [
     | Middleware applied to the health check endpoint. Separated from the
     | main middleware to allow monitoring tools unrestricted access.
     |
+    | Anonymous requests receive {"status": ...} only. The full diagnostic
+    | payload requires the 'scolta.health-detail' Gate (default: any
+    | authenticated user) — redefine it in your AuthServiceProvider to
+    | change who sees the detail.
+    |
     */
 
     'health_middleware' => ['api'],
