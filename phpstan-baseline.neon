@@ -5,9 +5,3 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: src/Http/Controllers/AmazeeSettingsController.php
-
-		-
-			message: '#^Offset ''limit'' does not exist on array\{ok\: false, data\?\: mixed, status\?\: int, error\?\: string\}\.$#'
-			identifier: offsetAccess.notFound
-			count: 1
-			path: tests/ControllerValidationTest.php
