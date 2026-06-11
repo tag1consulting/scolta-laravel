@@ -27,6 +27,8 @@ class EventDrivenEnricher implements PromptEnricherInterface
 
     /**
      * {@inheritdoc}
+     *
+     * @param  array<string, mixed>  $context
      */
     public function enrich(string $resolvedPrompt, string $promptName, array $context = []): string
     {

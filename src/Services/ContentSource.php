@@ -44,6 +44,7 @@ class ContentSource implements ContentSourceInterface
      * dispatch path all consume this generator, so the documented publish
      * filters (scopeSearchable + shouldBeSearchable) apply everywhere.
      *
+     * @param  array<string, mixed>  $options
      * @return Generator<ContentItem>
      */
     public function getPublishedContent(array $options = []): Generator
@@ -155,6 +156,8 @@ class ContentSource implements ContentSourceInterface
 
     /**
      * Get total published content count across all configured models.
+     *
+     * @param  array<string, mixed>  $options
      */
     public function getTotalCount(array $options = []): int
     {

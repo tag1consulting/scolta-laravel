@@ -205,6 +205,9 @@ class AmazeeSettingsController extends Controller
 
     /**
      * Determine the active step based on stored credentials and flow state.
+     *
+     * @param  array<string, mixed>|null  $creds
+     * @param  array<string, mixed>  $flow
      */
     private function determineStep(?array $creds, array $flow, bool $hasExistingProvider = false): string
     {

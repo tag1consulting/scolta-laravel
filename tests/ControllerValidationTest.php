@@ -46,6 +46,8 @@ class ControllerValidationTest extends TestCase
                 return 'Summary text';
             }
 
+            /** @param array<int, array<string, string>> $msgs */
+            /** @param array<int, array<string, string>> $msgs */
             public function conversation(string $sys, array $msgs, int $max): string
             {
                 return 'Follow-up response';
@@ -292,6 +294,7 @@ class ControllerValidationTest extends TestCase
                 return '';
             }
 
+            /** @param array<int, array<string, string>> $msgs */
             public function conversation(string $sys, array $msgs, int $max): string
             {
                 return '';

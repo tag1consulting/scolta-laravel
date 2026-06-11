@@ -8,18 +8,27 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
-use Tag1\Scolta\Config\ScoltaConfig;
 use Tag1\Scolta\Health\HealthChecker;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
+use Tag1\ScoltaLaravel\Services\AssetStatus;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
 
 /**
  * GET /api/scolta/v1/health
  *
  * Returns JSON status for monitoring tools, load balancers, and dashboards.
+ *
+ * @since 0.1.0
+ *
+ * @stability experimental
  */
 class HealthController extends Controller
 {
+    /**
+     * @since 0.1.0
+     *
+     * @stability experimental
+     */
     public function __invoke(ScoltaAiService $ai): JsonResponse
     {
         $config = $ai->getConfig();
@@ -91,21 +100,14 @@ class HealthController extends Controller
         }
         $result['tracker'] = $tracker;
 
-        $publishedJs = public_path('vendor/scolta/scolta.js');
-        $result['assets_published'] = file_exists($publishedJs);
+        $assetStatus = new AssetStatus;
+        $result['assets_published'] = $assetStatus->arePublished();
 
-        if ($result['assets_published']) {
-            $configReflection = new \ReflectionClass(ScoltaConfig::class);
-            $assetsDir = dirname($configReflection->getFileName(), 3).'/assets';
-            $checksumFile = $assetsDir.'/js/scolta.js.sha256';
-
-            if (file_exists($checksumFile)) {
-                $expectedHash = trim(File::get($checksumFile));
-                $actualHash = hash_file('sha256', $publishedJs);
-                $result['assets_current'] = ($actualHash === $expectedHash);
-                if (! $result['assets_current']) {
-                    $result['assets_warning'] = 'Published JS does not match package version. Run: php artisan vendor:publish --tag=scolta-assets --force';
-                }
+        $assetsCurrent = $assetStatus->areCurrent();
+        if ($assetsCurrent !== null) {
+            $result['assets_current'] = $assetsCurrent;
+            if (! $assetsCurrent) {
+                $result['assets_warning'] = 'Published JS does not match package version. Run: php artisan vendor:publish --tag=scolta-assets --force';
             }
         }
 

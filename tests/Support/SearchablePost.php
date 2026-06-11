@@ -18,6 +18,10 @@ use Tag1\ScoltaLaravel\Searchable;
  * index path (sync PHP indexer, queue dispatch) excludes records that
  * either filter rejects.
  */
+/**
+ * @property bool $published
+ * @property bool $unlisted
+ */
 class SearchablePost extends Model
 {
     use Searchable;
@@ -31,6 +35,10 @@ class SearchablePost extends Model
         'unlisted' => 'boolean',
     ];
 
+    /**
+     * @param  Builder<SearchablePost>  $query
+     * @return Builder<SearchablePost>
+     */
     public function scopeSearchable(Builder $query): Builder
     {
         return $query->where('published', true);

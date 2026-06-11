@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tag1\ScoltaLaravel\Tests\Http;
 
+use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Orchestra\Testbench\Attributes\DefineEnvironment;
 use Orchestra\Testbench\TestCase;
@@ -27,22 +28,26 @@ class AmazeeAdminRouteSecurityTest extends TestCase
         return [ScoltaServiceProvider::class];
     }
 
+    /** @param Application $app */
     protected function defineEnvironment($app): void
     {
         // The 'web' middleware group encrypts cookies, which needs a key.
         $app['config']->set('app.key', 'base64:'.base64_encode(str_repeat('a', 32)));
     }
 
+    /** @param Application $app */
     protected function guardedMiddleware($app): void
     {
         $app['config']->set('scolta.amazee_middleware', ['web', DenyAllMiddleware::class]);
     }
 
+    /** @param Application $app */
     protected function satisfiedGuardMiddleware($app): void
     {
         $app['config']->set('scolta.amazee_middleware', ['web', PassThroughMiddleware::class]);
     }
 
+    /** @param Application $app */
     protected function bareWebMiddleware($app): void
     {
         $app['config']->set('scolta.amazee_middleware', ['web']);

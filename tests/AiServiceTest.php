@@ -10,6 +10,9 @@ use Tag1\ScoltaLaravel\Services\ScoltaAiService;
 
 class AiServiceTest extends TestCase
 {
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
     private function createService(array $overrides = []): ScoltaAiService
     {
         $config = array_merge([

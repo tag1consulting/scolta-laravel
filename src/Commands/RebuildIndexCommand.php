@@ -5,10 +5,8 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Process;
 use Tag1\Scolta\Binary\PagefindBinary;
+use Tag1\ScoltaLaravel\Services\PagefindRunner;
 
 /**
  * Rebuild the Pagefind index from existing HTML files.
@@ -40,44 +38,20 @@ class RebuildIndexCommand extends Command
             return self::FAILURE;
         }
 
-        if (! is_dir($buildDir)) {
-            $this->error("Build directory does not exist: {$buildDir}");
-
-            return self::FAILURE;
-        }
-
-        $htmlCount = count(File::glob($buildDir.'/*.html') ?: []);
-        if ($htmlCount === 0) {
-            $this->error("No HTML files in {$buildDir}. Run scolta:export first.");
-
-            return self::FAILURE;
-        }
-
-        if (! is_dir($outputDir)) {
-            File::ensureDirectoryExists($outputDir, 0755);
-        }
-
         $this->info("Using Pagefind: {$binary} (resolved via {$resolver->resolvedVia()})");
 
-        $pagefindOutputDir = $outputDir.'/pagefind';
-        $cmd = $binary
-            .' --site '.escapeshellarg($buildDir)
-            .' --output-path '.escapeshellarg($pagefindOutputDir);
+        $result = (new PagefindRunner)->run($binary, $buildDir, $outputDir, fn (string $line) => $this->line($line));
 
-        $this->line("  Running: {$cmd}");
-
-        $result = Process::timeout(300)->run($cmd);
-
-        if ($result->successful() && file_exists($pagefindOutputDir.'/pagefind.js')) {
-            $fragmentCount = count(File::glob($pagefindOutputDir.'/fragment/*') ?: []);
-            Cache::increment('scolta_expand_generation');
-            $this->info("Pagefind index rebuilt: {$htmlCount} files, {$fragmentCount} fragments.");
+        if ($result['success']) {
+            $this->info("Pagefind index rebuilt: {$result['htmlCount']} files, {$result['fragmentCount']} fragments.");
 
             return self::SUCCESS;
         }
 
-        $this->error('Pagefind build failed.');
-        $this->line($result->errorOutput() ?: $result->output());
+        $this->error($result['error']);
+        if (! empty($result['output'])) {
+            $this->line($result['output']);
+        }
 
         return self::FAILURE;
     }

@@ -22,8 +22,25 @@ use Tag1\Scolta\Service\AiServiceAdapter;
  */
 class ScoltaAiService extends AiServiceAdapter
 {
+    /**
+     * The default AI model shipped in config/scolta.php.
+     *
+     * Referenced by both the published config and the service provider's
+     * "is the model still the default?" check for Amazee auto-selected
+     * models — a single constant so the two cannot silently diverge when
+     * the default is bumped.
+     *
+     * @since 1.0.4
+     *
+     * @stability experimental
+     */
+    public const DEFAULT_MODEL = 'claude-sonnet-4-5-20250929';
+
     private bool $amazeeActive;
 
+    /**
+     * @param  array<string, mixed>  $configArray
+     */
     public function __construct(array $configArray, bool $amazeeActive = false)
     {
         // Flatten the nested config arrays for ScoltaConfig::fromArray().
@@ -89,6 +106,8 @@ class ScoltaAiService extends AiServiceAdapter
 
     /**
      * {@inheritdoc}
+     *
+     * @param  array<int, array<string, string>>  $messages
      */
     protected function tryFrameworkConversation(string $systemPrompt, array $messages, int $maxTokens): ?string
     {
@@ -130,6 +149,8 @@ class ScoltaAiService extends AiServiceAdapter
 
     /**
      * Send a conversation via the Laravel AI SDK.
+     *
+     * @param  array<int, array<string, string>>  $messages
      */
     private function conversationViaLaravelSdk(string $systemPrompt, array $messages, int $maxTokens): string
     {
@@ -159,6 +180,9 @@ class ScoltaAiService extends AiServiceAdapter
      * Laravel config uses nested arrays (scoring.title_match_boost),
      * but ScoltaConfig expects flat snake_case keys. This flattens
      * one level of nesting.
+     *
+     * @param  array<string, mixed>  $config
+     * @return array<string, mixed>
      */
     public static function flattenConfig(array $config): array
     {

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
+use Illuminate\Routing\Controller;
 use Tag1\Scolta\Index\BuildState;
 
 /**
@@ -20,7 +21,7 @@ use Tag1\Scolta\Index\BuildState;
  *
  * @stability experimental
  */
-class ProgressController
+class ProgressController extends Controller
 {
     /**
      * @since 0.2.0

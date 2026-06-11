@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\File;
 use Tag1\Scolta\Export\ContentExporter;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 use Tag1\ScoltaLaravel\Services\ContentSource;
@@ -43,13 +42,12 @@ class ExportCommand extends Command
             $exporter->prepareOutputDir();
         }
 
-        // Handle deletions.
+        // Handle deletions through the manifest-aware exporter — manual
+        // "{$id}.html" path concatenation breaks when the manifest maps
+        // non-flat export paths (and trusts $id in a filesystem path).
         $deletedIds = $source->getDeletedIds();
         foreach ($deletedIds as $id) {
-            $filepath = rtrim($buildDir, '/').'/'.$id.'.html';
-            if (file_exists($filepath)) {
-                File::delete($filepath);
-            }
+            $exporter->deleteById($id);
         }
         if (count($deletedIds) > 0) {
             $this->info('  Removed '.count($deletedIds).' deleted items.');

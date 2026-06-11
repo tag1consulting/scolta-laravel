@@ -32,6 +32,9 @@ class CheckSetupCommand extends Command
                 'pass' => '<fg=green>✓</>',
                 'warn' => '<fg=yellow>!</>',
                 'fail' => '<fg=red>✗</>',
+                // SetupCheck only emits the three statuses above; render
+                // anything unexpected visibly instead of crashing the report.
+                default => '<fg=yellow>?</>',
             };
             $this->line("{$icon} {$r['name']}: {$r['message']}");
         }

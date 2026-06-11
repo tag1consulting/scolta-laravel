@@ -31,6 +31,7 @@ class FollowUpValidationTest extends TestCase
         // Stub the AI service so in-cap requests never reach a real provider.
         $this->app->instance(ScoltaAiService::class, new class(['ai_provider' => 'anthropic', 'ai_api_key' => 'test-key']) extends ScoltaAiService
         {
+            /** @param array<int, array<string, string>> $messages */
             public function conversation(string $systemPrompt, array $messages, int $maxTokens = 512): string
             {
                 return 'stub follow-up response';

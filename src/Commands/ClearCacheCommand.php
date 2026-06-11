@@ -22,10 +22,10 @@ class ClearCacheCommand extends Command
 
     public function handle(): int
     {
-        // Increment the generation counter — all existing cache keys
-        // reference the old generation and will be treated as misses.
-        $generation = Cache::get('scolta_expand_generation', 0);
-        Cache::put('scolta_expand_generation', $generation + 1);
+        // Atomically increment the generation counter — all existing cache
+        // keys reference the old generation and will be treated as misses.
+        // (A get + put pair raced with concurrent build finishes.)
+        Cache::increment('scolta_expand_generation');
 
         $this->info('Scolta caches cleared (generation counter incremented).');
 

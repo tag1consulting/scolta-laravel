@@ -15,6 +15,8 @@ use ReflectionNamedType;
 use Tag1\ScoltaLaravel\Http\Controllers\ExpandQueryController;
 use Tag1\ScoltaLaravel\Http\Controllers\FollowUpController;
 use Tag1\ScoltaLaravel\Http\Controllers\HealthController;
+use Tag1\ScoltaLaravel\Http\Controllers\ProgressController;
+use Tag1\ScoltaLaravel\Http\Controllers\RebuildNowController;
 use Tag1\ScoltaLaravel\Http\Controllers\SummarizeController;
 
 /**
@@ -27,6 +29,8 @@ class ControllerStructureTest extends TestCase
         'Summarize' => SummarizeController::class,
         'FollowUp' => FollowUpController::class,
         'Health' => HealthController::class,
+        'Progress' => ProgressController::class,
+        'RebuildNow' => RebuildNowController::class,
     ];
 
     // -------------------------------------------------------------------
@@ -39,6 +43,9 @@ class ControllerStructureTest extends TestCase
         $this->assertTrue(class_exists($class), "Controller {$class} does not exist.");
     }
 
+    /**
+     * @return array<string, array<int, class-string>>
+     */
     public static function controllerProvider(): array
     {
         $data = [];
@@ -101,7 +108,7 @@ class ControllerStructureTest extends TestCase
 
         $firstParam = $params[0];
         $type = $firstParam->getType();
-        $this->assertNotNull($type, "First parameter of {$class}::__invoke() should be typed.");
+        $this->assertInstanceOf(ReflectionNamedType::class, $type, "First parameter of {$class}::__invoke() should be typed.");
         $this->assertEquals(
             Request::class,
             $type->getName(),
@@ -109,12 +116,16 @@ class ControllerStructureTest extends TestCase
         );
     }
 
+    /**
+     * @return array<string, array<int, class-string>>
+     */
     public static function postControllerProvider(): array
     {
         return [
             'ExpandQuery' => [ExpandQueryController::class],
             'Summarize' => [SummarizeController::class],
             'FollowUp' => [FollowUpController::class],
+            'RebuildNow' => [RebuildNowController::class],
         ];
     }
 
@@ -189,7 +200,7 @@ class ControllerStructureTest extends TestCase
         $hasRequestParam = false;
         foreach ($params as $param) {
             $type = $param->getType();
-            if ($type !== null && $type->getName() === Request::class) {
+            if ($type instanceof ReflectionNamedType && $type->getName() === Request::class) {
                 $hasRequestParam = true;
             }
         }

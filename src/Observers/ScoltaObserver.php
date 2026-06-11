@@ -132,16 +132,7 @@ class ScoltaObserver
      */
     public static function afterBulkUpdate(): void
     {
-        if (! config('scolta.auto_rebuild', false)) {
-            return;
-        }
-
-        $delay = (int) config('scolta.auto_rebuild_delay', 300);
-        $cacheKey = 'scolta_rebuild_scheduled';
-
-        if (Cache::add($cacheKey, true, $delay)) {
-            TriggerRebuild::dispatch()->delay(now()->addSeconds($delay));
-        }
+        (new self)->maybeDispatchRebuild();
     }
 
     /**
@@ -158,7 +149,9 @@ class ScoltaObserver
      */
     private function maybeDispatchRebuild(): void
     {
-        if (! config('scolta.auto_rebuild', false)) {
+        // Fallback default matches config/scolta.php ('auto_rebuild' => true)
+        // so behavior is identical whether or not the config file is merged.
+        if (! config('scolta.auto_rebuild', true)) {
             return;
         }
 

@@ -166,6 +166,7 @@ class LaravelTestMockAiService
         return $this->message($systemPrompt, $userMessage, $maxTokens);
     }
 
+    /** @param array<int, array<string, string>> $messages */
     public function conversation(string $systemPrompt, array $messages, int $maxTokens): string
     {
         $this->callCount++;

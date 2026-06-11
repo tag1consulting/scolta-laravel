@@ -17,15 +17,13 @@ declare(strict_types=1);
  * is a Laravel best practice for controllers that do exactly one thing.
  */
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Route;
 use Tag1\ScoltaLaravel\Http\Controllers\ExpandQueryController;
 use Tag1\ScoltaLaravel\Http\Controllers\FollowUpController;
 use Tag1\ScoltaLaravel\Http\Controllers\HealthController;
 use Tag1\ScoltaLaravel\Http\Controllers\ProgressController;
+use Tag1\ScoltaLaravel\Http\Controllers\RebuildNowController;
 use Tag1\ScoltaLaravel\Http\Controllers\SummarizeController;
-use Tag1\ScoltaLaravel\Jobs\TriggerRebuild;
 
 $rateLimit = (int) config('scolta.rate_limit', 30);
 
@@ -59,17 +57,5 @@ Route::group([
     ),
 ], function () {
     Route::get('/build-progress', ProgressController::class)->name('scolta.build-progress');
-
-    Route::post('/rebuild-now', function (Request $request) {
-        $lock = Cache::lock('scolta_build', 3600);
-        if (! $lock->get()) {
-            return response()->json(['error' => 'Build already in progress'], 409);
-        }
-        $lock->release();
-
-        $force = $request->boolean('force', false);
-        TriggerRebuild::dispatch($force);
-
-        return response()->json(['message' => 'Rebuild dispatched']);
-    })->name('scolta.rebuild-now');
+    Route::post('/rebuild-now', RebuildNowController::class)->name('scolta.rebuild-now');
 });

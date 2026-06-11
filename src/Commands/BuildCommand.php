@@ -6,8 +6,8 @@ namespace Tag1\ScoltaLaravel\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Log\Logger;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use Tag1\Scolta\Binary\PagefindBinary;
 use Tag1\Scolta\Config\MemoryBudgetConfig;
@@ -18,7 +18,9 @@ use Tag1\Scolta\Index\IndexBuildOrchestrator;
 use Tag1\ScoltaLaravel\Jobs\FinalizeIndex;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 use Tag1\ScoltaLaravel\Progress\ArtisanProgressReporter;
+use Tag1\ScoltaLaravel\Services\AssetStatus;
 use Tag1\ScoltaLaravel\Services\ContentSource;
+use Tag1\ScoltaLaravel\Services\PagefindRunner;
 use Tag1\ScoltaLaravel\Services\QueueRebuildDispatcher;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
 
@@ -71,6 +73,12 @@ class BuildCommand extends Command
         // Determine which indexer to use: CLI option overrides config.
         $indexer = $this->resolveIndexer($config);
 
+        if (! in_array($indexer, ['php', 'binary'], true)) {
+            $this->error(sprintf('Invalid indexer "%s". Must be one of: auto, php, binary.', $indexer));
+
+            return self::FAILURE;
+        }
+
         if ($indexer === 'php') {
             if ($this->option('sync')) {
                 return $this->buildWithPhpIndexer($source, $outputDir);
@@ -91,6 +99,10 @@ class BuildCommand extends Command
      * fast incremental re-indexing. Set indexer=binary to use the Pagefind
      * binary explicitly.
      *
+     * Any value outside auto/php/binary is returned as-is so handle() can
+     * reject it with an explicit error — a typo must not silently select
+     * a different pipeline.
+     *
      * @since 0.2.0
      *
      * @stability experimental
@@ -106,7 +118,7 @@ class BuildCommand extends Command
             return 'php';
         }
 
-        return $indexer;
+        return (string) $indexer;
     }
 
     /**
@@ -239,7 +251,7 @@ class BuildCommand extends Command
             $cmd .= ' --chunk-size='.escapeshellarg($chunkSize);
         }
 
-        $logFile = sys_get_temp_dir().'/scolta-resume.log';
+        $logFile = storage_path('logs/scolta-resume.log');
 
         // Start the process without waiting — orphaned processes survive on Linux/macOS.
         Process::start($cmd.' >> '.escapeshellarg($logFile).' 2>&1');
@@ -409,59 +421,41 @@ class BuildCommand extends Command
     }
 
     /**
-     * Run the Pagefind CLI.
-     *
-     * Uses Laravel's Process facade — cleaner than shell_exec(), with
-     * proper timeout handling, output streaming, and exit code checking.
+     * Run the Pagefind CLI via the shared PagefindRunner.
      */
     private function runPagefind(string $binary, string $buildDir, string $outputDir): int
     {
-        if (! is_dir($buildDir)) {
-            $this->error("Build directory does not exist: {$buildDir}");
+        $result = (new PagefindRunner)->run($binary, $buildDir, $outputDir, fn (string $line) => $this->line($line));
 
-            return self::FAILURE;
-        }
-
-        $htmlCount = ContentExporter::countHtmlFiles($buildDir);
-        if ($htmlCount === 0) {
-            $this->error("No HTML files in {$buildDir}. Export content first.");
-
-            return self::FAILURE;
-        }
-
-        if (! is_dir($outputDir)) {
-            File::ensureDirectoryExists($outputDir, 0755);
-        }
-
-        $pagefindOutputDir = $outputDir.'/pagefind';
-        $cmd = escapeshellcmd($binary)
-            .' --site '.escapeshellarg($buildDir)
-            .' --output-path '.escapeshellarg($pagefindOutputDir);
-
-        $this->line("  Running: {$cmd}");
-
-        $result = Process::timeout(300)->run($cmd);
-
-        if ($result->successful() && file_exists($pagefindOutputDir.'/pagefind.js')) {
-            $fragmentCount = count(File::glob($pagefindOutputDir.'/fragment/*') ?: []);
-            $this->info("Pagefind index built: {$htmlCount} files, {$fragmentCount} fragments.");
-            Cache::increment('scolta_expand_generation');
+        if ($result['success']) {
+            $this->info("Pagefind index built: {$result['htmlCount']} files, {$result['fragmentCount']} fragments.");
 
             $this->publishAssets();
 
             return self::SUCCESS;
         }
 
-        $this->error('Pagefind build failed.');
-        $this->line($result->errorOutput() ?: $result->output());
+        $this->error($result['error']);
+        if (! empty($result['output'])) {
+            $this->line($result['output']);
+        }
 
         return self::FAILURE;
     }
 
     private function publishAssets(): void
     {
+        // Skip the publish when the published JS already matches the
+        // package checksum — no point force-rewriting identical assets
+        // (and bumping their mtime-based cache busters) on every build.
+        if ((new AssetStatus)->areCurrent() === true) {
+            $this->info('Scolta assets already current; skipping publish.');
+
+            return;
+        }
+
         $this->info('Publishing scolta assets...');
-        $exitCode = \Artisan::call('vendor:publish', [
+        $exitCode = Artisan::call('vendor:publish', [
             '--tag' => 'scolta-assets',
             '--force' => true,
         ]);
