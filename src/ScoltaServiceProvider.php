@@ -6,6 +6,7 @@ namespace Tag1\ScoltaLaravel;
 
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Tag1\Scolta\AiProvider\Amazee\AutoProvisioner;
@@ -126,6 +127,7 @@ class ScoltaServiceProvider extends ServiceProvider
         $this->registerBladeComponents();
         $this->registerModelObservers();
         $this->registerRateLimiter();
+        $this->registerHealthDetailGate();
 
         if ($this->app->runningInConsole()) {
             $this->registerCommands();
@@ -344,6 +346,23 @@ class ScoltaServiceProvider extends ServiceProvider
             RateLimiter::for('scolta', function ($request) use ($limit) {
                 return Limit::perMinute($limit)->by($request->ip());
             });
+        }
+    }
+
+    /**
+     * Register the health-detail authorization gate.
+     *
+     * Anonymous requests to the health endpoint receive status only; the
+     * full diagnostic payload requires this gate. The default allows any
+     * authenticated user (the closure's non-nullable parameter denies
+     * guests). Host apps can redefine 'scolta.health-detail' in their own
+     * AuthServiceProvider to tighten or loosen access — application
+     * providers boot after package providers, so their definition wins.
+     */
+    private function registerHealthDetailGate(): void
+    {
+        if (! Gate::has('scolta.health-detail')) {
+            Gate::define('scolta.health-detail', fn (object $user): bool => true);
         }
     }
 

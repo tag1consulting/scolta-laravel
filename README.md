@@ -591,13 +591,25 @@ php artisan scolta:amazee:provision {email} --force  # Provision even if a provi
 | POST | `/api/scolta/v1/expand-query` | api, throttle:scolta | Expand a search query |
 | POST | `/api/scolta/v1/summarize` | api, throttle:scolta | Summarize search results |
 | POST | `/api/scolta/v1/followup` | api, throttle:scolta | Continue a conversation |
-| GET | `/api/scolta/v1/health` | api | Health check |
+| GET | `/api/scolta/v1/health` | api | Health check (status only when anonymous) |
 | GET | `/api/scolta/v1/build-progress` | api, auth:sanctum | Build progress status |
 | POST | `/api/scolta/v1/rebuild-now` | api, auth:sanctum | Dispatch a rebuild job |
 
 Route prefix and middleware are configurable via `route_prefix` and `middleware` in `config/scolta.php`.
 
 The `build-progress` and `rebuild-now` endpoints require Sanctum authentication and are intended for admin dashboards. The AI endpoints (`expand-query`, `summarize`, `followup`) use the configurable `middleware` array and are typically public-facing.
+
+### Health detail authorization
+
+`GET /api/scolta/v1/health` always answers monitoring tools: anonymous requests
+get `{"status": "ok"}` (or `"degraded"`), HTTP 200. The full diagnostic payload
+(AI provider, index integrity, tracker counts, asset staleness) requires the
+`scolta.health-detail` Gate. By default any authenticated user passes. To change
+who sees the detail, redefine the gate in your `AuthServiceProvider`:
+
+```php
+Gate::define('scolta.health-detail', fn (User $user) => $user->isAdmin());
+```
 
 > **Note:** Amazee.ai admin routes (`/scolta/amazee/*`) use `web` middleware and are documented in the [Amazee.ai Integration](#amazeeai-integration) section below.
 
