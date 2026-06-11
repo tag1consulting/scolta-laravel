@@ -7,6 +7,7 @@ namespace Tag1\ScoltaLaravel\Tests;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use ReflectionMethod;
+use ReflectionNamedType;
 use Tag1\Scolta\Content\ContentSourceInterface;
 use Tag1\ScoltaLaravel\Services\ContentSource;
 
@@ -65,7 +66,7 @@ class ContentSourceValidationTest extends TestCase
         $method = new ReflectionMethod(ContentSource::class, 'getPublishedContent');
         $returnType = $method->getReturnType();
 
-        $this->assertNotNull($returnType, 'getPublishedContent() should have a return type.');
+        $this->assertInstanceOf(ReflectionNamedType::class, $returnType, 'getPublishedContent() should have a named return type.');
         // ContentSource returns Generator which satisfies iterable.
         $this->assertEquals('Generator', $returnType->getName());
     }
@@ -75,7 +76,7 @@ class ContentSourceValidationTest extends TestCase
         $method = new ReflectionMethod(ContentSource::class, 'getChangedContent');
         $returnType = $method->getReturnType();
 
-        $this->assertNotNull($returnType, 'getChangedContent() should have a return type.');
+        $this->assertInstanceOf(ReflectionNamedType::class, $returnType, 'getChangedContent() should have a named return type.');
         $this->assertEquals('Generator', $returnType->getName());
     }
 

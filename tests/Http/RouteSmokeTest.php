@@ -54,6 +54,9 @@ class RouteSmokeTest extends TestCase
         );
     }
 
+    /**
+     * @return array<string, array<int, string>>
+     */
     public static function routeNameProvider(): array
     {
         return [

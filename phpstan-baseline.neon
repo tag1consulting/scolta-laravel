@@ -13,12 +13,6 @@ parameters:
 			path: src/Commands/BuildCommand.php
 
 		-
-			message: '#^Match expression does not handle remaining value\: string$#'
-			identifier: match.unhandled
-			count: 1
-			path: src/Commands/CheckSetupCommand.php
-
-		-
 			message: '#^Parameter \#1 \$view of function view expects view\-string\|null, string given\.$#'
 			identifier: argument.type
 			count: 1
@@ -37,13 +31,7 @@ parameters:
 			path: src/Jobs/TriggerRebuild.php
 
 		-
-			message: '#^Method Tag1\\ScoltaLaravel\\Models\\ScoltaTracker\:\:getPending\(\) should return Illuminate\\Database\\Eloquent\\Collection\<int, static\(Tag1\\ScoltaLaravel\\Models\\ScoltaTracker\)\> but returns Illuminate\\Database\\Eloquent\\Collection\<int, Tag1\\ScoltaLaravel\\Models\\ScoltaTracker\>\.$#'
-			identifier: return.type
+			message: '#^Offset ''limit'' does not exist on array\{ok\: false, data\?\: mixed, status\?\: int, error\?\: string\}\.$#'
+			identifier: offsetAccess.notFound
 			count: 1
-			path: src/Models/ScoltaTracker.php
-
-		-
-			message: '#^Trait Tag1\\ScoltaLaravel\\Searchable is used zero times and is not analysed\.$#'
-			identifier: trait.unused
-			count: 1
-			path: src/Searchable.php
+			path: tests/ControllerValidationTest.php

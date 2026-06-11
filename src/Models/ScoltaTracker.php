@@ -78,7 +78,7 @@ class ScoltaTracker extends Model
     /**
      * Get all pending records for a given action.
      *
-     * @return Collection<int, static>
+     * @return Collection<int, ScoltaTracker>
      */
     public static function getPending(string $action): Collection
     {

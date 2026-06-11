@@ -39,10 +39,13 @@ class ObserverTest extends TestCase
         );
     }
 
+    /**
+     * @return array<string, array<int, string>>
+     */
     public static function eventProvider(): array
     {
         $data = [];
-        foreach (['created', 'updated', 'deleted', 'restored', 'forceDeleted'] as $event) {
+        foreach (self::ELOQUENT_EVENTS as $event) {
             $data[$event] = [$event];
         }
 

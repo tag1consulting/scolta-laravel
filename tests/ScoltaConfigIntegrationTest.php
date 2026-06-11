@@ -20,6 +20,7 @@ use Tag1\ScoltaLaravel\Services\ScoltaAiService;
  */
 class ScoltaConfigIntegrationTest extends TestCase
 {
+    /** @var array<string, mixed> */
     private array $rawConfig;
 
     protected function setUp(): void
@@ -37,6 +38,8 @@ class ScoltaConfigIntegrationTest extends TestCase
     /**
      * Build a ScoltaConfig by loading the real config file, flattening it
      * the same way ScoltaAiService does, then applying any overrides.
+     *
+     * @param  array<string, mixed>  $overrides
      */
     private function makeConfig(array $overrides = []): ScoltaConfig
     {

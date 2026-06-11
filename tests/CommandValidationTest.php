@@ -62,6 +62,9 @@ class CommandValidationTest extends TestCase
         $this->assertTrue(class_exists($class), "Command class {$class} does not exist.");
     }
 
+    /**
+     * @return array<string, array<int, mixed>>
+     */
     public static function commandClassProvider(): array
     {
         $data = [];
@@ -127,6 +130,9 @@ class CommandValidationTest extends TestCase
         );
     }
 
+    /**
+     * @return array<string, array<int, mixed>>
+     */
     public static function signatureProvider(): array
     {
         $data = [];

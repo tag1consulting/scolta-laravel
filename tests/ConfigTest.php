@@ -15,6 +15,7 @@ use Tag1\ScoltaLaravel\Services\ScoltaAiService;
  */
 class ConfigTest extends TestCase
 {
+    /** @var array<string, mixed> */
     private array $config;
 
     protected function setUp(): void
@@ -37,6 +38,8 @@ class ConfigTest extends TestCase
      * does (flatten + fromArray), optionally with a different preset and
      * explicit scoring overrides — so tests can assert the *resolved* defaults
      * now that the config literals are null and fall through to the preset.
+     *
+     * @param  array<string, mixed>  $scoringOverrides
      */
     private function resolve(?string $preset = null, array $scoringOverrides = []): ScoltaConfig
     {
@@ -49,9 +52,9 @@ class ConfigTest extends TestCase
         return ScoltaConfig::fromArray(ScoltaAiService::flattenConfig($config));
     }
 
-    public function test_config_is_array(): void
+    public function test_config_is_not_empty(): void
     {
-        $this->assertIsArray($this->config);
+        $this->assertNotEmpty($this->config);
     }
 
     // -------------------------------------------------------------------

@@ -29,6 +29,9 @@ class StructuralIntegrityTest extends TestCase
         $this->assertFileExists($this->root.'/'.$relativePath);
     }
 
+    /**
+     * @return array<string, array<int, string>>
+     */
     public static function requiredFileProvider(): array
     {
         return [
@@ -176,6 +179,9 @@ class StructuralIntegrityTest extends TestCase
     // Helpers
     // -------------------------------------------------------------------
 
+    /**
+     * @return array<int, string>
+     */
     private function grepSourceFiles(string $pattern): array
     {
         $hits = [];

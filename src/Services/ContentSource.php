@@ -38,6 +38,7 @@ class ContentSource implements ContentSourceInterface
      * Iterates through all configured models, applying the searchable
      * scope and converting each to a ContentItem via the trait method.
      *
+     * @param  array<string, mixed>  $options
      * @return Generator<ContentItem>
      */
     public function getPublishedContent(array $options = []): Generator
@@ -143,6 +144,8 @@ class ContentSource implements ContentSourceInterface
 
     /**
      * Get total published content count across all configured models.
+     *
+     * @param  array<string, mixed>  $options
      */
     public function getTotalCount(array $options = []): int
     {

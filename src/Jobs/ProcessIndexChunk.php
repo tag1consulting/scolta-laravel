@@ -10,6 +10,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Tag1\Scolta\Export\ContentItem;
 use Tag1\Scolta\Index\BuildCoordinator;
 use Tag1\Scolta\Index\InvertedIndexBuilder;
 use Tag1\Scolta\Index\MemoryBudget;
@@ -29,6 +30,9 @@ class ProcessIndexChunk implements ShouldQueue
 
     public int $tries = 1;
 
+    /**
+     * @param  ContentItem[]  $items
+     */
     public function __construct(
         public readonly int $chunkIdx,
         public readonly array $items,

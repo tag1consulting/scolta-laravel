@@ -301,12 +301,16 @@ class FakeSearchableModel
 {
     use Searchable;
 
+    /** @var array<string, mixed> */
     private array $attributes;
 
     private int|string $primaryKey;
 
     private string $tableName;
 
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
     public function __construct(
         array $attributes = [],
         int|string $primaryKey = 1,
