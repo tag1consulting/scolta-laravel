@@ -33,7 +33,7 @@
         "test": "phpunit",
         "lint": "pint --test",
         "format": "pint",
-        "analyse": "phpstan analyse --no-progress --memory-limit=256M",
+        "analyse": "phpstan analyse --no-progress --memory-limit=512M",
         "validate-release": "php scripts/validate-release.php"
     },
     "autoload": {
