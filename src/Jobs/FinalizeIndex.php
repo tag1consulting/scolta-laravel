@@ -50,8 +50,15 @@ class FinalizeIndex implements ShouldQueue
 
         $report = $orchestrator->finalize($budget);
 
-        if ($report->success) {
-            Cache::increment('scolta_expand_generation');
+        if (! $report->success) {
+            // A swallowed failure here makes the whole chain look successful
+            // while no index was published. Log and fail the job so queue
+            // monitoring (failed_jobs, Horizon) surfaces it.
+            logger()->error('[scolta] Index finalize failed', ['error' => $report->error]);
+
+            throw new \RuntimeException('Scolta index finalize failed: '.($report->error ?? 'unknown error'));
         }
+
+        Cache::increment('scolta_expand_generation');
     }
 }

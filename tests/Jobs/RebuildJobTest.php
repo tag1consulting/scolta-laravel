@@ -129,17 +129,22 @@ class RebuildJobTest extends TestCase
         $this->assertSame('conservative', $reflection->getValue($job));
     }
 
-    public function test_trigger_rebuild_does_not_pass_fingerprint_to_finalize_index(): void
+    public function test_trigger_rebuild_does_not_construct_jobs_directly(): void
     {
+        // Job construction (and the old $fingerprint-passing bug) lives in
+        // QueueRebuildDispatcher now — TriggerRebuild only delegates.
         $source = file_get_contents(__DIR__.'/../../src/Jobs/TriggerRebuild.php');
-        preg_match('/new FinalizeIndex\s*\(([^;]+)\)/s', $source, $matches);
-        if (! empty($matches[1])) {
-            $this->assertStringNotContainsString(
-                '$fingerprint',
-                $matches[1],
-                'TriggerRebuild must not pass $fingerprint to FinalizeIndex constructor.'
-            );
-        }
+
+        $this->assertStringNotContainsString(
+            'new FinalizeIndex',
+            $source,
+            'TriggerRebuild must not construct FinalizeIndex — QueueRebuildDispatcher owns the job chain.'
+        );
+        $this->assertStringNotContainsString(
+            'new ProcessIndexChunk',
+            $source,
+            'TriggerRebuild must not construct ProcessIndexChunk — QueueRebuildDispatcher owns the job chain.'
+        );
     }
 
     public function test_trigger_rebuild_uses_queueable_trait(): void
@@ -164,62 +169,66 @@ class RebuildJobTest extends TestCase
     // revert of the Queueable trait would be caught immediately.
     // -------------------------------------------------------------------
 
-    public function test_build_command_uses_bus_chain_facade_not_static_job_method(): void
+    public function test_queue_dispatcher_uses_bus_chain_facade_not_static_job_method(): void
     {
-        $source = file_get_contents(dirname(__DIR__, 2).'/src/Commands/BuildCommand.php');
+        $source = file_get_contents(dirname(__DIR__, 2).'/src/Services/QueueRebuildDispatcher.php');
 
         $this->assertStringContainsString(
             'Bus::chain(',
             $source,
-            'BuildCommand must use Bus::chain() to build the job chain.'
+            'QueueRebuildDispatcher must use Bus::chain() to build the job chain.'
         );
         $this->assertStringNotContainsString(
             'ProcessIndexChunk::chain(',
             $source,
-            'BuildCommand must not call chain() as a static method on ProcessIndexChunk.'
+            'QueueRebuildDispatcher must not call chain() as a static method on ProcessIndexChunk.'
         );
         $this->assertStringNotContainsString(
             'FinalizeIndex::chain(',
             $source,
-            'BuildCommand must not call chain() as a static method on FinalizeIndex.'
+            'QueueRebuildDispatcher must not call chain() as a static method on FinalizeIndex.'
         );
     }
 
-    public function test_build_command_dispatches_chain(): void
+    public function test_queue_dispatcher_dispatches_chain(): void
     {
-        $source = file_get_contents(dirname(__DIR__, 2).'/src/Commands/BuildCommand.php');
+        $source = file_get_contents(dirname(__DIR__, 2).'/src/Services/QueueRebuildDispatcher.php');
 
         $this->assertMatchesRegularExpression(
             '/Bus::chain\(\$jobs\)\s*->\s*dispatch\(\)/',
             $source,
-            'BuildCommand must call ->dispatch() on the Bus::chain() result.'
+            'QueueRebuildDispatcher must call ->dispatch() on the Bus::chain() result.'
         );
     }
 
-    public function test_trigger_rebuild_uses_bus_chain_facade_not_static_job_method(): void
+    public function test_build_command_and_trigger_rebuild_delegate_to_queue_dispatcher(): void
     {
-        $source = file_get_contents(dirname(__DIR__, 2).'/src/Jobs/TriggerRebuild.php');
+        // Both queue-dispatch entry points must share QueueRebuildDispatcher
+        // so the publish filters, chunk-file payloads, and memory budget
+        // handling cannot diverge again.
+        $buildCommand = file_get_contents(dirname(__DIR__, 2).'/src/Commands/BuildCommand.php');
+        $triggerRebuild = file_get_contents(dirname(__DIR__, 2).'/src/Jobs/TriggerRebuild.php');
 
         $this->assertStringContainsString(
-            'Bus::chain(',
-            $source,
-            'TriggerRebuild must use Bus::chain() to build the job chain.'
+            'QueueRebuildDispatcher',
+            $buildCommand,
+            'BuildCommand must delegate queue dispatch to QueueRebuildDispatcher.'
         );
-        $this->assertStringNotContainsString(
-            'ProcessIndexChunk::chain(',
-            $source,
-            'TriggerRebuild must not call chain() as a static method on ProcessIndexChunk.'
+        $this->assertStringContainsString(
+            'QueueRebuildDispatcher',
+            $triggerRebuild,
+            'TriggerRebuild must delegate queue dispatch to QueueRebuildDispatcher.'
         );
-    }
-
-    public function test_trigger_rebuild_dispatches_chain(): void
-    {
-        $source = file_get_contents(dirname(__DIR__, 2).'/src/Jobs/TriggerRebuild.php');
-
-        $this->assertMatchesRegularExpression(
-            '/Bus::chain\(\$jobs\)\s*->\s*dispatch\(\)/',
-            $source,
-            'TriggerRebuild must call ->dispatch() on the Bus::chain() result.'
+        // Match actual call sites (line starts with code, not a docblock).
+        $this->assertDoesNotMatchRegularExpression(
+            '/^\s*Bus::chain\(/m',
+            $buildCommand,
+            'BuildCommand must not build its own job chain — that lives in QueueRebuildDispatcher.'
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/^\s*Bus::chain\(/m',
+            $triggerRebuild,
+            'TriggerRebuild must not build its own job chain — that lives in QueueRebuildDispatcher.'
         );
     }
 

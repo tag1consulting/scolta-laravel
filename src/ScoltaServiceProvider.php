@@ -68,6 +68,12 @@ class ScoltaServiceProvider extends ServiceProvider
             // Explicit key (SCOLTA_API_KEY env var or published config) wins.
             $explicitKey = $config['ai_api_key'] ?? '';
             if ($explicitKey === '') {
+                // First-run Amazee.ai trial provisioning, deferred to the first
+                // AI request: this factory only runs when something actually
+                // needs the AI service, never inside provider boot, so the
+                // provisioning HTTP call cannot block unrelated page loads.
+                $this->attemptAmazeeAutoProvisioning();
+
                 try {
                     $storage = new LaravelConfigStorage;
                     $creds = $storage->load();
@@ -139,18 +145,20 @@ class ScoltaServiceProvider extends ServiceProvider
             }
         }
 
-        // First-run Amazee.ai provisioning: attempt once per installation.
-        // Uses a cache flag to avoid re-running on every boot. The DB may
-        // not be migrated yet on the very first boot; exceptions are silenced.
-        $this->attemptAmazeeAutoProvisioning();
+        // NOTE: Amazee.ai auto-provisioning intentionally does NOT run here.
+        // It is deferred to the first resolution of ScoltaAiService (see
+        // register()) so a blocking provisioning HTTP call never runs inside
+        // provider boot on user-facing requests that don't touch AI at all.
     }
 
     /**
-     * Attempt Amazee.ai trial provisioning on first boot after install.
+     * Attempt Amazee.ai trial provisioning, once per installation.
      *
-     * No-op when SCOLTA_API_KEY is configured, credentials are already stored,
-     * or the DB is not yet migrated. Uses a cache flag so the attempt only
-     * happens once per installation.
+     * Called lazily from the ScoltaAiService singleton factory — i.e. on the
+     * first AI request — never from boot(). No-op when SCOLTA_API_KEY is
+     * configured, credentials are already stored, or the DB is not yet
+     * migrated. Uses a cache flag so the attempt (including its DB lookup)
+     * only happens once per installation regardless of outcome.
      */
     private function attemptAmazeeAutoProvisioning(): void
     {
@@ -171,17 +179,22 @@ class ScoltaServiceProvider extends ServiceProvider
                 },
             );
 
+            // Cache the outcome whether we provisioned, found existing
+            // credentials, or skipped because an explicit key is configured —
+            // in every case there is nothing more to attempt, and without the
+            // flag the check (and its DB query) re-runs on every resolution.
+            Cache::put($cacheKey, true, now()->addDays(30));
+
             if ($provisioned) {
-                // Mark as provisioned so we don't re-run on every boot.
-                Cache::put($cacheKey, true, now()->addDays(30));
-            } elseif (! $hasExplicitApiKey) {
-                // Already provisioned or skipped — cache the result so we
-                // don't attempt (and query the DB) on every request.
-                Cache::put($cacheKey, true, now()->addDays(30));
+                logger()->info('[scolta] Amazee.ai trial provisioned automatically.');
             }
         } catch (\Exception $e) {
-            // DB not migrated or API unreachable — silently degrade.
-            report($e);
+            // DB not migrated or API unreachable — degrade gracefully and
+            // retry on a later request, but only log once per hour instead
+            // of report()-ing on every single request.
+            if (Cache::add('scolta_amazee_provision_deferred', true, 3600)) {
+                logger()->info('[scolta] Amazee auto-provisioning deferred (DB not migrated or API unreachable): '.$e->getMessage());
+            }
         }
     }
 

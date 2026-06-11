@@ -8,11 +8,9 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
-use Tag1\Scolta\Export\ContentExporter;
-use Tag1\Scolta\Export\ContentItem;
-use Tag1\Scolta\Index\PhpIndexer;
+use Tag1\Scolta\Config\MemoryBudgetConfig;
+use Tag1\ScoltaLaravel\Services\QueueRebuildDispatcher;
 
 /**
  * Trigger a full index rebuild from the queue.
@@ -22,9 +20,10 @@ use Tag1\Scolta\Index\PhpIndexer;
  * single save — multiple edits within the delay window are batched
  * into a single rebuild.
  *
- * The job gathers content from all configured models, checks the
- * fingerprint to avoid unnecessary rebuilds, then dispatches a chain
- * of ProcessIndexChunk + FinalizeIndex jobs.
+ * Content gathering, chunk-file writing, fingerprint checking, and job
+ * chaining are delegated to QueueRebuildDispatcher — the same path used
+ * by `artisan scolta:build` — so the documented publish filters and the
+ * configured memory budget apply identically on the observer path.
  *
  * @since 0.2.0
  *
@@ -60,116 +59,27 @@ class TriggerRebuild implements ShouldQueue
     /**
      * Execute the rebuild.
      *
-     * Clears the debounce flag, gathers content, checks fingerprint,
-     * and dispatches chunk processing jobs followed by finalization.
+     * Clears the debounce flag, resolves the configured memory budget,
+     * and hands off to the shared queue rebuild dispatcher.
      *
      * @since 0.2.0
      *
      * @stability experimental
      */
-    public function handle(): void
+    public function handle(QueueRebuildDispatcher $dispatcher): void
     {
         // Clear debounce flag so future changes can schedule new rebuilds.
         Cache::forget('scolta_rebuild_scheduled');
 
-        $stateDir = config('scolta.state_dir', storage_path('app/scolta'));
-        $outputDir = config('scolta.pagefind.output_dir', public_path('scolta-pagefind'));
-        $hmacSecret = config('app.key');
-        $language = config('scolta.ai_languages.0', 'en');
-
-        // Gather content from models.
-        $items = $this->gatherItems();
-        if (empty($items)) {
-            return;
-        }
-
-        // Filter items by minimum content length.
-        $exporter = new ContentExporter($outputDir);
-        $items = $exporter->exportToItems($items);
-        if (empty($items)) {
-            return;
-        }
-
-        // Check fingerprint — skip if nothing changed (unless forced).
-        $indexer = new PhpIndexer($stateDir, $outputDir, $hmacSecret, $language);
-        $fingerprint = $indexer->shouldBuild($items);
-        if ($fingerprint === null && ! $this->force) {
-            return;
-        }
-        // When forced but fingerprint is null, compute one for finalization.
-        if ($fingerprint === null) {
-            $fingerprint = md5(json_encode($items, JSON_THROW_ON_ERROR));
-        }
-
-        // Chunk and dispatch.
-        $chunkSize = 50;
-        $chunks = array_chunk($items, $chunkSize);
-        $jobs = [];
-
-        foreach ($chunks as $idx => $chunk) {
-            $jobs[] = new ProcessIndexChunk(
-                $idx,
-                $chunk,
-                count($items),
-                $stateDir,
-                $outputDir,
-                $hmacSecret,
-                $language,
-            );
-        }
-
-        $jobs[] = new FinalizeIndex(
-            $stateDir,
-            $outputDir,
-            $hmacSecret,
-            $language,
+        $budget = MemoryBudgetConfig::fromCliAndConfig(
+            null,
+            null,
+            fn () => [
+                'profile' => config('scolta.memory_budget.profile', 'conservative'),
+                'chunk_size' => config('scolta.memory_budget.chunk_size'),
+            ],
         );
 
-        Bus::chain($jobs)->dispatch();
-    }
-
-    /**
-     * Gather content items from all configured Eloquent models.
-     *
-     * @return ContentItem[]
-     *
-     * @since 0.2.0
-     *
-     * @stability experimental
-     */
-    private function gatherItems(): array
-    {
-        $models = config('scolta.models', []);
-        $siteName = config('scolta.site_name', config('app.name'));
-        $items = [];
-
-        foreach ($models as $modelClass) {
-            if (! class_exists($modelClass)) {
-                continue;
-            }
-
-            foreach ($modelClass::all() as $model) {
-                if (! method_exists($model, 'toSearchableContent')) {
-                    continue;
-                }
-
-                $content = $model->toSearchableContent();
-
-                if ($content instanceof ContentItem) {
-                    $items[] = $content;
-                } elseif (is_array($content)) {
-                    $items[] = new ContentItem(
-                        id: $modelClass.'-'.$model->getKey(),
-                        title: $content['title'] ?? '',
-                        bodyHtml: $content['body'] ?? '',
-                        url: $content['url'] ?? '',
-                        date: $model->updated_at?->format('Y-m-d') ?? '',
-                        siteName: $siteName,
-                    );
-                }
-            }
-        }
-
-        return $items;
+        $dispatcher->dispatch($budget, $this->force);
     }
 }

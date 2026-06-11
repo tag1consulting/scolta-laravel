@@ -1,18 +1,6 @@
 parameters:
 	ignoreErrors:
 		-
-			message: '#^Cannot access property \$updated_at on class\-string\|object\.$#'
-			identifier: property.nonObject
-			count: 2
-			path: src/Commands/BuildCommand.php
-
-		-
-			message: '#^Cannot call method getKey\(\) on class\-string\|object\.$#'
-			identifier: method.nonObject
-			count: 2
-			path: src/Commands/BuildCommand.php
-
-		-
 			message: '#^Match expression does not handle remaining value\: string$#'
 			identifier: match.unhandled
 			count: 1
@@ -47,18 +35,6 @@ parameters:
 			identifier: isset.offset
 			count: 1
 			path: src/Http/Controllers/SummarizeController.php
-
-		-
-			message: '#^Cannot access property \$updated_at on class\-string\|object\.$#'
-			identifier: property.nonObject
-			count: 1
-			path: src/Jobs/TriggerRebuild.php
-
-		-
-			message: '#^Cannot call method getKey\(\) on class\-string\|object\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: src/Jobs/TriggerRebuild.php
 
 		-
 			message: '#^Method Tag1\\ScoltaLaravel\\Models\\ScoltaTracker\:\:getPending\(\) should return Illuminate\\Database\\Eloquent\\Collection\<int, static\(Tag1\\ScoltaLaravel\\Models\\ScoltaTracker\)\> but returns Illuminate\\Database\\Eloquent\\Collection\<int, Tag1\\ScoltaLaravel\\Models\\ScoltaTracker\>\.$#'
