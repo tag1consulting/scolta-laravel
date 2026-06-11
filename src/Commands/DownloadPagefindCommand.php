@@ -95,6 +95,29 @@ class DownloadPagefindCommand extends Command
             return self::FAILURE;
         }
 
+        // Verify the tarball against the upstream-published SHA-256 before
+        // extracting anything from it. Pagefind publishes a .sha256 asset
+        // for every release tarball; fail closed if it cannot be fetched.
+        $this->info('Verifying checksum...');
+        $checksumResponse = Http::timeout(15)
+            ->withHeaders(['User-Agent' => 'scolta-laravel'])
+            ->get($downloadUrl.'.sha256');
+
+        if ($checksumResponse->failed()) {
+            $this->error('Could not fetch the release checksum (HTTP '.$checksumResponse->status().'). Refusing to install an unverified binary.');
+            File::delete($tmpFile);
+
+            return self::FAILURE;
+        }
+
+        if (! self::checksumMatches($tmpFile, $checksumResponse->body())) {
+            $this->error('Checksum mismatch — the downloaded tarball does not match the published SHA-256. Refusing to install.');
+            File::delete($tmpFile);
+
+            return self::FAILURE;
+        }
+        $this->info('  Checksum OK.');
+
         // Extract the binary.
         $targetBinary = $targetDir.'/pagefind';
 
@@ -143,5 +166,28 @@ class DownloadPagefindCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Whether a downloaded file matches an upstream .sha256 document.
+     *
+     * The published checksum file uses the conventional
+     * "<hex digest>  <filename>" format; only the leading 64-hex-char
+     * SHA-256 digest is compared (timing-safe). A malformed document
+     * never verifies.
+     *
+     * @since 1.0.4
+     *
+     * @stability experimental
+     */
+    public static function checksumMatches(string $filePath, string $checksumBody): bool
+    {
+        if (preg_match('/^([0-9a-fA-F]{64})\b/', trim($checksumBody), $matches) !== 1) {
+            return false;
+        }
+
+        $actual = hash_file('sha256', $filePath);
+
+        return $actual !== false && hash_equals(strtolower($matches[1]), $actual);
     }
 }
