@@ -237,11 +237,40 @@ class ScoltaServiceProvider extends ServiceProvider
      * Routes are loaded from a dedicated file, respecting the
      * configured prefix and middleware. This is the standard Laravel
      * package pattern for API routes.
+     *
+     * The Amazee.ai admin settings routes are NOT registered with the
+     * default configuration — see amazeeAdminRoutesEnabled().
      */
     private function registerRoutes(): void
     {
         $this->loadRoutesFrom(__DIR__.'/../routes/api.php');
-        $this->loadRoutesFrom(__DIR__.'/../routes/scolta-amazee.php');
+
+        if ($this->amazeeAdminRoutesEnabled()) {
+            $this->loadRoutesFrom(__DIR__.'/../routes/scolta-amazee.php');
+        }
+    }
+
+    /**
+     * Whether the Amazee.ai admin settings routes should be registered.
+     *
+     * Secure by default: the admin routes can disconnect stored AI
+     * credentials and bind a trial to an arbitrary email address, so they
+     * are only registered when the consumer has explicitly configured
+     * 'scolta.amazee_middleware' beyond the bare ['web'] group — e.g.
+     * ['web', 'auth']. With the shipped default the routes do not exist
+     * (anonymous requests get 404). CLI provisioning via
+     * `artisan scolta:amazee:provision` and first-request auto-provisioning
+     * are unaffected.
+     *
+     * @since 1.0.4
+     *
+     * @stability experimental
+     */
+    private function amazeeAdminRoutesEnabled(): bool
+    {
+        $middleware = (array) config('scolta.amazee_middleware', ['web']);
+
+        return $middleware !== [] && $middleware !== ['web'];
     }
 
     /**
