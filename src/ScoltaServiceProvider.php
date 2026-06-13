@@ -10,7 +10,9 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Tag1\Scolta\AiProvider\Amazee\AutoProvisioner;
+use Tag1\Scolta\AiProvider\Amazee\KeyExpiryRecovery;
 use Tag1\ScoltaLaravel\AiProvider\Amazee\LaravelConfigStorage;
+use Tag1\ScoltaLaravel\Cache\LaravelCacheDriver;
 use Tag1\ScoltaLaravel\Commands\AmazeeProvisionCommand;
 use Tag1\ScoltaLaravel\Commands\BuildCommand;
 use Tag1\ScoltaLaravel\Commands\CheckSetupCommand;
@@ -102,7 +104,26 @@ class ScoltaServiceProvider extends ServiceProvider
                 }
             }
 
-            return new ScoltaAiService($config, $amazeeActive);
+            $service = new ScoltaAiService($config, $amazeeActive);
+
+            if ($amazeeActive) {
+                // Auto-provisioned path only: an expired/revoked Amazee trial
+                // key now triggers a one-shot re-provision (guarded to one
+                // attempt per window) and a single retry instead of silently
+                // killing AI. The explicit-key branch above leaves
+                // $amazeeActive false and returns this service unwired, so a
+                // user's own key is never re-provisioned behind their back;
+                // budget-exhaustion is excluded by KeyExpiryRecovery so it
+                // cannot reset the spend ceiling. The recovery markers live in
+                // the same cache HealthController reads, keeping /health honest.
+                $service->setKeyExpiryRecovery(new KeyExpiryRecovery(
+                    storage: new LaravelConfigStorage,
+                    cache: new LaravelCacheDriver,
+                    logger: logger(),
+                ));
+            }
+
+            return $service;
         });
 
         // Bind ContentSource as a singleton for consistent access.
