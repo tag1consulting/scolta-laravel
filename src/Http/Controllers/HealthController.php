@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Tag1\Scolta\Health\HealthChecker;
+use Tag1\ScoltaLaravel\Cache\LaravelCacheDriver;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 use Tag1\ScoltaLaravel\Services\AssetStatus;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
@@ -45,6 +46,10 @@ class HealthController extends Controller
             indexOutputDir: $outputDir,
             pagefindBinaryPath: config('scolta.pagefind.binary'),
             projectDir: base_path(),
+            // Same cache ScoltaAiService records recovery markers in, so
+            // `ai_usable` reflects whether the stored key still authenticates
+            // (a cached marker, never a live API call per health request).
+            cache: new LaravelCacheDriver,
         );
 
         $result = $checker->check();
