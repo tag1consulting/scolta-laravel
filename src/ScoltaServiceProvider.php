@@ -80,22 +80,41 @@ class ScoltaServiceProvider extends ServiceProvider
                     $storage = new LaravelConfigStorage;
                     $creds = $storage->load();
                     if ($creds !== null) {
-                        $config['ai_provider'] = 'openai';
-                        $config['ai_api_key'] = $creds['litellm_token'];
-                        $config['ai_base_url'] = $creds['litellm_api_url'];
-                        $amazeeActive = true;
-                    }
+                        if (self::modelsAreResolved($storage->loadModels())) {
+                            // Fully provisioned: drive the LiteLLM gateway with
+                            // the resolved model.
+                            $config['ai_provider'] = 'openai';
+                            $config['ai_api_key'] = $creds['litellm_token'];
+                            $config['ai_base_url'] = $creds['litellm_api_url'];
+                            $amazeeActive = true;
 
-                    // Apply auto-selected models only when the current config
-                    // value is still the default (not manually overridden).
-                    $models = $storage->loadModels();
-                    if ($models !== null) {
-                        $defaultModel = ScoltaAiService::DEFAULT_MODEL;
-                        if ($models['ai_model'] !== '' && $config['ai_model'] === $defaultModel) {
-                            $config['ai_model'] = $models['ai_model'];
-                        }
-                        if ($models['ai_expansion_model'] !== '' && ($config['ai_expansion_model'] ?? '') === '') {
-                            $config['ai_expansion_model'] = $models['ai_expansion_model'];
+                            // Apply auto-selected models only when the current
+                            // config value is still the default (not manually
+                            // overridden).
+                            $models = $storage->loadModels();
+                            $defaultModel = ScoltaAiService::DEFAULT_MODEL;
+                            if ($models['ai_model'] !== '' && $config['ai_model'] === $defaultModel) {
+                                $config['ai_model'] = $models['ai_model'];
+                            }
+                            if ($models['ai_expansion_model'] !== '' && ($config['ai_expansion_model'] ?? '') === '') {
+                                $config['ai_expansion_model'] = $models['ai_expansion_model'];
+                            }
+                        } else {
+                            // Half-provisioned: credentials are stored but model
+                            // resolution never succeeded, so config still carries
+                            // the shipped dated default — which the Amazee LiteLLM
+                            // gateway rejects with HTTP 400, breaking AI
+                            // permanently and silently. Do NOT inject the Amazee
+                            // key: a key-less client throws ApiKeyMissingException,
+                            // which the controllers degrade to an unexpanded/
+                            // no-summary HTTP 200, never a 400. $amazeeActive stays
+                            // true (credentials ARE stored) so /health and
+                            // key-expiry recovery still see the Amazee path; the
+                            // state self-heals once /model/info recovers (see the
+                            // hasResolvedModels predicate in
+                            // attemptAmazeeAutoProvisioning()). Mirrors
+                            // scolta-node's AmazeeAiService::buildClient().
+                            $amazeeActive = true;
                         }
                     }
                 } catch (\Exception $e) {
@@ -199,13 +218,30 @@ class ScoltaServiceProvider extends ServiceProvider
                 onModelsResolved: function (string $aiModel, string $aiExpansionModel) use ($storage): void {
                     $storage->storeModels($aiModel, $aiExpansionModel);
                 },
+                // Report whether models are already resolved. When credentials
+                // are stored but resolution previously failed (no stored
+                // models), this returns false and ensureAiAvailable() re-resolves
+                // against the ALREADY-STORED key — self-healing the
+                // half-provisioned state — instead of no-opping forever and
+                // leaving createClient() to send the gateway the dated default
+                // (HTTP 400). The separate models store is empty in the
+                // unresolved state, which is the clean signal.
+                hasResolvedModels: fn (): bool => self::modelsAreResolved($storage->loadModels()),
             );
 
-            // Cache the outcome whether we provisioned, found existing
-            // credentials, or skipped because an explicit key is configured —
-            // in every case there is nothing more to attempt, and without the
-            // flag the check (and its DB query) re-runs on every resolution.
-            Cache::put($cacheKey, true, now()->addDays(30));
+            // Cache the attempt as complete UNLESS the store is half-provisioned
+            // (credentials present but model resolution still failed). A
+            // half-provisioned state must NOT be cached as done: leaving the
+            // flag unset re-enters this method on the next request, where
+            // ensureAiAvailable() re-resolves against the stored key — never a
+            // new trial (that branch only runs with no credentials). Caching it
+            // would strand the dated default at the gateway forever. With no
+            // credentials, or an explicit key, there is nothing left to resolve,
+            // so the flag is set to avoid re-attempting a fresh trial each request.
+            $halfProvisioned = ! $hasExplicitApiKey && $this->amazeeHalfProvisioned($storage);
+            if (! $halfProvisioned) {
+                Cache::put($cacheKey, true, now()->addDays(30));
+            }
 
             if ($provisioned) {
                 logger()->info('[scolta] Amazee.ai trial provisioned automatically.');
@@ -218,6 +254,41 @@ class ScoltaServiceProvider extends ServiceProvider
                 logger()->info('[scolta] Amazee auto-provisioning deferred (DB not migrated or API unreachable): '.$e->getMessage());
             }
         }
+    }
+
+    /**
+     * Whether a genuinely resolved Amazee AI model name is stored.
+     *
+     * The Amazee models store (LaravelConfigStorage::storeModels()) is written
+     * only when model resolution succeeds, so it is empty in the
+     * half-provisioned state — the clean signal that the `/model/info` step
+     * failed. Unlike Drupal/WordPress, no dated-default exclusion is needed: the
+     * store is never seeded with the dated default.
+     *
+     * @param  array{ai_model: string, ai_expansion_model: string}|null  $models
+     *
+     * @since 1.0.4
+     *
+     * @stability experimental
+     */
+    private static function modelsAreResolved(?array $models): bool
+    {
+        return $models !== null && $models['ai_model'] !== '';
+    }
+
+    /**
+     * Whether credentials are stored but model resolution has not succeeded.
+     *
+     * This is the half-provisioned state the self-heal targets: a provision
+     * whose `/model/info` step failed left credentials with no resolved models.
+     *
+     * @since 1.0.4
+     *
+     * @stability experimental
+     */
+    private function amazeeHalfProvisioned(LaravelConfigStorage $storage): bool
+    {
+        return $storage->load() !== null && ! self::modelsAreResolved($storage->loadModels());
     }
 
     /**
