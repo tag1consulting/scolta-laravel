@@ -361,11 +361,11 @@ class BuildCommand extends Command
         );
 
         try {
-            // prepareBuildState: true initialises the build manifest so a
-            // worker that drains the chain actually produces an index. Safe
-            // here because the CLI build is a one-shot action (no concurrent
-            // dispatch); the observer path deliberately leaves it false.
-            $result = (new QueueRebuildDispatcher($source))->dispatch($budget, (bool) $this->option('force'), prepareBuildState: true);
+            // dispatch() initialises the build manifest under the cross-process
+            // build lock, so a worker that drains the chain actually produces an
+            // index — uniformly on every entry point (the lock makes the
+            // manifest init safe against concurrent dispatch).
+            $result = (new QueueRebuildDispatcher($source))->dispatch($budget, (bool) $this->option('force'));
         } catch (\Throwable $e) {
             // On the sync connection the chain runs inline during dispatch(); a
             // chunk/merge/finalize failure surfaces here. Treat it as a hard
@@ -379,6 +379,18 @@ class BuildCommand extends Command
             $this->warn('No searchable content found. Check scolta.models config.');
 
             return self::SUCCESS;
+        }
+
+        if ($result['status'] === QueueRebuildDispatcher::STATUS_IN_PROGRESS) {
+            // Another rebuild chain holds the cross-process build lock, so this
+            // invocation built nothing. Report DEFERRED, not SUCCESS — a deploy
+            // must not read "a build is happening elsewhere" as "built and live".
+            $this->warn(
+                'Index NOT built by this command: another rebuild is already in progress. '
+                .'Wait for it to finish (or run `scolta:build` without --queue for a synchronous build).'
+            );
+
+            return self::DEFERRED;
         }
 
         $this->info('  Found '.$result['items'].' content items.');

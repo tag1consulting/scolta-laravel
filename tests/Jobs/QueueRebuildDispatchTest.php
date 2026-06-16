@@ -6,6 +6,7 @@ namespace Tag1\ScoltaLaravel\Tests\Jobs;
 
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase;
@@ -49,6 +50,11 @@ class QueueRebuildDispatchTest extends TestCase
         $this->outputDir = storage_path('framework/testing/scolta-output');
         File::deleteDirectory($this->stateDir);
         File::deleteDirectory($this->outputDir);
+
+        // These tests fake the bus, so the chain's FinalizeIndex never runs to
+        // release the cross-process build lock. Start each test from a released
+        // lock so a held lock from a prior dispatch can't leak in.
+        Cache::lock(QueueRebuildDispatcher::BUILD_LOCK)->forceRelease();
 
         config([
             'scolta.state_dir' => $this->stateDir,
@@ -166,6 +172,12 @@ class QueueRebuildDispatchTest extends TestCase
         $dispatcher = app(QueueRebuildDispatcher::class);
         $first = $dispatcher->dispatch($budget, force: true);
         $this->assertSame(QueueRebuildDispatcher::STATUS_DISPATCHED, $first['status']);
+
+        // The first dispatch handed the cross-process build lock to the (faked,
+        // so never-run) FinalizeIndex. Simulate that chain finishing — release
+        // the lock — so the second dispatch represents a later, separate build
+        // rather than a concurrent one (which would return STATUS_IN_PROGRESS).
+        Cache::lock(QueueRebuildDispatcher::BUILD_LOCK)->forceRelease();
 
         $entries = [];
         foreach ((new ContentSource)->getPublishedContent() as $item) {
