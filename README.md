@@ -191,6 +191,12 @@ Composer runs `post-autoload-dump` on every `composer install` and `composer upd
 php artisan vendor:publish --tag=scolta-assets --force
 ```
 
+### Building the index on deploy
+
+Run `php artisan scolta:build` as part of your deploy (build pipeline, release step, or initContainer). It is **synchronous and verified**: it blocks until the index is built and exits 0 only when a usable index is live on disk, so a deploy that gates on its exit code can trust it. If the build cannot produce a valid index, the command exits non-zero — fail your deploy on that rather than serving dead search.
+
+> **Do not pass `--queue` in a deploy step unless you have a worker that finishes before traffic is served.** `--queue` defers the build to the queue: on an asynchronous connection it returns a distinct deferred exit code (`3`) **without** building the index — the index only appears once a worker (`php artisan queue:work`) drains the chain. It is intended for large-corpus background rebuilds, not for the deploy-time index your first requests depend on. An interrupted or never-drained rebuild degrades to the *previous* index (stale), never to an empty one.
+
 ## AI Features and Privacy
 
 Scolta's AI tier is optional. When enabled:
@@ -564,7 +570,8 @@ Register the model in `config/scolta.php`:
 ## Artisan Commands
 
 ```bash
-php artisan scolta:build                    # Full build: mark all content, export, run indexer
+php artisan scolta:build                    # Full build: synchronous and verified (exit 0 = index built and live)
+php artisan scolta:build --queue            # Defer the build to the queue (index is NOT built until a worker drains the chain)
 php artisan scolta:build --incremental      # Only process tracked changes
 php artisan scolta:build --skip-pagefind    # Export HTML without rebuilding index
 php artisan scolta:build --memory-budget=balanced  # Use balanced memory profile

@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\File;
 use Tag1\Scolta\Export\ContentExporter;
 use Tag1\Scolta\Export\ContentItem;
+use Tag1\Scolta\Index\BuildCoordinator;
+use Tag1\Scolta\Index\BuildIntent;
 use Tag1\Scolta\Index\MemoryBudget;
 use Tag1\ScoltaLaravel\Jobs\FinalizeIndex;
 use Tag1\ScoltaLaravel\Jobs\ProcessIndexChunk;
@@ -55,13 +57,19 @@ class QueueRebuildDispatcher
      * @param  MemoryBudget  $budget  Memory budget driving both dispatcher
      *                                chunking and job offset computation.
      * @param  bool  $force  Skip the fingerprint check and always rebuild.
+     * @param  bool  $prepareBuildState  Initialise the build manifest before
+     *                                   dispatching so the worker jobs can
+     *                                   record chunk progress and FinalizeIndex
+     *                                   can find the committed chunks. See the
+     *                                   note below — leave false on the
+     *                                   observer path.
      * @return array{status: string, items: int, chunks: int}
      *
      * @since 1.0.4
      *
      * @stability experimental
      */
-    public function dispatch(MemoryBudget $budget, bool $force = false): array
+    public function dispatch(MemoryBudget $budget, bool $force = false, bool $prepareBuildState = false): array
     {
         $stateDir = config('scolta.state_dir', storage_path('app/scolta'));
         $outputDir = config('scolta.pagefind.output_dir', public_path('scolta-pagefind'));
@@ -109,6 +117,37 @@ class QueueRebuildDispatcher
             File::deleteDirectory($payloadDir);
 
             return ['status' => self::STATUS_UNCHANGED, 'items' => $total, 'chunks' => 0];
+        }
+
+        // Initialise the build manifest before dispatching the chain.
+        //
+        // ProcessIndexChunk::handle() commits each chunk via
+        // BuildState::recordChunk(), which only bumps the manifest's
+        // chunks_written counter when a manifest already exists. FinalizeIndex
+        // then reads that counter via BuildCoordinator::chunkFiles(). With no
+        // manifest, recordChunk() silently skips the update, chunkFiles()
+        // returns empty, and FinalizeIndex fails with "No chunk files found" —
+        // so the chain dispatches but never produces an index.
+        //
+        // prepare() writes the manifest (and clears stale top-level state from
+        // a prior build — the queue-payload/ subdirectory is untouched);
+        // releaseLockOnly() then drops the process-scoped lock while leaving
+        // the manifest in place for the worker jobs.
+        //
+        // This is opt-in (default off) because prepare() on a fresh intent runs
+        // cleanup(), which would wipe an in-flight build's chunk files if a
+        // second dispatch arrived mid-chain. The observer path (TriggerRebuild)
+        // can fire repeatedly across the debounce window with no serialization
+        // against a draining chain, so it must not enable this. The CLI
+        // `scolta:build --queue` is a deliberate one-shot deploy action with no
+        // concurrent dispatch, so it is safe there.
+        if ($prepareBuildState) {
+            $coordinator = new BuildCoordinator($stateDir, $hmacSecret);
+            $coordinator->prepare(BuildIntent::fresh($total, $budget, [
+                'language' => $language,
+                'fingerprint' => self::fingerprintFromEntries($fingerprintEntries),
+            ]));
+            $coordinator->releaseLockOnly();
         }
 
         $jobs = [];

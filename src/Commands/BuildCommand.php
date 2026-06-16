@@ -57,13 +57,30 @@ class BuildCommand extends Command
         {--skip-pagefind : Export HTML files but don\'t run the Pagefind CLI}
         {--indexer=  : Indexer backend: php, binary, or auto (overrides config)}
         {--force : Skip fingerprint check and force a full rebuild}
-        {--sync : Run synchronously instead of dispatching to queue}
+        {--queue : Dispatch the build to the queue instead of building inline (the index is not built until a worker drains the chain)}
+        {--sync : Deprecated no-op: synchronous building is now the default. Accepted for backward compatibility}
         {--memory-budget= : Memory profile or byte value (conservative, 256M, 1G…). Default: from config.}
         {--chunk-size= : Pages per chunk. Overrides profile default and config setting.}
         {--resume : Resume a previously interrupted PHP index build}
         {--restart : Discard interrupted state and restart the PHP index build}';
 
     protected $description = 'Build or rebuild the Scolta search index';
+
+    /**
+     * Exit code for a build that was dispatched to an asynchronous queue and
+     * therefore is NOT yet built on disk.
+     *
+     * Distinct from SUCCESS (0): the index is only enqueued and will not be
+     * published until a worker drains the chain. Distinct from FAILURE (1):
+     * nothing went wrong — the operator opted into deferred indexing via
+     * --queue. Deploy tooling that requires a live index before routing
+     * traffic MUST treat any non-zero exit (including this one) as "not built".
+     *
+     * @since 1.0.4
+     *
+     * @stability experimental
+     */
+    public const DEFERRED = 3;
 
     public function handle(ContentSource $source): int
     {
@@ -80,11 +97,25 @@ class BuildCommand extends Command
         }
 
         if ($indexer === 'php') {
-            if ($this->option('sync')) {
-                return $this->buildWithPhpIndexer($source, $outputDir);
+            // Deploy-safe default: build inline and verify before reporting
+            // success, so `scolta:build` exiting 0 always means "the index is
+            // built and live". Asynchronous indexing is now opt-in via --queue
+            // (the content-edit observer keeps using the queue independently).
+            //
+            // --sync is the former opt-in for this synchronous path; it is now
+            // the default, so it is accepted as a no-op alias. The two options
+            // are contradictory, so reject the combination rather than guess.
+            if ($this->option('queue') && $this->option('sync')) {
+                $this->error('--queue and --sync are mutually exclusive. Synchronous building is the default; pass --queue only to defer to the queue.');
+
+                return self::INVALID;
             }
 
-            return $this->dispatchToQueue($source);
+            if ($this->option('queue')) {
+                return $this->dispatchToQueue($source, $outputDir);
+            }
+
+            return $this->buildWithPhpIndexer($source, $outputDir);
         }
 
         return $this->buildWithBinary($source, $outputDir);
@@ -190,18 +221,47 @@ class BuildCommand extends Command
 
             if ($report->error === 'index_only_complete') {
                 // All pages indexed but the merge could not run in this process
-                // (heap too fragmented). Dispatch FinalizeIndex to the queue so it
-                // runs in a fresh worker with a clean heap.
+                // (heap too fragmented). Finalize must run in a fresh worker
+                // with a clean heap.
+                $connection = (string) config('queue.default');
+
+                if ($connection === 'sync') {
+                    // No async worker exists on the sync connection — dispatching
+                    // would merely re-run finalize inline in this same stressed
+                    // process. Surface it as a failure with actionable guidance
+                    // rather than silently reporting a half-built index.
+                    $this->error(sprintf(
+                        'All %d pages indexed (%d chunks) but the merge could not complete in this process '
+                        .'(insufficient memory) and the queue connection is "sync" (no background worker). '
+                        .'Increase the memory budget (--memory-budget) or configure an async queue so finalize '
+                        .'can run in a fresh worker.',
+                        $report->pagesProcessed,
+                        $report->chunksWritten,
+                    ));
+
+                    return self::FAILURE;
+                }
+
+                // Async connection: hand finalize to a worker with a clean heap.
+                // The index is NOT published until that worker runs, so this is
+                // a deferred build, not a success.
                 $this->line(sprintf(
-                    'All %d pages indexed (%d chunks). Dispatching finalize to queue...',
+                    'All %d pages indexed (%d chunks). Dispatching finalize to the "%s" queue...',
                     $report->pagesProcessed,
                     $report->chunksWritten,
+                    $connection,
                 ));
                 FinalizeIndex::dispatch($stateDir, $outputDir, $hmacSecret, $language, $budget->profile());
 
+                $this->warn(sprintf(
+                    'Index NOT yet published: the finalize job is queued on "%s" and must be drained by a worker '
+                    .'(php artisan queue:work) before search reflects this build.',
+                    $connection,
+                ));
+
                 $this->publishAssets();
 
-                return self::SUCCESS;
+                return self::DEFERRED;
             }
 
             $this->error('Index build failed: '.($report->error ?? 'Unknown error'));
@@ -262,19 +322,33 @@ class BuildCommand extends Command
     }
 
     /**
-     * Dispatch index build to the queue.
+     * Dispatch index build to the queue (opt-in via --queue).
      *
      * Delegates to QueueRebuildDispatcher — the same path the observer-driven
      * TriggerRebuild job uses — which streams content through ContentSource,
      * writes chunk payload files, checks the fingerprint, and dispatches
      * ProcessIndexChunk + FinalizeIndex jobs via Bus::chain().
      *
-     * @since 0.2.0
+     * Honesty about whether the index is actually built depends on the
+     * effective queue connection:
+     *
+     *  - On the `sync` connection the chain executes inline during dispatch(),
+     *    so the index is built by the time this returns — verify it and report
+     *    SUCCESS (or FAILURE if the inline merge failed).
+     *  - On any asynchronous connection the jobs are only enqueued; the index
+     *    is NOT built until a worker drains the chain. Returning SUCCESS here
+     *    is the deploy-time false-success defect, so report DEFERRED with loud
+     *    guidance instead.
+     *
+     * @since 0.2.0 (made connection-aware in 1.0.4)
      *
      * @stability experimental
      */
-    private function dispatchToQueue(ContentSource $source): int
+    private function dispatchToQueue(ContentSource $source, string $outputDir): int
     {
+        $connection = (string) config('queue.default');
+        $ranInline = $connection === 'sync';
+
         $this->info('Dispatching index build to queue...');
 
         $budget = MemoryBudgetConfig::fromCliAndConfig(
@@ -286,7 +360,20 @@ class BuildCommand extends Command
             ],
         );
 
-        $result = (new QueueRebuildDispatcher($source))->dispatch($budget, (bool) $this->option('force'));
+        try {
+            // prepareBuildState: true initialises the build manifest so a
+            // worker that drains the chain actually produces an index. Safe
+            // here because the CLI build is a one-shot action (no concurrent
+            // dispatch); the observer path deliberately leaves it false.
+            $result = (new QueueRebuildDispatcher($source))->dispatch($budget, (bool) $this->option('force'), prepareBuildState: true);
+        } catch (\Throwable $e) {
+            // On the sync connection the chain runs inline during dispatch(); a
+            // chunk/merge/finalize failure surfaces here. Treat it as a hard
+            // build failure rather than letting it bubble out uncaught.
+            $this->error('Index build failed: '.$e->getMessage());
+
+            return self::FAILURE;
+        }
 
         if ($result['status'] === QueueRebuildDispatcher::STATUS_EMPTY) {
             $this->warn('No searchable content found. Check scolta.models config.');
@@ -302,11 +389,46 @@ class BuildCommand extends Command
             return self::SUCCESS;
         }
 
-        $this->info('Rebuild dispatched to queue ('.$result['chunks'].' chunk(s) + finalize).');
+        if ($ranInline) {
+            // The chain executed inline on the sync connection: the index is
+            // built. Verify it before claiming success.
+            try {
+                IndexBuildOrchestrator::verifyIndexComplete($outputDir);
+            } catch (\Throwable $e) {
+                $this->error('Index build failed: '.$e->getMessage());
 
+                return self::FAILURE;
+            }
+
+            // FinalizeIndex (which just ran inline) already bumped the expand
+            // generation counter, so no increment is needed here.
+            $this->info(sprintf(
+                'Index built inline on the sync queue: %d item(s) (%d chunk(s)).',
+                $result['items'],
+                $result['chunks'],
+            ));
+
+            $this->publishAssets();
+
+            return self::SUCCESS;
+        }
+
+        // Asynchronous connection: the jobs are only enqueued. The index is NOT
+        // built yet, so this is NOT a success — return DEFERRED so deploy
+        // pipelines never mistake "enqueued" for "built and live".
+        $this->warn(sprintf(
+            'Index NOT yet built: %d chunk(s) + finalize enqueued on the "%s" queue. '
+            .'A worker (php artisan queue:work) must drain these jobs before search reflects this build. '
+            .'For deploys that need a live index immediately, run `scolta:build` without --queue (synchronous, the default).',
+            $result['chunks'],
+            $connection,
+        ));
+
+        // Publish the front-end assets regardless — they are independent of the
+        // index and the runtime endpoints need them whenever the index lands.
         $this->publishAssets();
 
-        return self::SUCCESS;
+        return self::DEFERRED;
     }
 
     /**
