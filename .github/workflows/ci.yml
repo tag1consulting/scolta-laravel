@@ -209,6 +209,23 @@ jobs:
             FAIL=1
           fi
 
+          # CHANGELOG.md: the [Unreleased] section must have at most one of each
+          # sub-header (a merge artifact once left two ### Fixed / ### Changed
+          # there; Keep-a-Changelog renderers then show two of each in the notes
+          # cut at release time). Scoped to [Unreleased] — released sections are
+          # frozen history and are not rewritten.
+          awk '
+            /^## \[Unreleased\]/ { in_unrel = 1; next }
+            /^## \[/            { in_unrel = 0 }
+            in_unrel && /^### / {
+              if (seen[$0]++) {
+                printf("FAIL: duplicate \"%s\" under ## [Unreleased] in CHANGELOG.md\n", $0) > "/dev/stderr"
+                rc = 1
+              }
+            }
+            END { exit rc }
+          ' CHANGELOG.md || FAIL=1
+
           [ $FAIL -eq 0 ] && echo "PASS: No known bad patterns found."
           exit $FAIL
 
