@@ -4,7 +4,7 @@ All notable changes to scolta-laravel will be documented in this file.
 
 This project uses [Semantic Versioning](https://semver.org/). Major versions are synchronized across all Scolta packages; minor and patch versions are released independently per package.
 
-## [Unreleased]
+## [1.0.4] - 2026-06-26
 
 ### Added
 - **Distribution-archive validation gate (`scripts/validate-dist-archive.sh`, `dist-archive` CI job).** Composer installs this package as a `dist` archive: for a GitHub-hosted package, Composer downloads GitHub's zipball/tarball, which is produced by `git archive` and honors `.gitattributes export-ignore`. The export-ignore list is therefore the live filter deciding what every Composer consumer downloads (it keeps `tests/`, CI config, tooling, and the committed `composer.lock` out), and nothing in CI validated it against the archive it actually produces — a typo'd or missing line silently ships dev cruft, an over-broad line silently drops a runtime file and ships a dead package. The new script reproduces the shipped archive (`git archive HEAD`) and asserts four things: no export-ignored path leaked in, every committed runtime asset (`src/`, `config/`, `routes/`, `resources/`, `database/`, `composer.json`) is present, every top-level entry is on an explicit fail-closed allowlist (a new top-level file/dir fails CI until it is either export-ignored or added to the allowlist in a deliberate commit), and the archive stays under a documented size cap (~2x the measured ~0.35 MB clean archive). Mirrors the gate scolta-drupal already runs against its drupal.org tarball; the precedent is the scolta-wp 13 MB zip incident and the WordPress.org dist-cruft flags. Validation only — `.gitattributes` and the shipped contents are unchanged.
