@@ -1,6 +1,6 @@
 {
     "name": "tag1/scolta-laravel",
-    "version": "1.0.4-dev",
+    "version": "1.0.4",
     "description": "Scolta AI Search for Laravel \u2014 zero-infrastructure AI-powered search with Pagefind",
     "type": "library",
     "license": "MIT",
@@ -69,6 +69,14 @@
         "sort-packages": true,
         "audit": {
             "ignore": {
+                "PKSA-m5cs-t1y6-qpcs": {
+                    "apply": "block",
+                    "reason": "[PERMANENT:laravel-11-eol] Temporary Signed URL path confusion (reported 2026-06-17) is patched in 12.61.1 / 13.12.0; the affected range (<12.61.1) covers all laravel/framework 11.x and no 11.x fix will ship (Laravel 11 reached EOL 2026-03-12). Only reached via the EOL Laravel 11 CI matrix row; supported 12.x/13.x already install patched versions. apply:block stops the resolver blocking while composer audit still reports it. Remove when Laravel 11 is dropped from the test matrix."
+                },
+                "PKSA-3r5d-mb8f-1qw9": {
+                    "apply": "block",
+                    "reason": "[PERMANENT:laravel-11-eol] CRLF injection in the default email rule (reported 2026-06-17) is patched in 12.60.0 / 13.10.0; the affected range (<12.60.0) covers all laravel/framework 11.x and no 11.x fix will ship (Laravel 11 reached EOL 2026-03-12). Only reached via the EOL Laravel 11 CI matrix row; supported 12.x/13.x already install patched versions. apply:block stops the resolver blocking while composer audit still reports it. Remove when Laravel 11 is dropped from the test matrix."
+                },
                 "PKSA-mdq4-51ck-6kdq": {
                     "apply": "block",
                     "reason": "[PERMANENT:laravel-11-eol] CVE-2026-48019 (CRLF injection in default email rule) affects all laravel/framework 11.x and was reported 2026-05-19, after Laravel 11 reached EOL on 2026-03-12, so no 11.x fix will ship. Only reached via the EOL Laravel 11 CI matrix row; supported 12.x/13.x are already patched (12.60.0 / 13.10.0). apply:block stops the resolver blocking while composer audit still reports it. Remove when Laravel 11 is dropped from the test matrix."
