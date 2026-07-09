@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "198104436836ad62fbb739a129614105",
+    "content-hash": "a8e31625689aaee42acbe14c897faa70",
     "packages": [
         {
             "name": "brick/math",
@@ -5599,16 +5599,16 @@
         },
         {
             "name": "tag1/scolta-php",
-            "version": "1.0.4",
+            "version": "1.0.5",
             "source": {
                 "type": "git",
                 "url": "https://github.com/tag1consulting/scolta-php.git",
-                "reference": "b2baf5a87951601216753f062d057c34ff0e23ca"
+                "reference": "f01b2ae7648a8de3b69eb37ccaeedde000d626d0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/tag1consulting/scolta-php/zipball/b2baf5a87951601216753f062d057c34ff0e23ca",
-                "reference": "b2baf5a87951601216753f062d057c34ff0e23ca",
+                "url": "https://api.github.com/repos/tag1consulting/scolta-php/zipball/f01b2ae7648a8de3b69eb37ccaeedde000d626d0",
+                "reference": "f01b2ae7648a8de3b69eb37ccaeedde000d626d0",
                 "shasum": ""
             },
             "require": {
@@ -5660,7 +5660,7 @@
                 "issues": "https://github.com/tag1consulting/scolta-php/issues",
                 "source": "https://github.com/tag1consulting/scolta-php"
             },
-            "time": "2026-06-26T06:58:50+00:00"
+            "time": "2026-06-27T07:35:32+00:00"
         },
         {
             "name": "tijsverkoyen/css-to-inline-styles",

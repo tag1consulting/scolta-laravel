@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Tag1\ScoltaLaravel\Services;
 
+use Illuminate\Support\Facades\Cache;
 use Tag1\Scolta\AiProvider\Amazee\AmazeeBudgetExceededException;
+use Tag1\Scolta\AiProvider\Amazee\KeyExpiryRecovery;
 use Tag1\Scolta\Config\ScoltaConfig;
 use Tag1\Scolta\Service\AiServiceAdapter;
 
@@ -58,6 +60,24 @@ class ScoltaAiService extends AiServiceAdapter
     }
 
     /**
+     * Cache key for the "operator has been told AI is degraded" breadcrumb.
+     *
+     * A short TTL collapses the warning to once per window instead of one log
+     * line per failing request. Public so tests and adapters reference one
+     * definition.
+     *
+     * @since 1.0.5
+     *
+     * @stability experimental
+     */
+    public const REAUTH_NOTICE_KEY = 'scolta_amazee_reauth_notified';
+
+    /**
+     * How long the degraded-AI warning stays suppressed, in seconds.
+     */
+    private const REAUTH_NOTICE_TTL = 3600;
+
+    /**
      * {@inheritdoc}
      *
      * Convert a budget-exceeded RuntimeException to AmazeeBudgetExceededException.
@@ -68,10 +88,37 @@ class ScoltaAiService extends AiServiceAdapter
      */
     protected function handlePossibleBudgetException(\RuntimeException $e): void
     {
-        if (! str_contains($e->getMessage(), 'Budget has been exceeded!')) {
-            return;
+        if (str_contains($e->getMessage(), 'Budget has been exceeded!')) {
+            throw new AmazeeBudgetExceededException($e);
         }
-        throw new AmazeeBudgetExceededException($e);
+
+        // Amazee.ai path only: when the stored credentials are no longer
+        // accepted, the persistent state and the /health degrade are recorded
+        // by KeyExpiryRecovery (wired in the service provider, invoked right
+        // after this hook). Emit a single operator-facing warning per window —
+        // naming where to reconnect — rather than a line on every request.
+        if ($this->amazeeActive && KeyExpiryRecovery::isAuthFailure($e)) {
+            $this->noticeReauthNeeded();
+        }
+    }
+
+    /**
+     * Log, once per window, that AI is degraded until the operator reconnects.
+     *
+     * The persistent state and health degrade are handled elsewhere; this is
+     * an operator breadcrumb only. It never mints or re-requests credentials —
+     * reconnection is always an explicit step from the settings page or the
+     * `scolta:amazee:provision` command.
+     */
+    private function noticeReauthNeeded(): void
+    {
+        if (Cache::add(self::REAUTH_NOTICE_KEY, true, self::REAUTH_NOTICE_TTL)) {
+            logger()->warning(
+                '[scolta] Amazee.ai credentials are no longer accepted; AI search features '
+                .'are degraded until you reconnect. Reconnect from the Scolta Amazee.ai settings '
+                .'page or run: php artisan scolta:amazee:provision <email>.'
+            );
+        }
     }
 
     /**

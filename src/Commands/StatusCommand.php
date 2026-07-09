@@ -7,7 +7,10 @@ namespace Tag1\ScoltaLaravel\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
+use Tag1\Scolta\AiProvider\Amazee\KeyExpiryRecovery;
 use Tag1\Scolta\Binary\PagefindBinary;
+use Tag1\ScoltaLaravel\AiProvider\Amazee\LaravelConfigStorage;
+use Tag1\ScoltaLaravel\Cache\LaravelCacheDriver;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 use Tag1\ScoltaLaravel\Searchable;
 use Tag1\ScoltaLaravel\Services\AssetStatus;
@@ -119,6 +122,7 @@ class StatusCommand extends Command
         } elseif ($ai->isAmazeeActive()) {
             $this->line('  Provider: Amazee.ai (managed gateway)');
             $this->line('  API key:  configured (Amazee.ai credentials)');
+            $this->reportAmazeeConnectionState();
         } else {
             $provider = $ai->getConfig()->aiProvider ?: 'anthropic';
             $hasKey = ! empty($ai->getConfig()->aiApiKey);
@@ -151,5 +155,38 @@ class StatusCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Report whether the stored Amazee.ai credentials still authenticate.
+     *
+     * When the credentials are no longer accepted the persistent
+     * re-authentication marker is set (see KeyExpiryRecovery); surface it here
+     * with the reconnect path so an operator running `scolta:status` is not
+     * left guessing why AI is degraded.
+     *
+     * @since 1.0.5
+     *
+     * @stability experimental
+     */
+    private function reportAmazeeConnectionState(): void
+    {
+        $recovery = new KeyExpiryRecovery(
+            storage: new LaravelConfigStorage,
+            cache: new LaravelCacheDriver,
+            logger: logger(),
+        );
+
+        if ($recovery->isUpgradeNeeded()) {
+            $this->warn('  Status:   NEEDS RE-AUTHENTICATION');
+            $this->line('  The Amazee.ai connection is no longer accepted. AI search features');
+            $this->line('  are degraded until you reconnect. To re-authenticate:');
+            $this->line('    - Open the Scolta Amazee.ai settings page and continue with Amazee.ai, or');
+            $this->line('    - Run: php artisan scolta:amazee:provision <email>');
+        } elseif ($recovery->isAuthFailing()) {
+            $this->warn('  Status:   recent authentication failure (retrying)');
+        } else {
+            $this->line('  Status:   connected');
+        }
     }
 }
