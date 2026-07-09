@@ -6,6 +6,9 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+### Changed
+- **The Amazee.ai connection state is now surfaced when it needs re-authentication.** When the stored Amazee.ai credentials are no longer accepted, the AI service degrades cleanly and the settings page shows a reconnect banner with a "Continue with Amazee.ai" call to action that runs the existing email-verification sign-in flow (on a successful reconnect the prompt clears). The `scolta:status` command reports the same state with the reconnect path, and `scolta:amazee:provision` notes it before re-establishing the connection. A single operator warning is logged (once per window, not per request) naming where to reconnect, and `GET /api/scolta/v1/health` continues to reflect the credential state. Credentials are never re-issued automatically on this path — reconnection is always an explicit, operator-initiated step. Updated to scolta-php 1.0.5 (`KeyExpiryRecovery::isUpgradeNeeded()` / `clearUpgradeNeeded()`). Covered by `AmazeeReauthPromptTest` and `KeyExpiryRecoveryWiringTest`.
+
 ## [1.0.4] - 2026-06-26
 
 ### Added

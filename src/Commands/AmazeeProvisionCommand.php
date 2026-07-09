@@ -9,8 +9,10 @@ use Tag1\Scolta\AiProvider\Amazee\AmazeeApiException;
 use Tag1\Scolta\AiProvider\Amazee\AmazeeClient;
 use Tag1\Scolta\AiProvider\Amazee\AmazeeModelResolver;
 use Tag1\Scolta\AiProvider\Amazee\AmazeeTrialProvisioner;
+use Tag1\Scolta\AiProvider\Amazee\KeyExpiryRecovery;
 use Tag1\Scolta\AiProvider\Amazee\ProvisioningResult;
 use Tag1\ScoltaLaravel\AiProvider\Amazee\LaravelConfigStorage;
+use Tag1\ScoltaLaravel\Cache\LaravelCacheDriver;
 
 /**
  * Provision an Amazee.ai free trial account from the command line.
@@ -37,7 +39,21 @@ class AmazeeProvisionCommand extends Command
             return self::FAILURE;
         }
 
-        $this->line("Provisioning Amazee.ai trial for {$email}…");
+        // If the stored credentials are no longer accepted, tell the operator
+        // why AI is degraded and how to reconnect before continuing. Running
+        // this command with an email re-establishes the Amazee.ai connection.
+        $recovery = new KeyExpiryRecovery(
+            storage: new LaravelConfigStorage,
+            cache: new LaravelCacheDriver,
+            logger: logger(),
+        );
+        if ($recovery->isUpgradeNeeded()) {
+            $this->warn('The current Amazee.ai connection is no longer accepted and needs re-authentication.');
+            $this->line('AI search features are degraded until you reconnect. This command will re-establish the connection.');
+            $this->line('You can also reconnect from the Scolta Amazee.ai settings page.');
+        }
+
+        $this->line("Connecting to Amazee.ai for {$email}…");
 
         $hasExistingProvider = $this->option('force')
             ? null

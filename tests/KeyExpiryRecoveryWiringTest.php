@@ -4,17 +4,12 @@ declare(strict_types=1);
 
 namespace Tag1\ScoltaLaravel\Tests;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\Handler\MockHandler;
-use GuzzleHttp\HandlerStack;
-use GuzzleHttp\Psr7\Response;
 use Illuminate\Cache\ArrayStore;
 use Illuminate\Cache\Repository;
 use Illuminate\Container\Container;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Cache;
 use PHPUnit\Framework\TestCase;
-use Tag1\Scolta\AiProvider\Amazee\AmazeeClient;
 use Tag1\Scolta\AiProvider\Amazee\ConfigStorageInterface;
 use Tag1\Scolta\AiProvider\Amazee\KeyExpiryRecovery;
 use Tag1\Scolta\Config\ScoltaConfig;
@@ -22,26 +17,26 @@ use Tag1\Scolta\Health\HealthChecker;
 use Tag1\ScoltaLaravel\Cache\LaravelCacheDriver;
 
 /**
- * Behavioral coverage for the Amazee key-expiry recovery wiring.
+ * Behavioral coverage for the Amazee credential auth-failure wiring.
  *
- * Regression (django demo, 2026-06-09): an expired Amazee trial key returned
- * 400 expired_key while the adapter no-opped on the stored dead credentials —
- * expand echoed the query and /health still reported ai_configured: true.
- * ScoltaServiceProvider now wires scolta-php's KeyExpiryRecovery on the
+ * Regression (django demo, 2026-06-09): a no-longer-accepted Amazee key
+ * returned an auth error while the adapter no-opped on the stored dead
+ * credentials — expand echoed the query and /health still reported
+ * ai_configured: true. The current contract detects the auth failure and
+ * degrades cleanly: it records a health marker, raises a persistent
+ * re-authentication signal that admin surfaces read, and leaves the stored
+ * credentials untouched. It never re-requests credentials on this path;
+ * reconnection is an explicit, operator-initiated step.
+ *
+ * ScoltaServiceProvider wires scolta-php's KeyExpiryRecovery on the
  * auto-provisioned path, and HealthController hands the same cache to
- * HealthChecker.
- *
- * scolta-php's AiServiceAdapterTest proves the base recover-and-retry loop;
- * these tests prove the Laravel-specific wiring: the Illuminate cache bridge
- * satisfies KeyExpiryRecovery's marker contract, health stays truthful, and
- * the provider wires recovery only on the Amazee path.
+ * HealthChecker. These tests prove the Laravel-specific wiring: the Illuminate
+ * cache bridge satisfies the marker contract, health stays truthful, the
+ * upgrade signal round-trips, and the provider wires recovery only on the
+ * Amazee path.
  */
 class KeyExpiryRecoveryWiringTest extends TestCase
 {
-    private const FRESH_TRIAL_RESPONSE = '{"key": {"litellm_token": "sk-fresh-token", "litellm_api_url": "https://llm.test.amazee.ai", "region": "test-region"}}';
-
-    private const MODEL_INFO_RESPONSE = '{"data": [{"model_name": "claude-sonnet-4-5"}, {"model_name": "claude-haiku-4-5"}]}';
-
     private const EXPIRED_CREDS = [
         'litellm_token' => 'sk-expired-token',
         'litellm_api_url' => 'https://llm.test.amazee.ai',
@@ -63,33 +58,35 @@ class KeyExpiryRecoveryWiringTest extends TestCase
     }
 
     // -------------------------------------------------------------------
-    // Recovery once-per-window through the Laravel cache bridge
+    // Auth failure degrades and raises the upgrade signal — no new creds
     // -------------------------------------------------------------------
 
-    public function test_recovery_reprovisions_once_per_window_through_laravel_bridge(): void
+    public function test_auth_failure_degrades_and_flags_upgrade_without_reissuing_credentials(): void
     {
         $storage = new InMemoryRecoveryStorage(self::EXPIRED_CREDS);
-        $mock = new MockHandler([
-            new Response(200, [], self::FRESH_TRIAL_RESPONSE),
-            new Response(200, [], self::MODEL_INFO_RESPONSE),
-        ]);
-        $recovery = new KeyExpiryRecovery(
-            storage: $storage,
-            cache: new LaravelCacheDriver,
-            client: $this->makeAmazeeClient($mock),
+        $recovery = new KeyExpiryRecovery($storage, new LaravelCacheDriver);
+
+        $handled = $recovery->handleAuthFailure(new \RuntimeException('code: expired_key'));
+
+        $this->assertFalse($handled, 'There is nothing to retry — the caller degrades gracefully');
+        $this->assertTrue($recovery->isAuthFailing(), 'Health marker is recorded via the Laravel cache');
+        $this->assertTrue($recovery->isUpgradeNeeded(), 'The persistent re-authentication signal is raised');
+        $this->assertSame(
+            'sk-expired-token',
+            $recovery->credentials()['litellm_token'],
+            'Stored credentials are left untouched — none are re-requested on this path'
         );
+    }
 
-        $first = $recovery->handleAuthFailure(new \RuntimeException('code: expired_key'));
+    public function test_non_auth_failure_is_ignored(): void
+    {
+        $recovery = new KeyExpiryRecovery(new InMemoryRecoveryStorage(self::EXPIRED_CREDS), new LaravelCacheDriver);
 
-        $this->assertTrue($first, 'An expired key triggers a re-provision');
-        $this->assertSame('sk-fresh-token', $recovery->credentials()['litellm_token'], 'Fresh credentials stored');
-        $this->assertFalse($recovery->isAuthFailing(), 'Successful recovery clears the marker via the Laravel cache');
-        $this->assertSame(0, $mock->count(), 'Both provisioning calls (trial + models) ran');
+        $handled = $recovery->handleAuthFailure(new \RuntimeException('connection timed out'));
 
-        // A second failure inside the window must not hit the provisioning API
-        // again — the MockHandler queue is empty, so any call would throw.
-        $second = $recovery->handleAuthFailure(new \RuntimeException('code: expired_key'));
-        $this->assertFalse($second, 'The window guard (read through the Laravel cache) blocks a second attempt');
+        $this->assertFalse($handled);
+        $this->assertFalse($recovery->isAuthFailing(), 'A transient network error is not an auth failure');
+        $this->assertFalse($recovery->isUpgradeNeeded());
     }
 
     public function test_record_auth_failure_visible_through_laravel_bridge(): void
@@ -101,6 +98,20 @@ class KeyExpiryRecoveryWiringTest extends TestCase
         $recovery->recordAuthFailure();
 
         $this->assertTrue($recovery->isAuthFailing(), 'Marker round-trips through the Laravel cache store');
+    }
+
+    public function test_upgrade_signal_round_trips_and_clears_through_laravel_bridge(): void
+    {
+        $recovery = new KeyExpiryRecovery(new InMemoryRecoveryStorage(self::EXPIRED_CREDS), new LaravelCacheDriver);
+
+        $this->assertFalse($recovery->isUpgradeNeeded());
+
+        $recovery->flagUpgradeNeeded();
+        $this->assertTrue($recovery->isUpgradeNeeded(), 'The re-authentication signal round-trips through the cache');
+
+        // A successful reconnect clears it — the state admin surfaces read.
+        $recovery->clearUpgradeNeeded();
+        $this->assertFalse($recovery->isUpgradeNeeded(), 'Clearing the signal after reconnect is visible immediately');
     }
 
     // -------------------------------------------------------------------
@@ -115,7 +126,7 @@ class KeyExpiryRecoveryWiringTest extends TestCase
 
         $this->assertTrue($result['ai_configured'], 'Credentials are still present');
         $this->assertTrue($result['ai_auth_failing'], 'The recorded marker must surface');
-        $this->assertFalse($result['ai_usable'], 'Known-expired credentials must not report usable');
+        $this->assertFalse($result['ai_usable'], 'Known-bad credentials must not report usable');
         $this->assertSame('degraded', $result['status']);
     }
 
@@ -184,17 +195,6 @@ class KeyExpiryRecoveryWiringTest extends TestCase
         );
 
         return $checker->check();
-    }
-
-    /**
-     * Build an AmazeeClient driven by the given MockHandler queue.
-     */
-    private function makeAmazeeClient(MockHandler $mock): AmazeeClient
-    {
-        return new AmazeeClient(
-            'https://api.amazee.ai',
-            new Client(['handler' => HandlerStack::create($mock)]),
-        );
     }
 }
 

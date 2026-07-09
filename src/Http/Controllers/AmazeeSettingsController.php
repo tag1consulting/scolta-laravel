@@ -13,7 +13,9 @@ use Tag1\Scolta\AiProvider\Amazee\AmazeeApiException;
 use Tag1\Scolta\AiProvider\Amazee\AmazeeClient;
 use Tag1\Scolta\AiProvider\Amazee\AmazeeModelResolver;
 use Tag1\Scolta\AiProvider\Amazee\AmazeeTrialProvisioner;
+use Tag1\Scolta\AiProvider\Amazee\KeyExpiryRecovery;
 use Tag1\ScoltaLaravel\AiProvider\Amazee\LaravelConfigStorage;
+use Tag1\ScoltaLaravel\Cache\LaravelCacheDriver;
 
 /**
  * Amazee.ai settings: multi-step connection flow.
@@ -44,6 +46,11 @@ class AmazeeSettingsController extends Controller
             'step' => $this->determineStep($creds, $flow, $hasExistingProvider),
             'email' => $flow['email'] ?? '',
             'hasExistingProvider' => $hasExistingProvider,
+            // True when the stored Amazee.ai credentials are no longer accepted
+            // and the operator needs to re-authenticate. The view shows a
+            // reconnect banner whose CTA runs the existing email-verification
+            // sign-in flow.
+            'upgradeNeeded' => $this->keyExpiryRecovery()->isUpgradeNeeded(),
         ]);
     }
 
@@ -176,6 +183,11 @@ class AmazeeSettingsController extends Controller
             $upgrader->upgrade($flow['session_token'], $validated['region_id']);
             $request->session()->forget(self::SESSION_KEY);
 
+            // Fresh credentials are stored — clear the re-authentication prompt.
+            // Policy: reconnection is always operator-initiated through this
+            // email-verification flow; credentials are never minted automatically.
+            $this->keyExpiryRecovery()->clearUpgradeNeeded();
+
             return response()->json(['step' => 'connected']);
         } catch (AmazeeApiException $e) {
             return response()->json(['error' => $e->getMessage()], 422);
@@ -191,6 +203,27 @@ class AmazeeSettingsController extends Controller
         $request->session()->forget(self::SESSION_KEY);
 
         return response()->json(['step' => 'start']);
+    }
+
+    /**
+     * Build the key-expiry recovery helper backed by the adapter's stores.
+     *
+     * Reads the persistent re-authentication marker (isUpgradeNeeded) and
+     * clears it after a successful reconnect (clearUpgradeNeeded). The cache
+     * is the same one the service provider and HealthController use, so the
+     * settings page, /health, and the recovery wiring stay consistent.
+     *
+     * @since 1.0.5
+     *
+     * @stability experimental
+     */
+    private function keyExpiryRecovery(): KeyExpiryRecovery
+    {
+        return new KeyExpiryRecovery(
+            storage: new LaravelConfigStorage,
+            cache: new LaravelCacheDriver,
+            logger: logger(),
+        );
     }
 
     /**

@@ -11,7 +11,23 @@
     The PHP-rendered `step` data attribute provides the initial state so
     the page works on first load without an extra AJAX round-trip.
 --}}
-<div x-data="amazeeSettings('{{ $step }}', '{{ $email }}')" x-init="init()">
+<div x-data="amazeeSettings('{{ $step }}', '{{ $email }}', @json($upgradeNeeded ?? false))" x-init="init()">
+
+    {{-- Re-authentication needed: the stored Amazee.ai credentials are no
+         longer accepted. Rendered server-side so it is present on first load,
+         and hidden client-side once a reconnect succeeds. The CTA runs the
+         existing email-verification sign-in flow. --}}
+    @if ($upgradeNeeded ?? false)
+        <div x-show="upgradeNeeded" class="alert alert-warning" role="alert">
+            <p>
+                Your Amazee.ai connection needs to be re-authenticated. AI search
+                features are paused until you reconnect.
+            </p>
+            <button type="button" @click="continueWithAmazee()" :disabled="loading" class="btn btn-primary btn-sm">
+                Continue with Amazee.ai
+            </button>
+        </div>
+    @endif
 
     {{-- Connected --}}
     <template x-if="step === 'connected'">
@@ -118,10 +134,11 @@
 @endphp
 
 <script>
-function amazeeSettings(initialStep, initialEmail) {
+function amazeeSettings(initialStep, initialEmail, upgradeNeeded) {
     return {
         step: initialStep || 'start',
         email: initialEmail || '',
+        upgradeNeeded: upgradeNeeded || false,
         code: '',
         region: @json($region ?? null),
         regions: [],
@@ -135,6 +152,13 @@ function amazeeSettings(initialStep, initialEmail) {
             if (this.step === 'region') {
                 await this.fetchRegions();
             }
+        },
+
+        // Re-authentication CTA: run the existing email-verification sign-in
+        // flow to reconnect the Amazee.ai account.
+        continueWithAmazee() {
+            this.error = '';
+            this.step = 'start';
         },
 
         async startTrial() {
@@ -195,6 +219,8 @@ function amazeeSettings(initialStep, initialEmail) {
             try {
                 const res = await this.post(this.routes.connect, { region_id: this.selectedRegion });
                 this.step = res.step;
+                // Reconnect succeeded — dismiss the re-authentication banner.
+                this.upgradeNeeded = false;
                 const cred = this.regions.find(r => r.id === this.selectedRegion);
                 this.region = cred ? (cred.name ?? cred.id) : this.selectedRegion;
             } catch (e) {
