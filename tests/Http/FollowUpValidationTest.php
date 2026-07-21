@@ -43,7 +43,7 @@ class FollowUpValidationTest extends TestCase
     {
         $response = $this->postJson('/api/scolta/v1/followup', [
             'messages' => [
-                ['role' => 'user', 'content' => str_repeat('a', 10001)],
+                ['role' => 'user', 'content' => str_repeat('a', 100001)],
             ],
         ]);
 
@@ -53,13 +53,14 @@ class FollowUpValidationTest extends TestCase
 
     public function test_rejects_payload_exceeding_total_cap(): void
     {
-        // Six messages of 9,000 chars each pass the per-message cap but sum
-        // to 54,000 — over the 50,000 total cap.
+        // 21 messages of 20,000 chars each pass the per-message cap (100,000)
+        // and the message-count cap (25) but sum to 420,000 — over the
+        // 400,000 total cap.
         $messages = [];
-        for ($i = 0; $i < 6; $i++) {
+        for ($i = 0; $i < 21; $i++) {
             $messages[] = [
                 'role' => $i % 2 === 0 ? 'user' : 'assistant',
-                'content' => str_repeat('b', 9000),
+                'content' => str_repeat('b', 20000),
             ];
         }
 
@@ -83,7 +84,30 @@ class FollowUpValidationTest extends TestCase
     {
         $response = $this->postJson('/api/scolta/v1/followup', [
             'messages' => [
-                ['role' => 'user', 'content' => str_repeat('a', 10000)],
+                ['role' => 'user', 'content' => str_repeat('a', 100000)],
+            ],
+        ]);
+
+        $response->assertOk();
+    }
+
+    /**
+     * Regression: the real UI seeds the conversation with the full AI-Overview
+     * context as the first user turn (the same excerpts the summarize endpoint
+     * accepts, which regularly exceed 10k chars), then the summary, then the
+     * follow-up question. Before the per-message cap was aligned with the
+     * summarize context size, this legitimate payload failed validation and the
+     * UI showed "Follow-up unavailable. Please try again."
+     */
+    public function test_accepts_conversation_seeded_with_full_summarize_context(): void
+    {
+        $context = str_repeat('excerpt ', 6000); // ~48k chars, like a real AI-Overview context
+
+        $response = $this->postJson('/api/scolta/v1/followup', [
+            'messages' => [
+                ['role' => 'user', 'content' => "Search query: blurred vision\n\nSearch result excerpts:\n{$context}"],
+                ['role' => 'assistant', 'content' => 'A short AI overview summary.'],
+                ['role' => 'user', 'content' => 'What causes the blurred vision?'],
             ],
         ]);
 
