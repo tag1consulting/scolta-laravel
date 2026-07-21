@@ -6,6 +6,11 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+### Changed
+- **Pagefind index chunks are preloaded while the user types** ([tag1consulting/scolta-php#232](https://github.com/tag1consulting/scolta-php/pull/232), issue [#191](https://github.com/tag1consulting/scolta-php/issues/191)). Scolta runs no search until Enter or the search button, so every submitted search also paid for fetching the alphabetical index chunk(s) for the typed term. The search input now hands the term to `pagefind.preload()` — the chunk-resolution half of a search, which bails out before scoring — behind a 150 ms trailing debounce, a 2-character floor, a repeat-term skip and a feature-detect on `preload`; failures are swallowed, so a cache warm can never break the search box.
+
+> Note: scolta-laravel serves `scolta.js` directly from the scolta-php dependency (no committed copy), so this ships automatically once the scolta-php dependency is updated to a release containing it. `AssetStatus` validates the published copy against the dependency's `assets/js/scolta.js.sha256`, so run `php artisan vendor:publish --tag=scolta-assets --force` after the upgrade or the status check will report drift. No Laravel-side code changed.
+
 ## [1.0.5] - 2026-07-09
 
 ### Changed
