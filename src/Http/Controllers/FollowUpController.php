@@ -18,16 +18,23 @@ use Tag1\ScoltaLaravel\Services\ScoltaAiService;
 class FollowUpController extends AiController
 {
     /**
-     * Maximum characters per individual message — generous enough for a
-     * pasted-back AI summary, far below an abuse-sized prompt.
+     * Maximum characters per individual message.
+     *
+     * The first conversation turn carries the full AI-Overview context
+     * (the same search-result excerpts the summarize endpoint accepts, up to
+     * ~50k chars), so this must be at least as large as that context. Aligned
+     * with scolta-php AiEndpointHandler::FOLLOW_UP_MAX_MESSAGE_CHARS so the
+     * two validation layers cannot disagree and reject a legitimate payload.
      */
-    private const MAX_MESSAGE_CHARS = 10000;
+    private const MAX_MESSAGE_CHARS = 100000;
 
     /**
-     * Maximum combined characters across all messages, matching the
-     * summarize endpoint's 50k context cap.
+     * Maximum combined characters across all messages. Aligned with
+     * scolta-php AiEndpointHandler::FOLLOW_UP_MAX_TOTAL_CHARS: a full
+     * conversation is the large first-turn context plus its summary plus
+     * several follow-up turns, each of which may itself embed extra context.
      */
-    private const MAX_TOTAL_CHARS = 50000;
+    private const MAX_TOTAL_CHARS = 400000;
 
     /**
      * Maximum number of messages in a conversation payload. The handler
