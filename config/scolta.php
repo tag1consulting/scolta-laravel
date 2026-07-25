@@ -286,6 +286,36 @@ return [
         // (K) is locked at 3 inside scolta-php and is no longer configurable.
         'expansion_combine_mode' => env('SCOLTA_EXPANSION_COMBINE_MODE'),
 
+        // Specificity-weighted and co-occurrence ranking.
+        // Each partial-match sub-query is weighted by how rare its term is in
+        // the corpus, so a match on a rare, intent-bearing term outranks a match
+        // on a ubiquitous one. On top of that, a document agreeing with several
+        // query and expansion terms outranks one matching a single strong term.
+        // None of these six appears in any scolta-php preset, so unlike the
+        // preset-overridable keys above they carry concrete defaults rather than
+        // a bare null. The defaults are byte-equal to the browser's own
+        // fallbacks, so leaving them alone changes nothing.
+        //   specificity_weighting — false restores flat sub-query weighting.
+        //   specificity_floor — floor for a ubiquitous term's weight (0-1);
+        //       lower damps harder. Never zero, so recall is preserved.
+        //   specificity_strong_match — specificity at which a match counts as
+        //       strong and on-intent (0-1), which stops the partial-match banner
+        //       and the AI summary framing a good result set as a failure.
+        //   specificity_cooccurrence — multiplier on the agreement bonus (0-5).
+        //       Set to 0 to score each document purely by its single best
+        //       sub-query, reproducing the prior maximum-only merge exactly.
+        //   specificity_agreement_gate — specificity a term must clear to count
+        //       toward that bonus (0-1), so near-ubiquitous words earn nothing.
+        //   specificity_agreement_decay — geometric factor per successive
+        //       agreeing axis (0-5). Below 1 the bonus saturates, so a long
+        //       enumerative page cannot out-accumulate a focused one.
+        'specificity_weighting' => env('SCOLTA_SPECIFICITY_WEIGHTING', true),
+        'specificity_floor' => env('SCOLTA_SPECIFICITY_FLOOR', 0.15),
+        'specificity_strong_match' => env('SCOLTA_SPECIFICITY_STRONG_MATCH', 0.55),
+        'specificity_cooccurrence' => env('SCOLTA_SPECIFICITY_COOCCURRENCE', 0.9),
+        'specificity_agreement_gate' => env('SCOLTA_SPECIFICITY_AGREEMENT_GATE', 0.45),
+        'specificity_agreement_decay' => env('SCOLTA_SPECIFICITY_AGREEMENT_DECAY', 1.0),
+
         // Pluggable recency functions (1.0.0+)
         // Strategies: 'exponential' (base default), 'linear', 'step', 'none',
         // 'custom'. Preset-overridable: null falls through to the preset (the
@@ -515,4 +545,29 @@ return [
     */
 
     'filter_field_descriptions' => [],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Hide Empty Facets
+    |--------------------------------------------------------------------------
+    |
+    | Controls what the filter sidebar does with a facet value that has no
+    | results for the current query.
+    |
+    | true (default) — mainstream faceted-search behavior: a zero-count value is
+    | hidden, and a filter group whose values are all zero drops entirely. An
+    | active (checked) value stays visible even at zero so it can be unchecked.
+    | This keeps a high-cardinality dimension from burying the useful values.
+    |
+    | false — every value renders, and a zero-count one is shown as a disabled
+    | "(0)" row. The value list stays positionally fixed across queries, which
+    | some sites prefer for predictability.
+    |
+    | Note this is a top-level key, not a 'scoring' one: the service provider
+    | merges published config with a shallow array_merge, so a top-level key
+    | still picks up the package default on a published config that predates it.
+    |
+    */
+
+    'hide_empty_facets' => env('SCOLTA_HIDE_EMPTY_FACETS', true),
 ];

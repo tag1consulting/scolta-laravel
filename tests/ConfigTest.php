@@ -277,6 +277,79 @@ class ConfigTest extends TestCase
             'show_attribution must default to false — attribution is opt-in.');
     }
 
+    public function test_hide_empty_facets_key_exists(): void
+    {
+        $this->assertArrayHasKey('hide_empty_facets', $this->config,
+            'hide_empty_facets key must be present in the config array.');
+    }
+
+    public function test_hide_empty_facets_defaults_to_true(): void
+    {
+        $this->assertTrue($this->config['hide_empty_facets'],
+            'hide_empty_facets must default to true — hiding zero-count values is the '
+            .'mainstream faceted-search behavior and the browser default.');
+    }
+
+    /**
+     * hide_empty_facets must stay top-level, not nested under scoring.
+     *
+     * The service provider merges published config with a shallow array_merge,
+     * so a top-level key still picks up the package default on a published
+     * config that predates it. Nested inside scoring it would not.
+     */
+    public function test_hide_empty_facets_is_top_level_not_scoring(): void
+    {
+        $this->assertArrayNotHasKey('hide_empty_facets', $this->config['scoring'],
+            'hide_empty_facets must be a top-level config key, not a scoring one.');
+    }
+
+    // -------------------------------------------------------------------
+    // Specificity and co-occurrence ranking
+    // -------------------------------------------------------------------
+
+    /**
+     * All six specificity defaults must be byte-equal to the browser's own
+     * fallbacks in scolta.js, or a Laravel site silently ranks differently
+     * from an unconfigured one.
+     */
+    public function test_specificity_defaults_match_the_browser_fallbacks(): void
+    {
+        $scoring = $this->config['scoring'];
+
+        $this->assertTrue($scoring['specificity_weighting']);
+        $this->assertEquals(0.15, $scoring['specificity_floor']);
+        $this->assertEquals(0.55, $scoring['specificity_strong_match']);
+        $this->assertEquals(0.9, $scoring['specificity_cooccurrence']);
+        $this->assertEquals(0.45, $scoring['specificity_agreement_gate']);
+        $this->assertEquals(1.0, $scoring['specificity_agreement_decay']);
+    }
+
+    /**
+     * None of the six appears in any ScoltaConfig preset, so per this config
+     * file's own convention they must carry concrete defaults rather than the
+     * bare null that means "fall through to the preset". A null here would
+     * reach ScoltaConfig as null and lose the documented default.
+     */
+    public function test_specificity_keys_are_not_preset_deferred_nulls(): void
+    {
+        $keys = [
+            'specificity_weighting',
+            'specificity_floor',
+            'specificity_strong_match',
+            'specificity_cooccurrence',
+            'specificity_agreement_gate',
+            'specificity_agreement_decay',
+        ];
+
+        foreach ($keys as $key) {
+            $this->assertArrayHasKey($key, $this->config['scoring'],
+                "scoring.$key must be present in the config array.");
+            $this->assertNotNull($this->config['scoring'][$key],
+                "scoring.$key must carry a concrete default: it appears in no preset, "
+                .'so a null would not fall through to anything.');
+        }
+    }
+
     // -------------------------------------------------------------------
     // Caching and rate limiting
     // -------------------------------------------------------------------

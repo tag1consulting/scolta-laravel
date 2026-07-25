@@ -298,4 +298,130 @@ class ScoltaConfigIntegrationTest extends TestCase
         $this->assertEquals('Custom summarize for {SITE_NAME}', $config->promptSummarize);
         $this->assertEquals('Custom follow-up for {SITE_NAME}', $config->promptFollowUp);
     }
+
+    // -------------------------------------------------------------------
+    // flattenConfig — grouping containers vs map-valued settings
+    // -------------------------------------------------------------------
+
+    /**
+     * A populated description map must survive flattenConfig() intact.
+     *
+     * Regression: the flattener hoisted the sub-keys of every associative array,
+     * which is right for a grouping container like `scoring` but destroys a
+     * map-valued setting. A configured `filter_field_descriptions` had its own
+     * field names ('topic', 'era') scattered across the top level as bogus
+     * settings, which ScoltaConfig then ignored, and the map itself vanished. So
+     * the setting could never take effect: not for the browser's filter labels
+     * and not for the AI expansion prompt either.
+     *
+     * It went unnoticed because both maps default to `[]`, and an empty array is
+     * a list rather than an associative array, so it passed through untouched.
+     * Only a site that actually configured one was affected.
+     */
+    public function test_flatten_config_preserves_populated_description_maps(): void
+    {
+        $flat = ScoltaAiService::flattenConfig([
+            'filter_field_descriptions' => ['topic' => 'Subject area', 'era' => 'Period'],
+            'sortable_field_descriptions' => ['date' => 'Publish date'],
+        ]);
+
+        $this->assertSame(
+            ['topic' => 'Subject area', 'era' => 'Period'],
+            $flat['filter_field_descriptions'],
+            'filter_field_descriptions must survive flattening as a whole map.'
+        );
+        $this->assertSame(
+            ['date' => 'Publish date'],
+            $flat['sortable_field_descriptions']
+        );
+        // And the map's own field names must NOT leak to the top level.
+        $this->assertArrayNotHasKey('topic', $flat);
+        $this->assertArrayNotHasKey('era', $flat);
+        $this->assertArrayNotHasKey('date', $flat);
+    }
+
+    /**
+     * Grouping containers must still be hoisted, which is what the flattener is
+     * for. Pins that the fix above did not over-reach.
+     */
+    public function test_flatten_config_still_hoists_grouping_containers(): void
+    {
+        $flat = ScoltaAiService::flattenConfig([
+            'scoring' => ['title_match_boost' => 2.0, 'specificity_floor' => 0.15],
+            'pagefind' => ['output_dir' => '/tmp/x'],
+            'cache_ttl' => 60,
+        ]);
+
+        $this->assertSame(2.0, $flat['title_match_boost']);
+        $this->assertSame(0.15, $flat['specificity_floor']);
+        $this->assertSame('/tmp/x', $flat['output_dir']);
+        $this->assertSame(60, $flat['cache_ttl']);
+        $this->assertArrayNotHasKey('scoring', $flat);
+        $this->assertArrayNotHasKey('pagefind', $flat);
+    }
+
+    /**
+     * A configured filter-description map must reach the typed property, which
+     * is what both the Blade component and the AI expansion prompt read.
+     */
+    public function test_configured_filter_field_descriptions_reach_the_typed_property(): void
+    {
+        $raw = $this->rawConfig;
+        $raw['filter_field_descriptions'] = ['topic' => 'Subject area'];
+
+        $flat = ScoltaAiService::flattenConfig($raw);
+        $flat['ai_api_key'] = 'test-key';
+        $config = ScoltaConfig::fromArray($flat);
+
+        $this->assertSame(['topic' => 'Subject area'], $config->filterFieldDescriptions);
+    }
+
+    // -------------------------------------------------------------------
+    // Facet visibility and specificity ranking
+    // -------------------------------------------------------------------
+
+    public function test_hide_empty_facets_defaults_to_true(): void
+    {
+        $this->assertTrue($this->makeConfig()->hideEmptyFacets);
+    }
+
+    /**
+     * The opt-out must survive flattenConfig() and reach the typed property,
+     * since the Blade component reads it from there to build window.scolta.
+     */
+    public function test_hide_empty_facets_opt_out_reaches_the_typed_property(): void
+    {
+        $this->assertFalse($this->makeConfig(['hide_empty_facets' => false])->hideEmptyFacets);
+    }
+
+    public function test_specificity_defaults_reach_the_typed_properties(): void
+    {
+        $config = $this->makeConfig();
+
+        $this->assertTrue($config->specificityWeighting);
+        $this->assertEquals(0.15, $config->specificityFloor);
+        $this->assertEquals(0.55, $config->specificityStrongMatch);
+        $this->assertEquals(0.9, $config->specificityCooccurrence);
+        $this->assertEquals(0.45, $config->specificityAgreementGate);
+        $this->assertEquals(1.0, $config->specificityAgreementDecay);
+    }
+
+    public function test_specificity_overrides_reach_the_typed_properties(): void
+    {
+        $config = $this->makeConfig([
+            'specificity_weighting' => false,
+            'specificity_floor' => 0.05,
+            'specificity_strong_match' => 0.7,
+            'specificity_cooccurrence' => 1.4,
+            'specificity_agreement_gate' => 0.3,
+            'specificity_agreement_decay' => 0.65,
+        ]);
+
+        $this->assertFalse($config->specificityWeighting);
+        $this->assertEquals(0.05, $config->specificityFloor);
+        $this->assertEquals(0.7, $config->specificityStrongMatch);
+        $this->assertEquals(1.4, $config->specificityCooccurrence);
+        $this->assertEquals(0.3, $config->specificityAgreementGate);
+        $this->assertEquals(0.65, $config->specificityAgreementDecay);
+    }
 }
