@@ -261,6 +261,12 @@ Scoring settings live under the `scoring` key in `config/scolta.php`.
 | Recency max penalty | — | `scoring.recency_max_penalty` | Maximum negative penalty for very old content |
 | Language | `SCOLTA_LANGUAGE` | `scoring.language` | ISO 639-1 code for stop word filtering |
 | Custom stop words | — | `scoring.custom_stop_words` | Extra stop words beyond the language's built-in list |
+| Specificity weighting | `SCOLTA_SPECIFICITY_WEIGHTING` | `scoring.specificity_weighting` | Weight each partial match by how rare its term is in the corpus (default `true`), so a match on a rare intent-bearing term outranks a match on a ubiquitous one. This is what stops a common word, typed or leaked from an expansion phrase, from flooding the head of the result list. `false` restores flat sub-query weighting |
+| Specificity floor | `SCOLTA_SPECIFICITY_FLOOR` | `scoring.specificity_floor` | Floor for a ubiquitous term's specificity weight (`0`-`1`, default `0.15`). Damped rather than dropped, so recall is preserved; lower is more aggressive damping |
+| Specificity strong match | `SCOLTA_SPECIFICITY_STRONG_MATCH` | `scoring.specificity_strong_match` | Specificity at or above which a match counts as strong and on-intent (`0`-`1`, default `0.55`), which stops the partial-match banner and the AI summary framing a good result set as a failure |
+| Co-occurrence bonus | `SCOLTA_SPECIFICITY_COOCCURRENCE` | `scoring.specificity_cooccurrence` | Multiplier on the bonus a result earns for agreeing with several query and expansion terms at once rather than matching one strongly (`0`-`5`, default `0.9`). Set to `0` to score each result purely by its single best-matching sub-query |
+| Co-occurrence gate | `SCOLTA_SPECIFICITY_AGREEMENT_GATE` | `scoring.specificity_agreement_gate` | Specificity a term must clear to count toward the agreement bonus (`0`-`1`, default `0.45`), so a near-ubiquitous word earns none |
+| Co-occurrence decay | `SCOLTA_SPECIFICITY_AGREEMENT_DECAY` | `scoring.specificity_agreement_decay` | Geometric factor applied to each successive agreeing term (`0`-`5`, default `1.0`). Below `1` the bonus saturates, so a long enumerative page cannot out-accumulate a focused one through breadth alone |
 | Expansion combine mode | `SCOLTA_EXPANSION_COMBINE_MODE` | `scoring.expansion_combine_mode` | How multi-term expansion sub-query results are combined for the AI summary: `relevance_union` or `round_robin`. Preset-defaulted in scolta-php (`round_robin` on the content_catalog/blog/ecommerce presets, `relevance_union` otherwise); an explicit value overrides the preset |
 
 Defaults and the full reference: [scolta-php `docs/CONFIG_REFERENCE.md`](https://github.com/tag1consulting/scolta-php/blob/main/docs/CONFIG_REFERENCE.md).
@@ -414,6 +420,7 @@ For the evidence behind each preset — the scoring sweeps and per-parameter dat
 | Sort descriptions | `sortable_field_descriptions` | `[]` | Human-readable sort field descriptions for LLM |
 | Filter fields | `filter_fields` | `[]` | Pagefind filter dimension names |
 | Filter descriptions | `filter_field_descriptions` | `[]` | Human-readable filter descriptions for LLM |
+| Hide empty facets | `hide_empty_facets` | `true` | Hide a facet value with no results for the current query, and drop a filter group whose values are all zero; an active value stays visible so it can be unchecked. Set `false` (or `SCOLTA_HIDE_EMPTY_FACETS=false`) to render every value, showing a zero-count one as a disabled "(0)" row |
 
 ### Amazee.ai Integration
 

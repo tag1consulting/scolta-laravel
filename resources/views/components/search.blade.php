@@ -60,6 +60,8 @@
             'wasmPath' => asset('vendor/scolta/wasm/scolta_core.js'),
             'pagefindPath' => asset(ltrim($indexUrl, '/') . '/pagefind.js'),
             'siteName' => $config->siteName ?: config('app.name', 'Laravel'),
+            'hideEmptyFacets' => $config->hideEmptyFacets,
+            'filterFieldDescriptions' => $config->filterFieldDescriptions,
             'container' => '#scolta-search',
             'allowedLinkDomains' => [],
             'disclaimer' => '',

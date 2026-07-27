@@ -222,11 +222,36 @@ class ScoltaAiService extends AiServiceAdapter
     }
 
     /**
+     * Config keys whose value is itself a map, not a group of settings.
+     *
+     * Every other associative array in config/scolta.php (`scoring`, `pagefind`,
+     * `models`, `memory_budget`) is a grouping container whose sub-keys are
+     * individual settings that must be hoisted to the top level for
+     * ScoltaConfig::fromArray(). These two are the opposite: the whole map IS
+     * the setting's value, keyed by the site's own field names, so hoisting it
+     * would scatter those field names across the top level as bogus settings and
+     * lose the setting itself.
+     *
+     * Both are empty by default, and an empty array is a list rather than an
+     * associative array, so the bug this list prevents only ever bit a site that
+     * actually configured one of them.
+     */
+    private const MAP_VALUED_KEYS = [
+        'filter_field_descriptions',
+        'sortable_field_descriptions',
+    ];
+
+    /**
      * Flatten nested config arrays for ScoltaConfig::fromArray().
      *
      * Laravel config uses nested arrays (scoring.title_match_boost),
      * but ScoltaConfig expects flat snake_case keys. This flattens
      * one level of nesting.
+     *
+     * Grouping containers are flattened; the map-valued keys listed in
+     * self::MAP_VALUED_KEYS are passed through whole. Note this does NOT prefix
+     * sub-keys with the parent key: `scoring.title_match_boost` becomes
+     * `title_match_boost`, which is what ScoltaConfig::fromArray() expects.
      *
      * @param  array<string, mixed>  $config
      * @return array<string, mixed>
@@ -236,8 +261,12 @@ class ScoltaAiService extends AiServiceAdapter
         $flat = [];
 
         foreach ($config as $key => $value) {
-            if (is_array($value) && ! array_is_list($value)) {
-                // Nested associative array — flatten with parent key prefix.
+            if (
+                is_array($value)
+                && ! array_is_list($value)
+                && ! in_array($key, self::MAP_VALUED_KEYS, true)
+            ) {
+                // Grouping container — hoist its settings to the top level.
                 foreach ($value as $subKey => $subValue) {
                     $flat[$subKey] = $subValue;
                 }
