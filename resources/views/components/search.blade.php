@@ -62,6 +62,19 @@
             'siteName' => $config->siteName ?: config('app.name', 'Laravel'),
             'hideEmptyFacets' => $config->hideEmptyFacets,
             'filterFieldDescriptions' => $config->filterFieldDescriptions,
+            // Search as you type. Ten top-level keys, not scoring keys. The
+            // suggestion action goes through the normalizer so an unrecognized
+            // configured value reaches the browser as 'navigate'.
+            'saytEnabled' => $config->saytEnabled,
+            'saytMinChars' => $config->saytMinChars,
+            'saytDebounceMs' => $config->saytDebounceMs,
+            'saytMaxSuggestions' => $config->saytMaxSuggestions,
+            'saytRecentSearches' => $config->saytRecentSearches,
+            'saytMaxRecent' => $config->saytMaxRecent,
+            'saytExpand' => $config->saytExpand,
+            'saytExpandPerMinute' => $config->saytExpandPerMinute,
+            'saytExpansionDelayMs' => $config->saytExpansionDelayMs,
+            'saytSuggestionAction' => $config->normalizedSaytSuggestionAction(),
             'container' => '#scolta-search',
             'allowedLinkDomains' => [],
             'disclaimer' => '',

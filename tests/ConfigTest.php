@@ -6,6 +6,7 @@ namespace Tag1\ScoltaLaravel\Tests;
 
 use Illuminate\Container\Container;
 use Illuminate\Foundation\Application;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Tag1\Scolta\Config\ScoltaConfig;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
@@ -301,6 +302,63 @@ class ConfigTest extends TestCase
     {
         $this->assertArrayNotHasKey('hide_empty_facets', $this->config['scoring'],
             'hide_empty_facets must be a top-level config key, not a scoring one.');
+    }
+
+    // -------------------------------------------------------------------
+    // Search as you type
+    // -------------------------------------------------------------------
+
+    /**
+     * The ten keys and the defaults the browser bundle falls back to.
+     *
+     * @return array<string, array{0: string, 1: bool|int|string}>
+     */
+    public static function saytDefaultsProvider(): array
+    {
+        return [
+            'sayt_enabled' => ['sayt_enabled', true],
+            'sayt_min_chars' => ['sayt_min_chars', 2],
+            'sayt_debounce_ms' => ['sayt_debounce_ms', 150],
+            'sayt_max_suggestions' => ['sayt_max_suggestions', 6],
+            'sayt_recent_searches' => ['sayt_recent_searches', true],
+            'sayt_max_recent' => ['sayt_max_recent', 3],
+            'sayt_expand' => ['sayt_expand', true],
+            'sayt_expand_per_minute' => ['sayt_expand_per_minute', 6],
+            'sayt_expansion_delay_ms' => ['sayt_expansion_delay_ms', 500],
+            'sayt_suggestion_action' => ['sayt_suggestion_action', 'navigate'],
+        ];
+    }
+
+    /**
+     * Every default must be byte-equal to the browser's own fallback, or a
+     * Laravel site behaves differently from an unconfigured one for no reason
+     * anybody can see.
+     */
+    #[DataProvider('saytDefaultsProvider')]
+    public function test_sayt_key_exists_with_its_documented_default(string $key, bool|int|string $expected): void
+    {
+        $this->assertArrayHasKey($key, $this->config,
+            "$key must be present in the config array.");
+        $this->assertSame($expected, $this->config[$key],
+            "$key must default to the value the browser bundle falls back to.");
+    }
+
+    /**
+     * The ten must stay top-level, not nested under scoring or a sayt group.
+     *
+     * mergeConfigFrom() is a shallow array_merge, so a top-level key still
+     * picks up the package default on a published config that predates it.
+     * Nested inside any group it would not: the published group replaces the
+     * package's group whole.
+     */
+    #[DataProvider('saytDefaultsProvider')]
+    public function test_sayt_key_is_top_level(string $key, bool|int|string $expected): void
+    {
+        $this->assertArrayNotHasKey($key, $this->config['scoring'],
+            "$key must be a top-level config key, not a scoring one.");
+        $this->assertArrayNotHasKey('sayt', $this->config,
+            'The SAYT settings must not be grouped: a published config that predates '
+            .'a nested group would replace it whole and lose every default in it.');
     }
 
     // -------------------------------------------------------------------
