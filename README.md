@@ -422,6 +422,30 @@ For the evidence behind each preset — the scoring sweeps and per-parameter dat
 | Filter descriptions | `filter_field_descriptions` | `[]` | Human-readable filter descriptions for LLM |
 | Hide empty facets | `hide_empty_facets` | `true` | Hide a facet value with no results for the current query, and drop a filter group whose values are all zero; an active value stays visible so it can be unchecked. Set `false` (or `SCOLTA_HIDE_EMPTY_FACETS=false`) to render every value, showing a zero-count one as a disabled "(0)" row |
 
+### Search as You Type
+
+Typing in the search box populates a suggestions dropdown under it. The full search — AI query expansion, the AI summary, follow-ups — still runs only on Enter, on the search button, or when a visitor picks a suggestion. It is on by default and needs no index rebuild: suggestions read the index you already have.
+
+| Setting | `.env` key | `config/scolta.php` key | Default | Description |
+| ------- | ---------- | ----------------------- | ------- | ----------- |
+| Suggestions | `SCOLTA_SAYT_ENABLED` | `sayt_enabled` | `true` | Master switch. `false` restores the pre-1.1.0 widget exactly: no dropdown node, no combobox ARIA roles, no browser storage, no suggest searches |
+| Minimum characters | `SCOLTA_SAYT_MIN_CHARS` | `sayt_min_chars` | `2` | Characters typed before suggestions are requested, counted in graphemes so an emoji is one character. CJK sites commonly want `1` |
+| Typing debounce | `SCOLTA_SAYT_DEBOUNCE_MS` | `sayt_debounce_ms` | `150` | Trailing debounce in milliseconds before a suggest cycle fires |
+| Max suggestions | `SCOLTA_SAYT_MAX_SUGGESTIONS` | `sayt_max_suggestions` | `6` | Most suggestions shown, and the cap on fragment loads per pass |
+| Recent searches | `SCOLTA_SAYT_RECENT_SEARCHES` | `sayt_recent_searches` | `true` | Offer the visitor's own recent searches, kept in their browser under a single `localStorage` key. `false` reads and writes nothing |
+| Max recent searches | `SCOLTA_SAYT_MAX_RECENT` | `sayt_max_recent` | `3` | Most recent searches shown above the content suggestions |
+| AI enrichment | `SCOLTA_SAYT_EXPAND` | `sayt_expand` | `true` | Enrich suggestions with AI query expansion. Inert with no AI endpoints configured or with `ai.expand_query` off |
+| AI enrichment cap | `SCOLTA_SAYT_EXPAND_PER_MINUTE` | `sayt_expand_per_minute` | `6` | Expansion calls per visitor per minute. SAYT expansions share the AI flood budget with committed searches, so an uncapped suggest path would spend a visitor's allowance on prefixes and starve the search they actually ran. Over the cap the dropdown degrades to keyword-only suggestions |
+| AI enrichment delay | `SCOLTA_SAYT_EXPANSION_DELAY_MS` | `sayt_expansion_delay_ms` | `500` | Idle milliseconds before an enrichment call. Longer than the typing debounce on purpose |
+| Suggestion action | `SCOLTA_SAYT_SUGGESTION_ACTION` | `sayt_suggestion_action` | `navigate` | `navigate` goes straight to the result; `search` puts the title in the box and runs the full search. A recent search always searches |
+
+**If you have already published `config/scolta.php`, check it before relying on these defaults.** The service provider merges the package config with `mergeConfigFrom()`, which is a shallow `array_merge()` of the package file under your published one. That is why all ten are top-level keys rather than a `sayt` group: a top-level key missing from your published file still picks up the package default, while a published `sayt` group would have replaced the package's group whole and taken every default in it with it. Two cases still need your attention:
+
+- **You want to change a value.** Add the key to your published `config/scolta.php`. Editing the package file under `vendor/` is not persistent.
+- **You run `php artisan config:cache`.** `mergeConfigFrom()` is skipped entirely when the configuration is cached, so a cached config built before this release carries none of these keys. Re-run `php artisan config:cache` after upgrading.
+
+Full behaviour, including the browser events and the theming custom properties: [scolta-php `docs/SAYT.md`](https://github.com/tag1consulting/scolta-php/blob/main/docs/SAYT.md).
+
 ### Amazee.ai Integration
 
 Amazee.ai provides a managed LiteLLM proxy with a free trial. Scolta auto-provisions a trial on the first AI request when no `SCOLTA_API_KEY` is configured.

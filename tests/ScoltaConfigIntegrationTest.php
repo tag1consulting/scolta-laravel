@@ -424,4 +424,147 @@ class ScoltaConfigIntegrationTest extends TestCase
         $this->assertEquals(0.3, $config->specificityAgreementGate);
         $this->assertEquals(0.65, $config->specificityAgreementDecay);
     }
+
+    // -------------------------------------------------------------------
+    // Search as you type
+    // -------------------------------------------------------------------
+
+    /**
+     * The ten keys and their documented defaults.
+     *
+     * @return array<string, bool|int|string>
+     */
+    private function saytDefaults(): array
+    {
+        return [
+            'sayt_enabled' => true,
+            'sayt_min_chars' => 2,
+            'sayt_debounce_ms' => 150,
+            'sayt_max_suggestions' => 6,
+            'sayt_recent_searches' => true,
+            'sayt_max_recent' => 3,
+            'sayt_expand' => true,
+            'sayt_expand_per_minute' => 6,
+            'sayt_expansion_delay_ms' => 500,
+            'sayt_suggestion_action' => 'navigate',
+        ];
+    }
+
+    /**
+     * All ten SAYT keys must survive flattenConfig() untouched.
+     *
+     * They are scalars at the top level, so the flattener's associative-array
+     * branch never sees them and MAP_VALUED_KEYS must NOT gain entries for them.
+     * That is the whole point of asserting it here rather than only downstream:
+     * adding them to MAP_VALUED_KEYS would look harmless and pass every
+     * emission test, because passing a scalar through whole and hoisting
+     * nothing are the same operation for a scalar — right up until someone
+     * groups them under a 'sayt' key and the list silently stops the hoist.
+     */
+    public function test_flatten_config_passes_every_sayt_key_through_untouched(): void
+    {
+        $flat = ScoltaAiService::flattenConfig($this->rawConfig);
+
+        foreach ($this->saytDefaults() as $key => $expected) {
+            $this->assertArrayHasKey(
+                $key,
+                $flat,
+                "$key must survive flattenConfig() as a top-level key."
+            );
+            $this->assertSame(
+                $expected,
+                $flat[$key],
+                "$key must reach ScoltaConfig::fromArray() as its documented default."
+            );
+        }
+    }
+
+    /**
+     * The map-key passthrough list must stay exactly the two description maps.
+     *
+     * Every SAYT setting is a scalar, so none of them belongs on it.
+     */
+    public function test_map_valued_keys_gained_no_sayt_entries(): void
+    {
+        $reflected = new \ReflectionClassConstant(ScoltaAiService::class, 'MAP_VALUED_KEYS');
+
+        $this->assertSame(
+            ['filter_field_descriptions', 'sortable_field_descriptions'],
+            $reflected->getValue(),
+            'MAP_VALUED_KEYS must stay the two description maps. Every SAYT setting is a '
+            .'scalar and the flattener already passes scalars through.'
+        );
+    }
+
+    public function test_sayt_defaults_reach_the_typed_properties(): void
+    {
+        $config = $this->makeConfig();
+
+        $this->assertTrue($config->saytEnabled);
+        $this->assertSame(2, $config->saytMinChars);
+        $this->assertSame(150, $config->saytDebounceMs);
+        $this->assertSame(6, $config->saytMaxSuggestions);
+        $this->assertTrue($config->saytRecentSearches);
+        $this->assertSame(3, $config->saytMaxRecent);
+        $this->assertTrue($config->saytExpand);
+        $this->assertSame(6, $config->saytExpandPerMinute);
+        $this->assertSame(500, $config->saytExpansionDelayMs);
+        $this->assertSame('navigate', $config->saytSuggestionAction);
+    }
+
+    public function test_sayt_overrides_reach_the_typed_properties(): void
+    {
+        $config = $this->makeConfig([
+            'sayt_enabled' => false,
+            'sayt_min_chars' => 1,
+            'sayt_debounce_ms' => 400,
+            'sayt_max_suggestions' => 10,
+            'sayt_recent_searches' => false,
+            'sayt_max_recent' => 5,
+            'sayt_expand' => false,
+            'sayt_expand_per_minute' => 2,
+            'sayt_expansion_delay_ms' => 800,
+            'sayt_suggestion_action' => 'search',
+        ]);
+
+        $this->assertFalse($config->saytEnabled);
+        $this->assertSame(1, $config->saytMinChars);
+        $this->assertSame(400, $config->saytDebounceMs);
+        $this->assertSame(10, $config->saytMaxSuggestions);
+        $this->assertFalse($config->saytRecentSearches);
+        $this->assertSame(5, $config->saytMaxRecent);
+        $this->assertFalse($config->saytExpand);
+        $this->assertSame(2, $config->saytExpandPerMinute);
+        $this->assertSame(800, $config->saytExpansionDelayMs);
+        $this->assertSame('search', $config->saytSuggestionAction);
+    }
+
+    /**
+     * An env-supplied value arrives as a string, and every SAYT key is typed.
+     * fromArray() casts to the declared property type, so the flattened config
+     * has to survive that path too.
+     */
+    public function test_string_valued_sayt_settings_are_cast_to_their_property_types(): void
+    {
+        $config = $this->makeConfig([
+            'sayt_enabled' => '0',
+            'sayt_min_chars' => '3',
+            'sayt_debounce_ms' => '250',
+        ]);
+
+        $this->assertFalse($config->saytEnabled);
+        $this->assertSame(3, $config->saytMinChars);
+        $this->assertSame(250, $config->saytDebounceMs);
+    }
+
+    /**
+     * An unrecognized suggestion action must not reach the browser as itself.
+     */
+    public function test_an_unknown_suggestion_action_normalizes_to_navigate(): void
+    {
+        $config = $this->makeConfig(['sayt_suggestion_action' => 'teleport']);
+
+        $this->assertSame('navigate', $config->normalizedSaytSuggestionAction());
+        $this->assertSame('navigate', $config->toBrowserConfig()['saytSuggestionAction']);
+    }
 }

@@ -191,6 +191,105 @@ class SearchComponentRenderTest extends TestCase
     }
 
     // -------------------------------------------------------------------
+    // Search as you type
+    // -------------------------------------------------------------------
+
+    /**
+     * The ten emitted keys and the defaults the browser bundle falls back to.
+     *
+     * @return array<string, bool|int|string>
+     */
+    private function saytBrowserDefaults(): array
+    {
+        return [
+            'saytEnabled' => true,
+            'saytMinChars' => 2,
+            'saytDebounceMs' => 150,
+            'saytMaxSuggestions' => 6,
+            'saytRecentSearches' => true,
+            'saytMaxRecent' => 3,
+            'saytExpand' => true,
+            'saytExpandPerMinute' => 6,
+            'saytExpansionDelayMs' => 500,
+            'saytSuggestionAction' => 'navigate',
+        ];
+    }
+
+    public function test_every_sayt_key_is_emitted_with_its_default(): void
+    {
+        $this->writeFile($this->outputDir.'/pagefind/pagefind-entry.json', '{}');
+
+        $config = $this->renderAndParseConfig();
+
+        foreach ($this->saytBrowserDefaults() as $key => $expected) {
+            $this->assertArrayHasKey(
+                $key,
+                $config,
+                "$key must be emitted; the component hand-builds its config array, so every "
+                .'scolta-php browser key has to be added to it by hand.'
+            );
+            $this->assertSame($expected, $config[$key], "$key must be emitted as its documented default.");
+        }
+    }
+
+    /**
+     * The off direction is the load-bearing one, exactly as with
+     * hideEmptyFacets: SAYT is on by default in the bundle too, so a component
+     * that dropped the value entirely would still look correct in the on state.
+     *
+     * This goes through config() rather than a constructed ScoltaConfig, so it
+     * covers the whole published-config path: config value -> flattenConfig() ->
+     * ScoltaConfig::fromArray() -> the component's emitted window.scolta.
+     */
+    public function test_a_published_config_disabling_sayt_reaches_the_browser(): void
+    {
+        $this->writeFile($this->outputDir.'/pagefind/pagefind-entry.json', '{}');
+        $this->setScoltaConfig(['scolta.sayt_enabled' => false]);
+
+        $this->assertFalse($this->renderAndParseConfig()['saytEnabled']);
+    }
+
+    /**
+     * And every other key overridden through the same path, since a default
+     * that happens to match proves nothing about the bridge.
+     */
+    public function test_published_sayt_overrides_reach_the_browser(): void
+    {
+        $this->writeFile($this->outputDir.'/pagefind/pagefind-entry.json', '{}');
+        $this->setScoltaConfig([
+            'scolta.sayt_min_chars' => 1,
+            'scolta.sayt_debounce_ms' => 400,
+            'scolta.sayt_max_suggestions' => 10,
+            'scolta.sayt_recent_searches' => false,
+            'scolta.sayt_max_recent' => 5,
+            'scolta.sayt_expand' => false,
+            'scolta.sayt_expand_per_minute' => 2,
+            'scolta.sayt_expansion_delay_ms' => 800,
+            'scolta.sayt_suggestion_action' => 'search',
+        ]);
+
+        $config = $this->renderAndParseConfig();
+
+        $this->assertSame(1, $config['saytMinChars']);
+        $this->assertSame(400, $config['saytDebounceMs']);
+        $this->assertSame(10, $config['saytMaxSuggestions']);
+        $this->assertFalse($config['saytRecentSearches']);
+        $this->assertSame(5, $config['saytMaxRecent']);
+        $this->assertFalse($config['saytExpand']);
+        $this->assertSame(2, $config['saytExpandPerMinute']);
+        $this->assertSame(800, $config['saytExpansionDelayMs']);
+        $this->assertSame('search', $config['saytSuggestionAction']);
+    }
+
+    public function test_an_unknown_suggestion_action_is_emitted_as_navigate(): void
+    {
+        $this->writeFile($this->outputDir.'/pagefind/pagefind-entry.json', '{}');
+        $this->setScoltaConfig(['scolta.sayt_suggestion_action' => 'teleport']);
+
+        $this->assertSame('navigate', $this->renderAndParseConfig()['saytSuggestionAction']);
+    }
+
+    // -------------------------------------------------------------------
     // Browser-config parity
     // -------------------------------------------------------------------
 

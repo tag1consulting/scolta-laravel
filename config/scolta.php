@@ -570,4 +570,77 @@ return [
     */
 
     'hide_empty_facets' => env('SCOLTA_HIDE_EMPTY_FACETS', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Search As You Type
+    |--------------------------------------------------------------------------
+    |
+    | Typing in the search box populates a suggestions dropdown under it. The
+    | full pipeline — AI query expansion, the AI summary, follow-ups — still
+    | runs only on Enter, on the search button, or on selecting a suggestion.
+    |
+    | On by default, and no index rebuild is needed: suggestions read the index
+    | you already have. Set sayt_enabled to false and the widget is byte for
+    | byte the pre-1.1.0 one — no dropdown node, no combobox ARIA roles on the
+    | input, no browser storage access, no suggest searches.
+    |
+    | These are ten top-level keys rather than a nested 'sayt' group, for the
+    | same reason hide_empty_facets is top-level: mergeConfigFrom() is a shallow
+    | array_merge, so a published config that predates them picks up the package
+    | defaults at the top level, while a nested group would be replaced whole by
+    | whatever the published file happens to contain.
+    |
+    | Full behaviour, including the browser events and the theming custom
+    | properties: scolta-php docs/SAYT.md.
+    |
+    */
+
+    // Master switch for the suggestions dropdown.
+    'sayt_enabled' => env('SCOLTA_SAYT_ENABLED', true),
+
+    // Characters typed before suggestions are requested, counted in graphemes
+    // so an emoji or a Devanagari cluster counts as the one character the
+    // person typing it sees. CJK sites commonly want 1: a single han character
+    // is already a meaningful query.
+    'sayt_min_chars' => env('SCOLTA_SAYT_MIN_CHARS', 2),
+
+    // Trailing debounce, in milliseconds, before a suggest cycle fires.
+    'sayt_debounce_ms' => env('SCOLTA_SAYT_DEBOUNCE_MS', 150),
+
+    // Most suggestions shown, and the hard cap on fragment loads per pass.
+    'sayt_max_suggestions' => env('SCOLTA_SAYT_MAX_SUGGESTIONS', 6),
+
+    // Offer the visitor's own recent searches, stored in their browser under a
+    // single scolta-prefixed localStorage key. When false, nothing is read from
+    // or written to storage at all.
+    'sayt_recent_searches' => env('SCOLTA_SAYT_RECENT_SEARCHES', true),
+
+    // Most recent searches shown. How many are stored is internal to the
+    // browser bundle and deliberately larger, so the prefix filter still has
+    // something to match.
+    'sayt_max_recent' => env('SCOLTA_SAYT_MAX_RECENT', 3),
+
+    // Enrich the dropdown with AI query-expansion term matches. Inert when no
+    // AI endpoints are configured or when ai.expand_query is off.
+    'sayt_expand' => env('SCOLTA_SAYT_EXPAND', true),
+
+    // Client-side sliding-window cap on SAYT expansion calls per minute. SAYT
+    // expansions share the AI flood budget with committed searches — expansion,
+    // summarize and follow-up all count against the same per-IP limit — so an
+    // unbudgeted suggest path would spend a visitor's whole allowance on
+    // prefixes and starve the search they actually ran. Over the cap the
+    // dropdown degrades to keyword-only suggestions until the window rolls.
+    'sayt_expand_per_minute' => env('SCOLTA_SAYT_EXPAND_PER_MINUTE', 6),
+
+    // Idle delay, in milliseconds, before the AI enrichment call. Separate from
+    // and longer than the suggestion debounce: keyword suggestions should
+    // appear while typing, an AI call should not.
+    'sayt_expansion_delay_ms' => env('SCOLTA_SAYT_EXPANSION_DELAY_MS', 500),
+
+    // What selecting a title suggestion does. 'navigate' goes straight to that
+    // result; 'search' puts the title in the box and runs the full search. A
+    // recent-search suggestion always runs the search regardless. An
+    // unrecognized value clamps to 'navigate'.
+    'sayt_suggestion_action' => env('SCOLTA_SAYT_SUGGESTION_ACTION', 'navigate'),
 ];
