@@ -251,7 +251,13 @@ class EmptyAppKeyBuildTest extends TestCase
         });
 
         foreach ($head->chained as $serialized) {
-            $job = unserialize($serialized);
+            // allowed_classes is pinned to the two job classes this chain can
+            // legitimately contain. The payload is Laravel's own, but an
+            // unbounded unserialize() in a test is still a bad pattern to leave
+            // lying around for the next person to copy.
+            $job = unserialize($serialized, [
+                'allowed_classes' => [FinalizeIndex::class, ProcessIndexChunk::class],
+            ]);
             if ($job instanceof FinalizeIndex) {
                 return $job;
             }
