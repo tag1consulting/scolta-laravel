@@ -23,6 +23,7 @@ use Tag1\ScoltaLaravel\Services\ContentSource;
 use Tag1\ScoltaLaravel\Services\PagefindRunner;
 use Tag1\ScoltaLaravel\Services\QueueRebuildDispatcher;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
+use Tag1\ScoltaLaravel\Support\HmacSecret;
 
 /**
  * Build or rebuild the Scolta search index.
@@ -166,7 +167,16 @@ class BuildCommand extends Command
     private function buildWithPhpIndexer(ContentSource $source, string $outputDir): int
     {
         $stateDir = config('scolta.state_dir', storage_path('app/scolta'));
-        $hmacSecret = config('app.key');
+        // An app that has not run key:generate has APP_KEY='', not null, and
+        // forwarding that into the indexer used to abort the build inside
+        // hash_init(). Skip integrity tagging instead, and say so: the operator
+        // running this command is the one who can fix it.
+        $hmacSecret = HmacSecret::normalize(config('app.key'));
+        if ($hmacSecret === null) {
+            foreach (HmacSecret::EMPTY_APP_KEY_WARNING_LINES as $line) {
+                $this->warn($line);
+            }
+        }
         $language = config('scolta.ai_languages.0', 'en');
         $budget = MemoryBudgetConfig::fromCliAndConfig(
             $this->option('memory-budget'),
