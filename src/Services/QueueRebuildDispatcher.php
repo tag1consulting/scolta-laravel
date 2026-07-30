@@ -14,6 +14,7 @@ use Tag1\Scolta\Index\BuildIntent;
 use Tag1\Scolta\Index\MemoryBudget;
 use Tag1\ScoltaLaravel\Jobs\FinalizeIndex;
 use Tag1\ScoltaLaravel\Jobs\ProcessIndexChunk;
+use Tag1\ScoltaLaravel\Support\HmacSecret;
 
 /**
  * Stream content into state-dir chunk files and dispatch the rebuild chain.
@@ -131,7 +132,14 @@ class QueueRebuildDispatcher
         try {
             $stateDir = config('scolta.state_dir', storage_path('app/scolta'));
             $outputDir = config('scolta.pagefind.output_dir', public_path('scolta-pagefind'));
-            $hmacSecret = config('app.key');
+            // Same empty-APP_KEY coercion as BuildCommand: '' would abort the
+            // chain inside hash_init() in a worker process. There is no console
+            // to warn on here, so the warning goes to the log, which is where an
+            // operator debugging a queued rebuild is already looking.
+            $hmacSecret = HmacSecret::normalize(config('app.key'));
+            if ($hmacSecret === null) {
+                logger()->warning('[scolta] '.HmacSecret::emptyAppKeyWarning());
+            }
             $language = config('scolta.ai_languages.0', 'en');
 
             $payloadDir = $stateDir.'/queue-payload';
