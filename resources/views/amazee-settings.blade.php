@@ -1,7 +1,9 @@
 {{--
     Amazee.ai settings page.
 
-    Multi-step Alpine.js UI for the Amazee.ai connection flow:
+    Multi-step Alpine.js UI for the Amazee.ai connection flow. Every step
+    runs from an explicit operator action on this page.
+
       - start:        email input + "Start trial" / "Sign in" buttons
       - verification: code input
       - region:       region selection list
@@ -59,7 +61,7 @@
     {{-- Start: email + trial/sign-in --}}
     <template x-if="step === 'start'">
         <div>
-            <p>Connect Scolta to Amazee.ai for privacy-respecting, budget-aware AI search.</p>
+            <p>Enable Amazee.ai for AI-powered search with a free trial; sign up with Amazee to keep it when the trial ends.</p>
             <div class="mb-3">
                 <label for="amazee-email">Email address</label>
                 <input type="email" id="amazee-email" x-model="email" class="form-control" />

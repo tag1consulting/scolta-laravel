@@ -15,19 +15,33 @@ use Tag1\ScoltaLaravel\AiProvider\Amazee\LaravelConfigStorage;
 use Tag1\ScoltaLaravel\Cache\LaravelCacheDriver;
 
 /**
- * Provision an Amazee.ai free trial account from the command line.
+ * Enable the managed Amazee.ai gateway from the command line.
  *
- * Equivalent to clicking "Start free trial" on the settings page.
- * Useful for automated provisioning in CI/CD pipelines or Kubernetes
- * init containers where there is no browser session.
+ * Equivalent to clicking "Start free trial" on the settings page, and one of
+ * the two surfaces that enable the gateway. Both are explicit operator
+ * actions; nothing on a request path enables it. Useful in CI/CD pipelines or
+ * Kubernetes init containers where there is no browser session.
  */
 class AmazeeProvisionCommand extends Command
 {
+    /**
+     * The offer this command acts on.
+     *
+     * The settings page states it in the same words. A test asserts the view
+     * carries this exact sentence, so the two enable surfaces cannot drift
+     * into describing the same offer differently.
+     *
+     * @since 1.1.0
+     *
+     * @stability experimental
+     */
+    public const OFFER_LINE = 'Enable Amazee.ai for AI-powered search with a free trial; sign up with Amazee to keep it when the trial ends.';
+
     protected $signature = 'scolta:amazee:provision
                             {email : Email address for the Amazee.ai trial account}
                             {--force : Provision even if an AI provider is already configured}';
 
-    protected $description = 'Provision a free Amazee.ai trial account and store credentials';
+    protected $description = 'Enable Amazee.ai for AI-powered search and store the connection';
 
     public function handle(): int
     {
@@ -38,6 +52,8 @@ class AmazeeProvisionCommand extends Command
 
             return self::FAILURE;
         }
+
+        $this->line(self::OFFER_LINE);
 
         // If the stored credentials are no longer accepted, tell the operator
         // why AI is degraded and how to reconnect before continuing. Running
