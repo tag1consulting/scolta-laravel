@@ -56,11 +56,11 @@ return [
     |
     | 'openai'     — Use OpenAI directly. Set SCOLTA_API_KEY.
     |
-    | 'amazee'     — Use the Amazee.ai managed gateway. Run
-    |               `php artisan scolta:amazee:provision` to set up your
-    |               connection, or leave SCOLTA_AI_PROVIDER unset — Scolta
-    |               auto-provisions a free trial on the first AI request
-    |               when no API key is configured.
+    | 'amazee'     — Use the Amazee.ai managed gateway. Enable it explicitly:
+    |               run `php artisan scolta:amazee:provision`, or use the
+    |               Amazee.ai settings page. Nothing enables it on your
+    |               behalf, so until you do, AI features stay off and search
+    |               runs without them.
     |
     */
 
@@ -481,8 +481,8 @@ return [
     | credentials and start trials, so they are only registered when you
     | set 'amazee_middleware' to something beyond the bare ['web'] group —
     | typically ['web', 'auth']. With the default value below, the routes
-    | do not exist (requests get 404). CLI provisioning
-    | (artisan scolta:amazee:provision) and auto-provisioning still work.
+    | do not exist (requests get 404) and the CLI
+    | (artisan scolta:amazee:provision) is the way to enable the gateway.
     |
     */
 

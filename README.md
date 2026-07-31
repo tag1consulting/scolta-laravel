@@ -448,7 +448,9 @@ Full behaviour, including the browser events and the theming custom properties: 
 
 ### Amazee.ai Integration
 
-Amazee.ai provides a managed LiteLLM proxy with a free trial. Scolta auto-provisions a trial on the first AI request when no `SCOLTA_API_KEY` is configured.
+Amazee.ai provides a managed LiteLLM proxy with a free trial. Enable Amazee.ai for AI-powered search with a free trial; sign up with Amazee to keep it when the trial ends.
+
+Enabling it is an explicit action, through either the CLI command or the admin settings page below. Nothing enables it on your behalf: with no `SCOLTA_API_KEY` and no stored connection, search runs with AI features off (queries are not expanded and no summary is generated) until you enable one or the other. Configuring `SCOLTA_API_KEY` takes precedence and clears any stored Amazee.ai connection, so a leftover connection can never shadow your own key.
 
 **CLI provisioning:**
 
@@ -463,7 +465,7 @@ php artisan scolta:amazee:provision user@example.com
 'amazee_middleware' => ['web', 'auth'],
 ```
 
-With the shipped default (`['web']`), requests to these routes return 404. CLI provisioning and first-request auto-provisioning work without the admin UI.
+With the shipped default (`['web']`), requests to these routes return 404 and the CLI command above is the way to enable Amazee.ai.
 
 **Routes (when enabled):**
 
@@ -618,7 +620,7 @@ php artisan scolta:memory-budget            # Show the current memory budget pro
 php artisan scolta:memory-budget --set=balanced  # Set profile: conservative, balanced, or aggressive
 php artisan scolta:download-pagefind        # Download Pagefind binary for your platform
 php artisan scolta:check-setup              # Verify PHP, indexer, and configuration
-php artisan scolta:amazee:provision {email}  # Provision a free Amazee.ai trial account
+php artisan scolta:amazee:provision {email}  # Enable Amazee.ai with a free trial
 php artisan scolta:amazee:provision {email} --force  # Provision even if a provider is already configured
 ```
 

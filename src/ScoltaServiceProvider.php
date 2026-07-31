@@ -9,7 +9,6 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
-use Tag1\Scolta\AiProvider\Amazee\AutoProvisioner;
 use Tag1\Scolta\AiProvider\Amazee\KeyExpiryRecovery;
 use Tag1\ScoltaLaravel\AiProvider\Amazee\LaravelConfigStorage;
 use Tag1\ScoltaLaravel\Cache\LaravelCacheDriver;
@@ -61,21 +60,25 @@ class ScoltaServiceProvider extends ServiceProvider
 
         // Bind the AI service as a singleton — one instance per request,
         // config read once, reused across all three endpoints.
-        // Amazee.ai credentials are only injected when no explicit API key is
-        // configured so users who set SCOLTA_API_KEY are never silently rerouted.
+        // The managed Amazee.ai gateway is enabled explicitly by an operator,
+        // through the settings page or `artisan scolta:amazee:provision`; this
+        // factory only ever reads the credentials such an action stored. It
+        // establishes no connection of its own, so a request can never turn AI
+        // on by itself. Amazee credentials are read only when no explicit API
+        // key is configured, so users who set SCOLTA_API_KEY are never silently
+        // rerouted.
         $this->app->singleton(ScoltaAiService::class, function ($app) {
             $config = $app['config']['scolta'];
             $amazeeActive = false;
 
             // Explicit key (SCOLTA_API_KEY env var or published config) wins.
             $explicitKey = $config['ai_api_key'] ?? '';
-            if ($explicitKey === '') {
-                // First-run Amazee.ai trial provisioning, deferred to the first
-                // AI request: this factory only runs when something actually
-                // needs the AI service, never inside provider boot, so the
-                // provisioning HTTP call cannot block unrelated page loads.
-                $this->attemptAmazeeAutoProvisioning();
-
+            if ($explicitKey !== '') {
+                // The operator is on their own provider now: drop any stored
+                // managed-gateway connection so no leftover state shadows the
+                // explicit key.
+                $this->clearAmazeeConnection();
+            } else {
                 try {
                     $storage = new LaravelConfigStorage;
                     $creds = $storage->load();
@@ -100,20 +103,21 @@ class ScoltaServiceProvider extends ServiceProvider
                                 $config['ai_expansion_model'] = $models['ai_expansion_model'];
                             }
                         } else {
-                            // Half-provisioned: credentials are stored but model
-                            // resolution never succeeded, so config still carries
-                            // the shipped dated default — which the Amazee LiteLLM
-                            // gateway rejects with HTTP 400, breaking AI
-                            // permanently and silently. Do NOT inject the Amazee
-                            // key: a key-less client throws ApiKeyMissingException,
-                            // which the controllers degrade to an unexpanded/
-                            // no-summary HTTP 200, never a 400. $amazeeActive stays
-                            // true (credentials ARE stored) so /health and
-                            // key-expiry recovery still see the Amazee path; the
-                            // state self-heals once /model/info recovers (see the
-                            // hasResolvedModels predicate in
-                            // attemptAmazeeAutoProvisioning()). Mirrors
-                            // scolta-node's AmazeeAiService::buildClient().
+                            // Credentials are stored but model resolution never
+                            // succeeded, so config still carries the shipped
+                            // dated default — which the Amazee LiteLLM gateway
+                            // rejects with HTTP 400, breaking AI permanently and
+                            // silently. Do NOT inject the Amazee key: a key-less
+                            // client throws ApiKeyMissingException, which the
+                            // controllers degrade to an unexpanded/no-summary
+                            // HTTP 200, never a 400. $amazeeActive stays true
+                            // (credentials ARE stored) so /health and key-expiry
+                            // recovery still see the Amazee path. Model names are
+                            // resolved and stored by the explicit enable paths
+                            // (settings page, `scolta:amazee:provision`), so
+                            // re-running either one clears this state; nothing is
+                            // re-resolved from a request. Mirrors scolta-node's
+                            // AmazeeAiService::buildClient().
                             $amazeeActive = true;
                         }
                     }
@@ -126,15 +130,17 @@ class ScoltaServiceProvider extends ServiceProvider
             $service = new ScoltaAiService($config, $amazeeActive);
 
             if ($amazeeActive) {
-                // Auto-provisioned path only: an expired/revoked Amazee trial
-                // key now triggers a one-shot re-provision (guarded to one
-                // attempt per window) and a single retry instead of silently
-                // killing AI. The explicit-key branch above leaves
-                // $amazeeActive false and returns this service unwired, so a
-                // user's own key is never re-provisioned behind their back;
-                // budget-exhaustion is excluded by KeyExpiryRecovery so it
-                // cannot reset the spend ceiling. The recovery markers live in
-                // the same cache HealthController reads, keeping /health honest.
+                // Managed-gateway path only: when the stored credentials stop
+                // being accepted, KeyExpiryRecovery records that state and
+                // raises the re-authentication signal the settings page and
+                // `scolta:status` show, instead of silently killing AI. It
+                // never requests credentials — reconnecting is an operator
+                // action. The explicit-key branch above leaves $amazeeActive
+                // false and returns this service unwired, so a user's own key is
+                // never touched; budget-exhaustion is excluded by
+                // KeyExpiryRecovery so it cannot reset the spend ceiling. The
+                // recovery markers live in the same cache HealthController
+                // reads, keeping /health honest.
                 $service->setKeyExpiryRecovery(new KeyExpiryRecovery(
                     storage: new LaravelConfigStorage,
                     cache: new LaravelCacheDriver,
@@ -186,73 +192,53 @@ class ScoltaServiceProvider extends ServiceProvider
             }
         }
 
-        // NOTE: Amazee.ai auto-provisioning intentionally does NOT run here.
-        // It is deferred to the first resolution of ScoltaAiService (see
-        // register()) so a blocking provisioning HTTP call never runs inside
-        // provider boot on user-facing requests that don't touch AI at all.
+        // NOTE: nothing here — or on any request path — establishes the managed
+        // Amazee.ai gateway connection. It is enabled explicitly through the
+        // settings page or `artisan scolta:amazee:provision`, so no page load
+        // carries the cost or the consequence of turning AI on.
     }
 
     /**
-     * Attempt Amazee.ai trial provisioning, once per installation.
+     * Drop a stored managed-gateway connection and its recovery markers.
      *
-     * Called lazily from the ScoltaAiService singleton factory — i.e. on the
-     * first AI request — never from boot(). No-op when SCOLTA_API_KEY is
-     * configured, credentials are already stored, or the DB is not yet
-     * migrated. Uses a cache flag so the attempt (including its DB lookup)
-     * only happens once per installation regardless of outcome.
+     * Called from the AI-service factory when an explicit API key is
+     * configured. Stored credentials are unreachable at that point — the
+     * explicit key wins — and leaving them in place would let a stale
+     * connection resurface the moment the key is removed, and keep
+     * `/health` and the settings page reporting a connection the site is
+     * not using. Both recovery markers go with them: they describe the
+     * credentials being cleared, so a re-authentication prompt for a
+     * connection that no longer exists is noise.
+     *
+     * Cheap in the common case: one indexed lookup that finds nothing and
+     * returns. A DB that is not migrated yet simply has nothing to clear.
+     *
+     * @since 1.1.0
+     *
+     * @stability experimental
      */
-    private function attemptAmazeeAutoProvisioning(): void
+    private function clearAmazeeConnection(): void
     {
-        $cacheKey = 'scolta_amazee_provisioned';
-        if (Cache::has($cacheKey)) {
-            return;
-        }
-
-        $hasExplicitApiKey = config('scolta.ai_api_key', '') !== '';
-
         try {
             $storage = new LaravelConfigStorage;
-            $provisioned = AutoProvisioner::ensureAiAvailable(
-                $storage,
-                hasExplicitApiKey: $hasExplicitApiKey,
-                onModelsResolved: function (string $aiModel, string $aiExpansionModel) use ($storage): void {
-                    $storage->storeModels($aiModel, $aiExpansionModel);
-                },
-                // Report whether models are already resolved. When credentials
-                // are stored but resolution previously failed (no stored
-                // models), this returns false and ensureAiAvailable() re-resolves
-                // against the ALREADY-STORED key — self-healing the
-                // half-provisioned state — instead of no-opping forever and
-                // leaving createClient() to send the gateway the dated default
-                // (HTTP 400). The separate models store is empty in the
-                // unresolved state, which is the clean signal.
-                hasResolvedModels: fn (): bool => self::modelsAreResolved($storage->loadModels()),
+            if ($storage->load() === null) {
+                return;
+            }
+
+            $storage->clear();
+
+            $recovery = new KeyExpiryRecovery(
+                storage: $storage,
+                cache: new LaravelCacheDriver,
+                logger: logger(),
             );
+            $recovery->clearUpgradeNeeded();
+            $recovery->clearAuthFailure();
 
-            // Cache the attempt as complete UNLESS the store is half-provisioned
-            // (credentials present but model resolution still failed). A
-            // half-provisioned state must NOT be cached as done: leaving the
-            // flag unset re-enters this method on the next request, where
-            // ensureAiAvailable() re-resolves against the stored key — never a
-            // new trial (that branch only runs with no credentials). Caching it
-            // would strand the dated default at the gateway forever. With no
-            // credentials, or an explicit key, there is nothing left to resolve,
-            // so the flag is set to avoid re-attempting a fresh trial each request.
-            $halfProvisioned = ! $hasExplicitApiKey && $this->amazeeHalfProvisioned($storage);
-            if (! $halfProvisioned) {
-                Cache::put($cacheKey, true, now()->addDays(30));
-            }
-
-            if ($provisioned) {
-                logger()->info('[scolta] Amazee.ai trial provisioned automatically.');
-            }
+            logger()->info('[scolta] An explicit AI API key is configured; the stored Amazee.ai connection was cleared.');
         } catch (\Exception $e) {
-            // DB not migrated or API unreachable — degrade gracefully and
-            // retry on a later request, but only log once per hour instead
-            // of report()-ing on every single request.
-            if (Cache::add('scolta_amazee_provision_deferred', true, 3600)) {
-                logger()->info('[scolta] Amazee auto-provisioning deferred (DB not migrated or API unreachable): '.$e->getMessage());
-            }
+            // DB not migrated — there is nothing stored to clear.
+            report($e);
         }
     }
 
@@ -260,10 +246,11 @@ class ScoltaServiceProvider extends ServiceProvider
      * Whether a genuinely resolved Amazee AI model name is stored.
      *
      * The Amazee models store (LaravelConfigStorage::storeModels()) is written
-     * only when model resolution succeeds, so it is empty in the
-     * half-provisioned state — the clean signal that the `/model/info` step
-     * failed. Unlike Drupal/WordPress, no dated-default exclusion is needed: the
-     * store is never seeded with the dated default.
+     * only when model resolution succeeds during an explicit enable, so it is
+     * empty when the `/model/info` step failed — the clean signal that the
+     * stored credentials cannot drive the gateway yet. Unlike Drupal/WordPress,
+     * no dated-default exclusion is needed: the store is never seeded with the
+     * dated default.
      *
      * @param  array{ai_model: string, ai_expansion_model: string}|null  $models
      *
@@ -274,21 +261,6 @@ class ScoltaServiceProvider extends ServiceProvider
     private static function modelsAreResolved(?array $models): bool
     {
         return $models !== null && $models['ai_model'] !== '';
-    }
-
-    /**
-     * Whether credentials are stored but model resolution has not succeeded.
-     *
-     * This is the half-provisioned state the self-heal targets: a provision
-     * whose `/model/info` step failed left credentials with no resolved models.
-     *
-     * @since 1.0.4
-     *
-     * @stability experimental
-     */
-    private function amazeeHalfProvisioned(LaravelConfigStorage $storage): bool
-    {
-        return $storage->load() !== null && ! self::modelsAreResolved($storage->loadModels());
     }
 
     /**
@@ -365,9 +337,8 @@ class ScoltaServiceProvider extends ServiceProvider
      * are only registered when the consumer has explicitly configured
      * 'scolta.amazee_middleware' beyond the bare ['web'] group — e.g.
      * ['web', 'auth']. With the shipped default the routes do not exist
-     * (anonymous requests get 404). CLI provisioning via
-     * `artisan scolta:amazee:provision` and first-request auto-provisioning
-     * are unaffected.
+     * (anonymous requests get 404) and the CLI, `artisan
+     * scolta:amazee:provision`, is the way to enable the managed gateway.
      *
      * @since 1.0.4
      *

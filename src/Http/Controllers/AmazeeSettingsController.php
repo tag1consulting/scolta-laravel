@@ -20,6 +20,10 @@ use Tag1\ScoltaLaravel\Cache\LaravelCacheDriver;
 /**
  * Amazee.ai settings: multi-step connection flow.
  *
+ * One of the two surfaces that enable the managed Amazee.ai gateway; the other
+ * is `artisan scolta:amazee:provision`. Every step here runs from an explicit
+ * operator action, and no other code path establishes the connection.
+ *
  *  Trial path:   email → POST trial → connected.
  *  Sign-in path: email → OTP email → enter code → select region → connected.
  *
@@ -195,12 +199,21 @@ class AmazeeSettingsController extends Controller
     }
 
     /**
-     * DELETE — disconnect from Amazee.ai and clear stored credentials.
+     * DELETE — switch off Amazee.ai and clear the stored connection.
+     *
+     * Clears the recovery markers along with the credentials. Both markers
+     * describe credentials that are now gone, so leaving them set would keep
+     * `/health` reporting a degraded connection and keep this page showing a
+     * reconnect prompt for a connection the operator deliberately ended.
      */
     public function disconnect(Request $request): JsonResponse
     {
         (new LaravelConfigStorage)->clear();
         $request->session()->forget(self::SESSION_KEY);
+
+        $recovery = $this->keyExpiryRecovery();
+        $recovery->clearUpgradeNeeded();
+        $recovery->clearAuthFailure();
 
         return response()->json(['step' => 'start']);
     }
