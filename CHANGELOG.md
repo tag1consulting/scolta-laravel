@@ -6,6 +6,9 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+### Changed
+- **Opened the `1.1.1-dev` cycle (`composer.json`).** `v1.1.0` is tagged, but the `version` field still declared `1.1.0` — the version already shipped — so commits landing after the release accumulated against a bare release version instead of a dev pre-release. `composer.lock` is deliberately left alone: the `version` field feeds its content hash, but this package's `composer.json` carries a development path repo to `../scolta-php`, which now advertises `1.1.1-dev` and outranks Packagist, so regenerating the hash re-resolves `tag1/scolta-php` away from the stable Packagist zip the `lock-guard` job requires. The stale hash is a `composer install` warning, not a resolution error, and it clears on its own at the next real dependency change. The `tag1/scolta-php` constraint stays `^1.1.0`, which already allows `1.1.1`.
+
 ## [1.1.0] - 2026-08-01
 
 ### Added
