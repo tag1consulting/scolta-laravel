@@ -188,7 +188,8 @@ class ManualProviderAndTwoActionConnectTest extends TestCase
     {
         $offenders = [];
         foreach ($this->operatorFacingFiles() as $relative => $contents) {
-            foreach (['auto-provisioned', 'auto provisioned'] as $banned) {
+            // The prefix, so 'auto-provisioning' is caught as well.
+            foreach (['auto-provision', 'auto provision'] as $banned) {
                 if (stripos($contents, $banned) !== false) {
                     $offenders[] = "{$relative}: {$banned}";
                 }
