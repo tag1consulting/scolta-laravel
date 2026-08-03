@@ -46,7 +46,12 @@ return [
     |--------------------------------------------------------------------------
     |
     | The AI provider to use for query expansion and summarization.
-    | Options: 'anthropic', 'openai', 'amazee', 'laravel'
+    | Options: '' (none), 'anthropic', 'openai', 'amazee', 'laravel'
+    |
+    | There is NO DEFAULT. Until you set SCOLTA_AI_PROVIDER, AI features are
+    | off: search works exactly as it does now, no provider is assumed, and
+    | Anthropic in particular is not silently assumed. Setting this value is
+    | the manual opt-in.
     |
     | 'laravel'    — Laravel 12+ only. Use the Laravel AI SDK (laravel/ai).
     |               The SDK handles provider selection and API keys via
@@ -56,15 +61,19 @@ return [
     |
     | 'openai'     — Use OpenAI directly. Set SCOLTA_API_KEY.
     |
-    | 'amazee'     — Use the Amazee.ai managed gateway. Enable it explicitly:
-    |               run `php artisan scolta:amazee:provision`, or use the
-    |               Amazee.ai settings page. Nothing enables it on your
-    |               behalf, so until you do, AI features stay off and search
-    |               runs without them.
+    | 'amazee'     — Use the Amazee.ai managed gateway. Selecting it connects
+    |               nothing on its own: run `php artisan scolta:amazee:provision`
+    |               to start the free demo (no email required), or use the
+    |               Amazee.ai settings page, which offers that demo and an
+    |               email sign-in to your own amazee.ai account. Amazee support
+    |               is email-only — amazee.ai issues and manages the keys, so
+    |               there is no bring-your-own-key path. Until you take one of
+    |               those actions, AI features stay off and search runs without
+    |               them.
     |
     */
 
-    'ai_provider' => env('SCOLTA_AI_PROVIDER', 'anthropic'),
+    'ai_provider' => env('SCOLTA_AI_PROVIDER', ''),
     'ai_api_key' => env('SCOLTA_API_KEY', ''),
     'ai_model' => env('SCOLTA_AI_MODEL', ScoltaAiService::DEFAULT_MODEL),
     'ai_expansion_model' => env('SCOLTA_EXPANSION_MODEL', ''),

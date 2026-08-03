@@ -96,9 +96,17 @@ class AmazeeAdminRouteSecurityTest extends TestCase
     {
         $this->assertTrue(Route::has('scolta.amazee.trial'));
 
-        // The request passes the guard and reaches the controller: an empty
-        // payload fails the controller's own email validation (422), which
-        // proves the route is reachable when the configured guard allows it.
-        $this->postJson('/scolta/amazee/trial', [])->assertUnprocessable();
+        // The request passes the guard and reaches the controller. Reaching it
+        // is the whole assertion: what matters here is that a satisfied guard
+        // does not turn the route into a 403 or a 404. It used to be shown by a
+        // 422 from the controller's own email validation, but the demo takes no
+        // email now, so an empty payload is a valid request rather than an
+        // invalid one — the response is whatever the (unreachable, unmigrated)
+        // Amazee control plane produces, and only the two guard statuses are
+        // ruled out.
+        $status = $this->postJson('/scolta/amazee/trial', [])->getStatusCode();
+
+        $this->assertNotSame(403, $status, 'a satisfied guard must not forbid the request');
+        $this->assertNotSame(404, $status, 'the route must exist when the guard is configured');
     }
 }
