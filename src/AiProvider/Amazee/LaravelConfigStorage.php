@@ -6,7 +6,8 @@ namespace Tag1\ScoltaLaravel\AiProvider\Amazee;
 
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
-use Tag1\Scolta\AiProvider\Amazee\ConfigStorageInterface;
+use Tag1\Scolta\AiProvider\Amazee\AmazeeConnectionSource;
+use Tag1\Scolta\AiProvider\Amazee\ProvenanceAwareConfigStorageInterface;
 
 /**
  * Laravel config storage for Amazee.ai credentials.
@@ -18,10 +19,24 @@ use Tag1\Scolta\AiProvider\Amazee\ConfigStorageInterface;
  *
  * The scolta_config table is a generic key/value store — other Scolta
  * subsystems can use it without additional migrations.
+ *
+ * Provenance-aware: it also records which operator action established the
+ * connection, so no surface has to guess between the free demo and an
+ * operator's own amazee.ai account.
  */
-class LaravelConfigStorage implements ConfigStorageInterface
+class LaravelConfigStorage implements ProvenanceAwareConfigStorageInterface
 {
     private const KEY = 'amazee_credentials';
+
+    /**
+     * Row key for the recorded connection source.
+     *
+     * Kept beside the credentials rather than inside them so an existing
+     * credential payload does not change shape, and so a connection made
+     * before this row existed reads as "not recorded" rather than as a
+     * default.
+     */
+    private const SOURCE_KEY = 'amazee_connection_source';
 
     /**
      * {@inheritdoc}
@@ -74,7 +89,36 @@ class LaravelConfigStorage implements ConfigStorageInterface
      */
     public function clear(): void
     {
-        DB::table('scolta_config')->where('key', self::KEY)->delete();
+        // The provenance goes with the credentials it describes. Left behind,
+        // it would be paired with whatever connection comes next, which is a
+        // guess wearing a recorded fact's clothes.
+        DB::table('scolta_config')->whereIn('key', [self::KEY, self::SOURCE_KEY])->delete();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function storeConnectionSource(AmazeeConnectionSource $source): void
+    {
+        DB::table('scolta_config')->upsert(
+            [['key' => self::SOURCE_KEY, 'value' => $source->value, 'updated_at' => now()]],
+            ['key'],
+            ['value', 'updated_at'],
+        );
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function loadConnectionSource(): ?AmazeeConnectionSource
+    {
+        $row = DB::table('scolta_config')->where('key', self::SOURCE_KEY)->first();
+
+        // NULL is the right answer for a connection made before provenance was
+        // recorded. It must read as "not recorded", never as a default.
+        return is_object($row) && is_string($row->value ?? null)
+            ? AmazeeConnectionSource::tryFrom($row->value)
+            : null;
     }
 
     /**

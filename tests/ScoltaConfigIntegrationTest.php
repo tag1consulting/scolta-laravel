@@ -163,7 +163,10 @@ class ScoltaConfigIntegrationTest extends TestCase
     {
         $client = $this->makeConfig()->toAiClientConfig();
 
-        $this->assertEquals('anthropic', $client['provider']);
+        // Carried through as-is: there is no default provider, so the shipped
+        // config selects none and the client config states that rather than
+        // filling in Anthropic.
+        $this->assertSame('', $client['provider']);
         $this->assertArrayHasKey('model', $client);
         $this->assertArrayHasKey('api_key', $client);
     }
