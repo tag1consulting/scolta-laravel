@@ -124,15 +124,24 @@ class StatusCommand extends Command
             $this->line('  API key:  configured (Amazee.ai credentials)');
             $this->reportAmazeeConnectionState();
         } else {
-            $provider = $ai->getConfig()->aiProvider ?: 'anthropic';
+            // No coalescing to a provider nobody chose: an empty value means
+            // AI is off, and a status command has to report that rather than
+            // name Anthropic.
+            $provider = $ai->getConfig()->aiProvider;
             $hasKey = ! empty($ai->getConfig()->aiApiKey);
-            $this->line("  Provider: {$provider} (built-in)");
-            if ($hasKey) {
-                $this->line('  API key:  configured');
+            if ($provider === '') {
+                $this->warn('  Provider: none selected — AI features are off (search is unaffected)');
+                $this->line('  Options:  Set SCOLTA_AI_PROVIDER in .env, or run:');
+                $this->line('              php artisan scolta:amazee:provision  (free demo, no email)');
             } else {
-                $this->warn('  API key:  NOT SET');
-                $this->line('  Options:  Set SCOLTA_API_KEY in .env, or run:');
-                $this->line('              php artisan scolta:amazee:provision  (free trial)');
+                $this->line("  Provider: {$provider} (built-in)");
+                if ($hasKey) {
+                    $this->line('  API key:  configured');
+                } else {
+                    $this->warn('  API key:  NOT SET');
+                    $this->line('  Options:  Set SCOLTA_API_KEY in .env, or run:');
+                    $this->line('              php artisan scolta:amazee:provision  (free demo, no email)');
+                }
             }
         }
 

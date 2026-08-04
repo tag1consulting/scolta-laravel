@@ -215,7 +215,7 @@ All settings live in `config/scolta.php` with `.env` overrides. After editing `c
 
 | Setting | `.env` key | `config/scolta.php` key | Default | Description |
 | ------- | ---------- | ----------------------- | ------- | ----------- |
-| Provider | `SCOLTA_AI_PROVIDER` | `ai_provider` | `anthropic` | `anthropic` or `openai` |
+| Provider | `SCOLTA_AI_PROVIDER` | `ai_provider` | *(none)* | `anthropic`, `openai` or `amazee`. No default: while none is selected, AI features are off and search works exactly as it does now. |
 | API key | `SCOLTA_API_KEY` | `ai_api_key` | — | Authentication for AI features |
 | Model | `SCOLTA_AI_MODEL` | `ai_model` | `claude-sonnet-4-5-20250929` | LLM model identifier |
 | Expansion model | `SCOLTA_EXPANSION_MODEL` | `ai_expansion_model` | `''` (same as `ai_model`) | Optional separate model for query expansion. When set, `expand-query` uses this model while `summarize` and `followup` use `ai_model`. Empty means all AI operations use `ai_model`. |
@@ -230,7 +230,7 @@ All settings live in `config/scolta.php` with `.env` overrides. After editing `c
 In `.env`:
 
 ```env
-SCOLTA_AI_PROVIDER=anthropic
+SCOLTA_AI_PROVIDER=anthropic   # required — there is no default; omit it and AI features stay off
 SCOLTA_API_KEY=sk-ant-...
 SCOLTA_AI_MODEL=claude-sonnet-4-5-20250929
 SCOLTA_AI_EXPAND=true
@@ -448,14 +448,22 @@ Full behaviour, including the browser events and the theming custom properties: 
 
 ### Amazee.ai Integration
 
-Amazee.ai provides a managed LiteLLM proxy with a free trial. Enable Amazee.ai for AI-powered search with a free trial; sign up with Amazee to keep it when the trial ends.
+Amazee.ai provides a managed LiteLLM proxy. Try it for AI-powered search with a free demo, no email required; sign in with your email to set up an account and keep it when the demo credit runs out.
 
-Enabling it is an explicit action, through either the CLI command or the admin settings page below. Nothing enables it on your behalf: with no `SCOLTA_API_KEY` and no stored connection, search runs with AI features off (queries are not expanded and no summary is generated) until you enable one or the other. Configuring `SCOLTA_API_KEY` takes precedence and clears any stored Amazee.ai connection, so a leftover connection can never shadow your own key.
+Connecting is an explicit action, through either the CLI command or the admin settings page below, and there are exactly two of them:
+
+- **Try the demo** — one action, no email, no account, no card. Runs until the demo's included credit is used up. One-time per site: once it has been used, the settings page and the command both point you at the account path instead of failing opaquely.
+- **Enter your Amazee credentials** — sign in with the email address on your amazee.ai account. Amazee emails a verification code, you pick a region, and your account's credentials are stored for you. If you do not have an account yet, this creates one. You never generate or paste an API key: this mirrors amazee.ai's own `ai_provider_amazeeio` module, so there is deliberately no bring-your-own-key form. This flow needs a browser, so it lives on the settings page rather than in the command.
+
+Nothing connects on your behalf: with no `SCOLTA_API_KEY` and no stored connection, search runs with AI features off (queries are not expanded and no summary is generated) until you take one of those actions. Configuring `SCOLTA_API_KEY` takes precedence and clears any stored Amazee.ai connection, so a leftover connection can never shadow your own key.
+
+The settings page and `php artisan scolta:status` state which of the two actions established the current connection, because that is recorded when it happens rather than inferred afterwards; a connection made before Scolta recorded it says only "Connected to Amazee.ai".
 
 **CLI provisioning:**
 
 ```bash
-php artisan scolta:amazee:provision user@example.com
+php artisan scolta:amazee:provision            # the free demo — no email needed
+php artisan scolta:amazee:provision user@example.com   # optionally bind the demo to an address
 ```
 
 **Admin UI:** The admin settings UI at `/scolta/amazee` (configurable via `amazee_route_prefix`) provides the multi-step connection flow. Its routes can disconnect stored AI credentials, so they are **disabled by default** — they are only registered when you configure `amazee_middleware` with protection beyond the bare `['web']` group:

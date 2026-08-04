@@ -177,7 +177,11 @@ class AiProviderOptInTest extends TestCase
         );
 
         $this->assertStringContainsString('AmazeeTrialProvisioner', $src);
-        $this->assertStringContainsString("->provision(\$validated['email'])", $src);
+        // With no email. Trying the demo must cost an operator no input at all;
+        // an address is what the account path collects, because amazee.ai needs
+        // one to issue a real account.
+        $this->assertStringContainsString('->provision()', $src);
+        $this->assertStringNotContainsString("->provision(\$validated['email'])", $src);
         $this->assertTrue((new ReflectionClass(AmazeeSettingsController::class))->hasMethod('startTrial'));
     }
 

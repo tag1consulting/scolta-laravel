@@ -59,14 +59,18 @@ class AmazeeSettingsController extends Controller
     }
 
     /**
-     * POST — provision a free trial account.
+     * POST — establish the free demo connection, on one click and no input.
+     *
+     * Deliberately validates and sends no email. Trying the demo must cost an
+     * operator nothing; an address is what the account path collects, because
+     * amazee.ai needs one to issue a real account. Requiring one here put the
+     * account path's cost on the cheapest way to evaluate Scolta's AI.
+     *
+     * The demo is one-time per site. When its credit is gone the control plane
+     * refuses, and the caller is pointed at the account flow.
      */
     public function startTrial(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'email' => 'required|email',
-        ]);
-
         try {
             $storage = new LaravelConfigStorage;
             $amazeeClient = new AmazeeClient;
@@ -76,7 +80,7 @@ class AmazeeSettingsController extends Controller
                 null,
                 new AmazeeModelResolver($amazeeClient),
             );
-            $result = $provisioner->provision($validated['email']);
+            $result = $provisioner->provision();
 
             if ($result->aiModel !== null) {
                 $storage->storeModels($result->aiModel, $result->aiExpansionModel ?? '');

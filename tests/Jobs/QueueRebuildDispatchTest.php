@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase;
 use Tag1\Scolta\Config\MemoryBudgetConfig;
 use Tag1\Scolta\Export\ContentItem;
+use Tag1\Scolta\Index\MemoryBudget;
 use Tag1\Scolta\Index\PhpIndexer;
 use Tag1\ScoltaLaravel\Jobs\FinalizeIndex;
 use Tag1\ScoltaLaravel\Jobs\ProcessIndexChunk;
@@ -150,11 +151,30 @@ class QueueRebuildDispatchTest extends TestCase
 
         (new TriggerRebuild(force: true))->handle(app(QueueRebuildDispatcher::class));
 
-        Bus::assertDispatched(ProcessIndexChunk::class, function (ProcessIndexChunk $job) {
-            // The balanced profile's chunk size is 200 — both the job's
-            // offset inputs and the dispatcher's chunking derive from it.
-            return $job->memoryBudget === 'balanced' && $job->chunkSize === 200;
-        });
+        // Derived, not hardcoded. This asserted `chunkSize === 200`, the
+        // balanced profile's raw figure, which stopped being the answer when
+        // MemoryBudget::fromOptions() began applying withCeiling(): a profile
+        // whose budget meets or exceeds the process memory_limit is cut down to
+        // fit, so balanced yields 200 pages on a large host and 33 in a 128 MB
+        // PHP process. The literal encoded the test runner's memory_limit, not
+        // anything about propagation, so the test failed on exactly the
+        // machines the ceiling exists to protect.
+        $expected = MemoryBudget::fromOptions('balanced')->chunkSize();
+
+        Bus::assertDispatched(
+            ProcessIndexChunk::class,
+            fn (ProcessIndexChunk $job) => $job->memoryBudget === 'balanced'
+                && $job->chunkSize === $expected,
+        );
+
+        // And it is genuinely the *configured* profile that arrived, not the
+        // default one coincidentally matching. Without this the assertion above
+        // would still pass if the config were ignored entirely.
+        $this->assertNotSame(
+            MemoryBudget::fromOptions('conservative')->chunkSize(),
+            $expected,
+            'balanced and conservative must differ, or this test proves nothing',
+        );
     }
 
     // -------------------------------------------------------------------

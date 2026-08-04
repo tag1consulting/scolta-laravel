@@ -15,12 +15,16 @@ use Tag1\ScoltaLaravel\AiProvider\Amazee\LaravelConfigStorage;
 use Tag1\ScoltaLaravel\Cache\LaravelCacheDriver;
 
 /**
- * Enable the managed Amazee.ai gateway from the command line.
+ * Establish the free Amazee.ai demo connection from the command line.
  *
- * Equivalent to clicking "Start free trial" on the settings page, and one of
- * the two surfaces that enable the gateway. Both are explicit operator
- * actions; nothing on a request path enables it. Useful in CI/CD pipelines or
+ * Equivalent to clicking "Try the demo" on the settings page, and one of the
+ * two surfaces that establish a connection. Both are explicit operator actions;
+ * nothing on a request path establishes one. Useful in CI/CD pipelines or
  * Kubernetes init containers where there is no browser session.
+ *
+ * The email argument is optional, because the demo needs none — that is the
+ * point of it. Attaching a real amazee.ai account is the email → verification
+ * code → region flow, which needs a browser and lives on the settings page.
  */
 class AmazeeProvisionCommand extends Command
 {
@@ -35,19 +39,21 @@ class AmazeeProvisionCommand extends Command
      *
      * @stability experimental
      */
-    public const OFFER_LINE = 'Enable Amazee.ai for AI-powered search with a free trial; sign up with Amazee to keep it when the trial ends.';
+    public const OFFER_LINE = 'Try Amazee.ai for AI-powered search with a free demo, no email required; sign in with your email to set up an account and keep it when the demo credit runs out.';
 
     protected $signature = 'scolta:amazee:provision
-                            {email : Email address for the Amazee.ai trial account}
+                            {email? : Optional email to bind the demo to. The demo needs none; omit it.}
                             {--force : Provision even if an AI provider is already configured}';
 
-    protected $description = 'Enable Amazee.ai for AI-powered search and store the connection';
+    protected $description = 'Start the free Amazee.ai demo for AI-powered search and store the connection';
 
     public function handle(): int
     {
-        $email = $this->argument('email');
+        // Optional on purpose. Trying the demo must cost an operator no input
+        // at all; an address is only validated when one is actually supplied.
+        $email = (string) ($this->argument('email') ?? '');
 
-        if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if ($email !== '' && ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $this->error("Invalid email address: {$email}");
 
             return self::FAILURE;
@@ -65,11 +71,17 @@ class AmazeeProvisionCommand extends Command
         );
         if ($recovery->isUpgradeNeeded()) {
             $this->warn('The current Amazee.ai connection is no longer accepted and needs re-authentication.');
-            $this->line('AI search features are degraded until you reconnect. This command will re-establish the connection.');
-            $this->line('You can also reconnect from the Scolta Amazee.ai settings page.');
+            $this->line('AI search features are degraded until you reconnect.');
+            // The demo is one-time per site, so it is usually not the way back:
+            // point at the path that is.
+            $this->line('The free demo can only be used once per site. If it has been used, reconnect from the');
+            $this->line('Scolta Amazee.ai settings page under "Enter your Amazee credentials", which signs you in');
+            $this->line('with your email address and sets up your account.');
         }
 
-        $this->line("Connecting to Amazee.ai for {$email}…");
+        $this->line($email === ''
+            ? 'Starting the free Amazee.ai demo…'
+            : "Starting the free Amazee.ai demo for {$email}…");
 
         $hasExistingProvider = $this->option('force')
             ? null
@@ -90,7 +102,9 @@ class AmazeeProvisionCommand extends Command
             );
             $result = $provisioner->provision($email);
         } catch (AmazeeApiException $e) {
-            $this->error('Provisioning failed: '.$e->getMessage());
+            $this->error('Could not start the demo: '.$e->getMessage());
+            $this->line('The free demo can only be used once per site. If this site has already used it, open the');
+            $this->line('Scolta Amazee.ai settings page and sign in with your email address to set up an account.');
 
             return self::FAILURE;
         }
@@ -103,7 +117,7 @@ class AmazeeProvisionCommand extends Command
         }
 
         $region = $result->region ?: 'unknown';
-        $this->info("Connected to Amazee.ai (region: {$region}).");
+        $this->info("Connected to Amazee.ai using the free demo (region: {$region}).");
 
         if ($result->aiModel !== null) {
             $storage = new LaravelConfigStorage;

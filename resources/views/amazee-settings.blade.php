@@ -4,7 +4,8 @@
     Multi-step Alpine.js UI for the Amazee.ai connection flow. Every step
     runs from an explicit operator action on this page.
 
-      - start:        email input + "Start trial" / "Sign in" buttons
+      - start:        "Try the demo" (no input) + "Enter your Amazee
+                      credentials" (email sign-in). Neither runs on its own.
       - verification: code input
       - region:       region selection list
       - connected:    status display + disconnect button
@@ -58,21 +59,30 @@
         </div>
     </template>
 
-    {{-- Start: email + trial/sign-in --}}
+    {{-- Start: two labelled actions, and nothing until one is chosen. The email
+         belongs to the account path alone, which is why it sits inside that
+         section rather than above both buttons — where it used to make the
+         cheapest way to evaluate Scolta's AI cost an operator their address. --}}
     <template x-if="step === 'start'">
         <div>
-            <p>Enable Amazee.ai for AI-powered search with a free trial; sign up with Amazee to keep it when the trial ends.</p>
+            <p>Try Amazee.ai for AI-powered search with a free demo, no email required; sign in with your email to set up an account and keep it when the demo credit runs out.</p>
+            <p x-show="error" x-text="error" class="text-danger"></p>
+
+            <h3>Try the demo</h3>
+            <p>Turn on AI search right now with a free demo. No email address, no account, no card. The demo runs until its included credit is used up; after that you continue by signing in with your email below.</p>
+            <button type="button" @click="startTrial()" :disabled="loading" class="btn btn-primary mb-4">
+                <span x-show="loading">Starting…</span>
+                <span x-show="!loading">Try the demo</span>
+            </button>
+
+            <h3>Enter your Amazee credentials</h3>
+            <p>Sign in with the email address on your amazee.ai account. We will email you a verification code, you pick a region, and your account credentials are stored here. If you do not have an account yet, this creates one. You never generate or paste an API key.</p>
             <div class="mb-3">
                 <label for="amazee-email">Email address</label>
                 <input type="email" id="amazee-email" x-model="email" class="form-control" />
             </div>
-            <p x-show="error" x-text="error" class="text-danger"></p>
-            <button type="button" @click="startTrial()" :disabled="loading" class="btn btn-primary me-2">
-                <span x-show="loading">Starting…</span>
-                <span x-show="!loading">Start free trial</span>
-            </button>
             <button type="button" @click="requestCode()" :disabled="loading" class="btn btn-secondary">
-                Sign in to existing account
+                Send verification code
             </button>
         </div>
     </template>
@@ -167,7 +177,8 @@ function amazeeSettings(initialStep, initialEmail, upgradeNeeded) {
             this.error = '';
             this.loading = true;
             try {
-                const res = await this.post(this.routes.trial, { email: this.email });
+                // No email is read or sent. Trying the demo costs no input.
+                const res = await this.post(this.routes.trial, {});
                 this.step = res.step;
             } catch (e) {
                 this.error = e.message;
