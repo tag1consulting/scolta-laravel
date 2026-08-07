@@ -1,0 +1,42 @@
+# Upgrade notes
+
+Breaking changes and the action each one requires, newest first. A release that
+needs nothing from you is not listed here; see `CHANGELOG.md` for the full
+record.
+
+## 1.2.0
+
+This package's own public API is unchanged in 1.2.0. Nothing in
+`Tag1\ScoltaLaravel\` changed signature, and no published config key was removed
+or renamed. The breaks in this release are inherited through the library it
+vendors, plus one behaviour change worth knowing about before you deploy.
+
+### Inherited from scolta-php 1.2.0
+
+This release requires `tag1/scolta-php` `^1.2.0`, up from `^1.1.0`. That library
+carries two breaking changes:
+
+- **The `AmazeeCredentials` constructor signature changed.**
+- **The `aiProvider` default changed.**
+
+Neither type is re-exported by this package's API, so an application that only
+uses the Artisan commands, the `Searchable` trait, the published config and the
+HTTP routes needs to do nothing. An application with custom code constructing
+`AmazeeCredentials` directly, or relying on the old `aiProvider` default when
+calling into scolta-php itself, is exposed to both. See scolta-php's 1.2.0
+upgrade notes for the detail and the required changes.
+
+### No AI provider is configured by default
+
+Not a break in the signature sense, but it changes what a fresh install does.
+`config/scolta.php` shipped `ai_provider` as `'anthropic'`, and
+`scolta:status` coalesced an empty value back to it, so an application nobody
+had configured reported itself as an Anthropic application. The shipped default
+is now `''`, nothing coalesces, and `scolta:status` reports that no provider is
+selected and AI features are off. Search is unaffected either way.
+
+This is going-forward only. An application that already sets
+`SCOLTA_AI_PROVIDER`, or that has published and edited `config/scolta.php`,
+keeps exactly what it has. If you were relying on the implicit Anthropic
+default without ever setting it, set `SCOLTA_AI_PROVIDER=anthropic` to keep the
+old behaviour.
