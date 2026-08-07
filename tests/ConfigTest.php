@@ -291,6 +291,34 @@ class ConfigTest extends TestCase
             .'mainstream faceted-search behavior and the browser default.');
     }
 
+    public function test_facet_mode_key_exists(): void
+    {
+        $this->assertArrayHasKey('facet_mode', $this->config,
+            'facet_mode key must be present in the config array.');
+    }
+
+    public function test_facet_mode_defaults_to_eager(): void
+    {
+        $this->assertSame('eager', $this->config['facet_mode'],
+            'facet_mode must default to eager — loading the facet index with the search '
+            .'page is what Scolta has always done, and the default must not change '
+            .'behaviour for an existing site.');
+    }
+
+    /**
+     * facet_mode must stay top-level, for the same reason hide_empty_facets is.
+     *
+     * The service provider merges published config with a shallow array_merge,
+     * so a top-level key still picks up the package default on a published
+     * config that predates it. Nested inside scoring it would not, and a site
+     * that published its config before 1.2.1 would get no value at all.
+     */
+    public function test_facet_mode_is_top_level_not_nested_under_scoring(): void
+    {
+        $this->assertArrayNotHasKey('facet_mode', $this->config['scoring'] ?? [],
+            'facet_mode must be top-level, not a scoring key.');
+    }
+
     /**
      * hide_empty_facets must stay top-level, not nested under scoring.
      *

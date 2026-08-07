@@ -6,6 +6,12 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ## [Unreleased]
 
+### Added
+- **`facet_mode` config key, controlling when the browser downloads the facet index or whether it downloads it at all (`config/scolta.php`, `resources/views/components/search.blade.php`).** Three values, settable via `SCOLTA_FACET_MODE`, defaulting to `eager` — what every existing application already does. `eager` downloads the index with the search page, so the filter sidebar is populated before the first results paint. `deferred` skips that download and takes it the first time a visitor uses a filter: on a large site the index runs to a megabyte or more, and an application that renders its own facets was paying for it on every search-page load to display nothing from it, in sessions that mostly never filter at all. The Scolta filter sidebar stays empty until that first interaction under `deferred`, because it is built from the index. `disabled` never downloads it, renders no filter sidebar, runs no facet filtering, and skips the per-query facet count pass. Deferring does **not** degrade filtering: the bundle finishes the load before applying the selection, so it never falls back to Pagefind's own per-search filtering, which would cost every later search on the page. Top-level rather than nested under `scoring`, for the same reason `hide_empty_facets` is: `mergeConfigFrom()` is a shallow `array_merge`, so a published config predating the key still picks up the package default. The Blade component reads it from Laravel config and clamps it there rather than through `ScoltaConfig`, so it works against any scolta-php in the supported `^1.2` range even though the property landed in 1.2.1; an unrecognized value becomes `eager`.
+
+### Changed
+- **Opened the `1.2.1-dev` line (`composer.json`).** No asset re-vendor is involved here: unlike the Drupal and WordPress adapters, this package commits no copy of the browser bundle. It publishes `scolta.js` straight out of `vendor/tag1/scolta-php/assets` at `vendor:publish` time and `AssetStatus` verifies the published copy against that package's own `assets/js/scolta.js.sha256`, so an application picks up the new bundle by updating scolta-php and re-publishing.
+
 ## [1.2.0] - 2026-08-07
 
 ### Added
