@@ -392,6 +392,11 @@ class SearchComponentRenderTest extends TestCase
             // Caller-supplied in scolta-php; the adapter passes empty values.
             'allowedLinkDomains',
             'disclaimer',
+            // Emitted by this adapter, clamped locally from platform config so
+            // faceting works against any scolta-php in the ^1.2 range. The
+            // ScoltaConfig::$facetMode property only landed in 1.2.1, so against
+            // the shipped ^1.2.0 floor toBrowserConfig() does not emit it yet.
+            'facetMode',
         ];
 
         $fromPhp = array_keys((new ScoltaConfig)->toBrowserConfig());
