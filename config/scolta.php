@@ -582,6 +582,37 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Facet Index Loading
+    |--------------------------------------------------------------------------
+    |
+    | When the browser downloads the facet index, which on a large site can
+    | reach a megabyte or more.
+    |
+    | 'eager' (default) — download it with the search page, so the filter
+    | sidebar is populated before the first results paint. This is what Scolta
+    | has always done; leave it alone unless you have a reason not to.
+    |
+    | 'deferred' — skip that download and take it the first time a visitor
+    | actually uses a filter. Suits a site that renders its own facets: it was
+    | paying for the index on every search-page load to display nothing from it,
+    | in sessions that mostly never filter at all. The Scolta filter sidebar
+    | stays empty until that first interaction, because it is built from the
+    | index. Filtering itself is not degraded — the bundle finishes the load
+    | before applying the selection, so it never falls back to Pagefind's own
+    | per-search filtering, which would cost every later search on the page.
+    |
+    | 'disabled' — never download it. No filter sidebar, no facet filtering, and
+    | the per-query facet count pass is skipped as well.
+    |
+    | An unrecognized value falls back to 'eager'. Top-level for the same reason
+    | hide_empty_facets is.
+    |
+    */
+
+    'facet_mode' => env('SCOLTA_FACET_MODE', 'eager'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Search As You Type
     |--------------------------------------------------------------------------
     |

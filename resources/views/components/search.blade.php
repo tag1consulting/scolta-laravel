@@ -61,6 +61,15 @@
             'pagefindPath' => asset(ltrim($indexUrl, '/') . '/pagefind.js'),
             'siteName' => $config->siteName ?: config('app.name', 'Laravel'),
             'hideEmptyFacets' => $config->hideEmptyFacets,
+            // Read from Laravel config and clamped here rather than through
+            // ScoltaConfig, so the setting works against any scolta-php in the
+            // supported ^1.2 range: the property landed in 1.2.1, but the
+            // behaviour lives entirely in the browser bundle this package
+            // publishes. An unrecognized value becomes 'eager', as the bundle
+            // would also do.
+            'facetMode' => in_array(config('scolta.facet_mode', 'eager'), ['eager', 'deferred', 'disabled'], true)
+                ? config('scolta.facet_mode', 'eager')
+                : 'eager',
             'filterFieldDescriptions' => $config->filterFieldDescriptions,
             // Search as you type. Ten top-level keys, not scoring keys. The
             // suggestion action goes through the normalizer so an unrecognized

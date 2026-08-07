@@ -157,6 +157,47 @@ class SearchComponentRenderTest extends TestCase
         $this->assertFalse($this->renderAndParseConfig()['hideEmptyFacets']);
     }
 
+    public function test_facet_mode_is_emitted_eager_by_default(): void
+    {
+        $this->writeFile($this->outputDir.'/pagefind/pagefind-entry.json', '{}');
+
+        $config = $this->renderAndParseConfig();
+
+        $this->assertArrayHasKey('facetMode', $config);
+        $this->assertSame('eager', $config['facetMode']);
+    }
+
+    /**
+     * The non-default modes are the load-bearing direction: the browser treats
+     * an absent key as 'eager', so a component that dropped the value entirely
+     * would still look correct in the default state while making the setting
+     * unreachable.
+     */
+    public function test_facet_mode_non_default_values_are_emitted(): void
+    {
+        foreach (['deferred', 'disabled'] as $mode) {
+            $this->writeFile($this->outputDir.'/pagefind/pagefind-entry.json', '{}');
+            $this->setScoltaConfig(['scolta.facet_mode' => $mode]);
+
+            $this->assertSame($mode, $this->renderAndParseConfig()['facetMode']);
+        }
+    }
+
+    /**
+     * An unrecognized configured mode must reach the browser as 'eager'.
+     *
+     * The bundle clamps too, but a value the package will not vouch for should
+     * not be put on the page — and clamping toward the full-featured default is
+     * what keeps a typo in a .env from quietly costing a site its facets.
+     */
+    public function test_unrecognized_facet_mode_is_emitted_as_eager(): void
+    {
+        $this->writeFile($this->outputDir.'/pagefind/pagefind-entry.json', '{}');
+        $this->setScoltaConfig(['scolta.facet_mode' => 'defered']);
+
+        $this->assertSame('eager', $this->renderAndParseConfig()['facetMode']);
+    }
+
     public function test_filter_field_descriptions_are_emitted(): void
     {
         $this->writeFile($this->outputDir.'/pagefind/pagefind-entry.json', '{}');
@@ -351,6 +392,11 @@ class SearchComponentRenderTest extends TestCase
             // Caller-supplied in scolta-php; the adapter passes empty values.
             'allowedLinkDomains',
             'disclaimer',
+            // Emitted by this adapter, clamped locally from platform config so
+            // faceting works against any scolta-php in the ^1.2 range. The
+            // ScoltaConfig::$facetMode property only landed in 1.2.1, so against
+            // the shipped ^1.2.0 floor toBrowserConfig() does not emit it yet.
+            'facetMode',
         ];
 
         $fromPhp = array_keys((new ScoltaConfig)->toBrowserConfig());
