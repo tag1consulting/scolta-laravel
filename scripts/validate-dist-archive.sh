@@ -67,6 +67,7 @@ EXCLUDED_PATHS=(
   ".editorconfig"
   "scripts"
   "CLAUDE.md"
+  "MAINTAINING.md"
   ".env.example"
   "composer.lock"
   ".phpunit.cache"
