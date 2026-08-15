@@ -1,4 +1,4 @@
-# MAINTAINING — scolta-laravel
+# Maintaining scolta-laravel
 
 The Laravel adapter over scolta-php. Publishes to Packagist.
 
