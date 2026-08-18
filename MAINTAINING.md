@@ -16,7 +16,7 @@ naming the same line.
 `composer show tag1/scolta-laravel -a | grep versions`.
 
 **CI checks.** phpunit (`test`, plus `coverage`), `docs-check` (CHANGELOG when code changes),
-`version-sync` (this package's major against the `tag1/scolta-php` constraint), `analyse` (Larastan),
+`analyse` (Larastan),
 `lock-guard` (`composer validate`, and the lock must not name `tag1/scolta-php` from a `dist.type=path`
 repo), `antipatterns` (which also refuses a duplicate `###` sub-header under `## [Unreleased]` in
 CHANGELOG.md), `Validate Composer dist archive`, and `Version coherence`. The scolta-php floor is
