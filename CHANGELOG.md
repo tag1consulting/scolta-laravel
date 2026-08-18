@@ -2,7 +2,7 @@
 
 All notable changes to scolta-laravel will be documented in this file.
 
-This project uses [Semantic Versioning](https://semver.org/). Major versions are synchronized across all Scolta packages; minor and patch versions are released independently per package.
+This project uses [Semantic Versioning](https://semver.org/). Each Scolta package versions independently; compatibility with scolta-php is expressed by the caret constraint in `composer.json` rather than by matching version numbers.
 
 ## [Unreleased]
 
@@ -11,6 +11,7 @@ This project uses [Semantic Versioning](https://semver.org/). Major versions are
 
 ### Changed
 - **Opened the `1.2.1-dev` line (`composer.json`).** No asset re-vendor is involved here: unlike the Drupal and WordPress adapters, this package commits no copy of the browser bundle. It publishes `scolta.js` straight out of `vendor/tag1/scolta-php/assets` at `vendor:publish` time and `AssetStatus` verifies the published copy against that package's own `assets/js/scolta.js.sha256`, so an application picks up the new bundle by updating scolta-php and re-publishing.
+- **Removed the `version-sync` CI job (`.github/workflows/ci.yml`, `CLAUDE.md`).** The job failed unless the major in this package's `composer.json` `version` equalled the major in its `tag1/scolta-php` constraint, which is a lockstep-release rule rather than a compatibility check: a scolta-php 2.0 would have obliged a scolta-laravel 2.0 with nothing in this package changed, and a 2.0 here could not have shipped against a supported 1.x library. `"tag1/scolta-php": "^1.2.0"` already states which releases this package runs against and Composer enforces it on every install, so the job restated the constraint in version numbers and charged a release for it. Raised in review of [scolta-drupal#221](https://github.com/tag1consulting/scolta-drupal/pull/221). **What remains is what a constraint cannot state**: `coherence` refuses a package that says two different things about its own development line, which is self-consistency rather than agreement with another package, and `release.yml`'s lock guard refuses to publish a stable release whose lock names a development version, which is the one real cross-repository gate. This package commits no copy of the browser bundle, so the `assets-in-sync` byte-comparison the Drupal and WordPress adapters need has never applied here; it publishes `scolta-php`'s assets straight out of `vendor/tag1/scolta-php/assets` at `vendor:publish` time. An application here installs the library through Composer and has the real `vendor/` tree to publish from, where drupal.org ships a git tarball and a site never sees one, which is why that adapter has to commit the blob and byte-check it. `version-sync` was a required status check on `main` and comes off the branch protection list with it, since a required check that never reports again blocks every merge. The versioning paragraph in `CLAUDE.md` and this file's header said major versions were synchronized across all Scolta packages, and now say what the CI does: each package versions independently, compatibility travels in the constraint. scolta-core's `VERSIONING.md`, which both defer to, is corrected separately.
 
 ## [1.2.0] - 2026-08-07
 
