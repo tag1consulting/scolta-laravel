@@ -12,3 +12,4 @@
 /composer.lock     export-ignore
 /.phpunit.cache/   export-ignore
 phpstan-baseline.neon  export-ignore
+/MAINTAINING.md    export-ignore
