@@ -4,6 +4,8 @@ All notable changes to scolta-laravel will be documented in this file.
 
 This project uses [Semantic Versioning](https://semver.org/). Each Scolta package versions independently; compatibility with scolta-php is expressed by the caret constraint in `composer.json` rather than by matching version numbers.
 
+## [Unreleased]
+
 ## [1.3.0] - 2026-08-19
 
 ### Added
@@ -462,7 +464,8 @@ Coordinated release. Ports the streaming gather and CLI wiring pattern from scol
 - Rate limiting via Laravel's throttle middleware
 - Environment variable overrides for all key settings (`SCOLTA_*`)
 
-[Unreleased]: https://github.com/tag1consulting/scolta-laravel/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/tag1consulting/scolta-laravel/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/tag1consulting/scolta-laravel/compare/v1.2.0...v1.3.0
 [1.1.0]: https://github.com/tag1consulting/scolta-laravel/compare/v1.0.5...v1.1.0
 [1.0.5]: https://github.com/tag1consulting/scolta-laravel/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/tag1consulting/scolta-laravel/compare/v1.0.3...v1.0.4
