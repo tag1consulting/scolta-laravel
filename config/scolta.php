@@ -613,6 +613,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | UI Label Overrides
+    |--------------------------------------------------------------------------
+    |
+    | Per-site wording for user-facing strings in the search widget, as one
+    | key => string map. Keys the bundle reads: 'expandedTerms' (default
+    | 'Also try:', the prefix before the AI-expanded query-term chips) and
+    | 'aiOverview' (default 'AI Overview', the heading on the AI summary box).
+    |
+    | Values render as text (HTML-escaped). A missing, empty, or non-string
+    | value falls back to the bundle's default; unknown keys are ignored.
+    | No env() default — a map has no natural env encoding, so set it here.
+    |
+    | e.g. 'labels' => ['expandedTerms' => 'Related searches:'],
+    |
+    */
+
+    'labels' => [],
+
+    /*
+    |--------------------------------------------------------------------------
     | Search As You Type
     |--------------------------------------------------------------------------
     |
