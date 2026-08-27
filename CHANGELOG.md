@@ -6,6 +6,9 @@ This project uses [Semantic Versioning](https://semver.org/). Each Scolta packag
 
 ## [Unreleased]
 
+### Added
+- **`labels` config key, per-site overrides for user-facing UI strings in the search widget (`config/scolta.php`, `resources/views/components/search.blade.php`).** One `key => string` map emitted top-level into `window.scolta`; the bundle currently reads `expandedTerms` (default `'Also try:'`) and `aiOverview` (default `'AI Overview'`). Values are HTML-escaped by the bundle; non-string or empty values are dropped before reaching the page, and an older bundle without the labels map ignores the key. Read from Laravel config rather than through `ScoltaConfig` (the `facet_mode` pattern), so it works against any scolta-php in the supported range — `ScoltaConfig::$labels` landed in scolta-php 1.5.0.
+
 ## [1.3.0] - 2026-08-19
 
 ### Added

@@ -70,6 +70,17 @@
             'facetMode' => in_array(config('scolta.facet_mode', 'eager'), ['eager', 'deferred', 'disabled'], true)
                 ? config('scolta.facet_mode', 'eager')
                 : 'eager',
+            // Same local-read pattern as facetMode: ScoltaConfig::$labels
+            // landed in scolta-php 1.5.0, but the behaviour lives entirely in
+            // the browser bundle this package publishes, so the overrides work
+            // against any scolta-php in the supported range. Non-string keys
+            // and non-string or empty values are dropped, as the bundle would
+            // also do; an older bundle without the labels map ignores the key.
+            'labels' => array_filter(
+                (array) config('scolta.labels', []),
+                fn ($value, $key) => is_string($key) && is_string($value) && $value !== '',
+                ARRAY_FILTER_USE_BOTH
+            ),
             'filterFieldDescriptions' => $config->filterFieldDescriptions,
             // Search as you type. Ten top-level keys, not scoring keys. The
             // suggestion action goes through the normalizer so an unrecognized

@@ -198,6 +198,47 @@ class SearchComponentRenderTest extends TestCase
         $this->assertSame('eager', $this->renderAndParseConfig()['facetMode']);
     }
 
+    public function test_labels_are_emitted_empty_by_default(): void
+    {
+        $this->writeFile($this->outputDir.'/pagefind/pagefind-entry.json', '{}');
+
+        $config = $this->renderAndParseConfig();
+
+        $this->assertArrayHasKey('labels', $config);
+        $this->assertSame([], $config['labels']);
+    }
+
+    public function test_configured_labels_are_emitted(): void
+    {
+        $this->writeFile($this->outputDir.'/pagefind/pagefind-entry.json', '{}');
+        $this->setScoltaConfig(['scolta.labels' => ['expandedTerms' => 'Related searches:']]);
+
+        $this->assertSame(
+            ['expandedTerms' => 'Related searches:'],
+            $this->renderAndParseConfig()['labels']
+        );
+    }
+
+    /**
+     * A broken config value must not reach the page: the bundle falls back to
+     * its default for an absent key, and a filtered key is the same as absent.
+     */
+    public function test_non_string_and_empty_labels_are_dropped(): void
+    {
+        $this->writeFile($this->outputDir.'/pagefind/pagefind-entry.json', '{}');
+        $this->setScoltaConfig(['scolta.labels' => [
+            'expandedTerms' => 'Related searches:',
+            'aiOverview' => '',
+            'blank' => null,
+            'number' => 3,
+        ]]);
+
+        $this->assertSame(
+            ['expandedTerms' => 'Related searches:'],
+            $this->renderAndParseConfig()['labels']
+        );
+    }
+
     public function test_filter_field_descriptions_are_emitted(): void
     {
         $this->writeFile($this->outputDir.'/pagefind/pagefind-entry.json', '{}');
@@ -397,6 +438,9 @@ class SearchComponentRenderTest extends TestCase
             // ScoltaConfig::$facetMode property only landed in 1.2.1, so against
             // the shipped ^1.2.0 floor toBrowserConfig() does not emit it yet.
             'facetMode',
+            // Same pattern: ScoltaConfig::$labels only landed in 1.5.0, so
+            // against the shipped floor toBrowserConfig() does not emit it yet.
+            'labels',
         ];
 
         $fromPhp = array_keys((new ScoltaConfig)->toBrowserConfig());
