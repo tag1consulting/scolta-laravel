@@ -63,10 +63,9 @@
             'hideEmptyFacets' => $config->hideEmptyFacets,
             // Read from Laravel config and clamped here rather than through
             // ScoltaConfig, so the setting works against any scolta-php in the
-            // supported ^1.2 range: the property landed in 1.2.1, but the
-            // behaviour lives entirely in the browser bundle this package
-            // publishes. An unrecognized value becomes 'eager', as the bundle
-            // would also do.
+            // supported range: the property landed in 1.2.1, but the behaviour
+            // lives entirely in the browser bundle this package publishes. An
+            // unrecognized value becomes 'eager', as the bundle would also do.
             'facetMode' => in_array(config('scolta.facet_mode', 'eager'), ['eager', 'deferred', 'disabled'], true)
                 ? config('scolta.facet_mode', 'eager')
                 : 'eager',

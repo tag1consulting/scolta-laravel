@@ -73,6 +73,7 @@ class ConfigTest extends TestCase
     public function test_ai_feature_toggles(): void
     {
         $this->assertArrayHasKey('ai_expand_query', $this->config);
+        $this->assertArrayHasKey('expansion_toggle', $this->config);
         $this->assertArrayHasKey('ai_summarize', $this->config);
         $this->assertArrayHasKey('max_follow_ups', $this->config);
     }
@@ -80,8 +81,28 @@ class ConfigTest extends TestCase
     public function test_ai_feature_toggle_defaults(): void
     {
         $this->assertTrue($this->config['ai_expand_query']);
+        $this->assertTrue($this->config['expansion_toggle']);
         $this->assertTrue($this->config['ai_summarize']);
         $this->assertEquals(3, $this->config['max_follow_ups']);
+    }
+
+    /**
+     * expansion_toggle is a top-level key, so it survives flattenConfig()
+     * unchanged and fromArray() maps it onto ScoltaConfig::$expansionToggle.
+     * The off direction is the load-bearing one: scolta-php defaults the
+     * property to true, so a config file that never emitted the key at all
+     * would still resolve to true and look correct.
+     */
+    public function test_expansion_toggle_resolves_onto_scolta_config(): void
+    {
+        $this->assertTrue($this->resolve()->expansionToggle);
+
+        $config = $this->config;
+        $config['expansion_toggle'] = false;
+
+        $this->assertFalse(
+            ScoltaConfig::fromArray(ScoltaAiService::flattenConfig($config))->expansionToggle
+        );
     }
 
     // -------------------------------------------------------------------

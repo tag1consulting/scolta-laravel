@@ -86,6 +86,19 @@ return [
     */
 
     'ai_expand_query' => env('SCOLTA_AI_EXPAND', true),
+
+    // Offer visitors a switch in the results header that turns query expansion
+    // off for themselves. Distinct from ai_expand_query, which decides whether
+    // expansion runs at all: this decides whether the control over it is
+    // rendered. The switch only ever narrows — the visitor's answer is kept in
+    // browser storage and ANDed with what this deployment offers, so it cannot
+    // turn expansion on where ai_expand_query is false, and where expansion is
+    // off no switch is drawn at all. Nothing server-side reads the answer, so
+    // the delivered HTML is identical for every visitor and no HTTP cache is
+    // disturbed. Set SCOLTA_EXPANSION_TOGGLE=false to suppress the control and
+    // leave expansion purely a site-level decision.
+    'expansion_toggle' => env('SCOLTA_EXPANSION_TOGGLE', true),
+
     'ai_summarize' => env('SCOLTA_AI_SUMMARIZE', true),
     'ai_languages' => array_filter(array_map('trim', explode(',', env('SCOLTA_AI_LANGUAGES', 'en')))),
     'max_follow_ups' => env('SCOLTA_MAX_FOLLOWUPS', 3),

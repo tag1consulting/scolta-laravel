@@ -372,6 +372,49 @@ class SearchComponentRenderTest extends TestCase
     }
 
     // -------------------------------------------------------------------
+    // Per-visitor expansion toggle
+    // -------------------------------------------------------------------
+
+    /**
+     * scolta-php 1.4.0 added ScoltaConfig::$expansionToggle, which the browser
+     * bundle reads as scoring.EXPANSION_TOGGLE to decide whether the results
+     * header carries the visitor-facing "disable expanded terms" switch. The
+     * published config had no key that reached it, so the setting was
+     * unreachable on Laravel.
+     *
+     * Asserted through config() rather than a constructed ScoltaConfig, so this
+     * covers the whole bridge: config/scolta.php -> flattenConfig() ->
+     * ScoltaConfig::fromArray() -> toJsScoringConfig() -> window.scolta.scoring.
+     */
+    public function test_expansion_toggle_is_emitted_as_its_default(): void
+    {
+        $this->writeFile($this->outputDir.'/pagefind/pagefind-entry.json', '{}');
+
+        $scoring = $this->renderAndParseConfig()['scoring'];
+
+        $this->assertArrayHasKey(
+            'EXPANSION_TOGGLE',
+            $scoring,
+            'window.scolta.scoring must carry EXPANSION_TOGGLE; the bundle renders the '
+            .'per-visitor expansion switch from it.'
+        );
+        $this->assertTrue($scoring['EXPANSION_TOGGLE']);
+    }
+
+    /**
+     * The off direction, which is the one worth pinning: the property defaults
+     * to true inside scolta-php, so a config file missing the key entirely
+     * still emits true and looks correct.
+     */
+    public function test_a_published_config_suppressing_the_expansion_toggle_reaches_the_browser(): void
+    {
+        $this->writeFile($this->outputDir.'/pagefind/pagefind-entry.json', '{}');
+        $this->setScoltaConfig(['scolta.expansion_toggle' => false]);
+
+        $this->assertFalse($this->renderAndParseConfig()['scoring']['EXPANSION_TOGGLE']);
+    }
+
+    // -------------------------------------------------------------------
     // Browser-config parity
     // -------------------------------------------------------------------
 
@@ -433,13 +476,15 @@ class SearchComponentRenderTest extends TestCase
             // Caller-supplied in scolta-php; the adapter passes empty values.
             'allowedLinkDomains',
             'disclaimer',
-            // Emitted by this adapter, clamped locally from platform config so
-            // faceting works against any scolta-php in the ^1.2 range. The
-            // ScoltaConfig::$facetMode property only landed in 1.2.1, so against
-            // the shipped ^1.2.0 floor toBrowserConfig() does not emit it yet.
+            // Emitted by this adapter, clamped locally from platform config
+            // rather than read through ScoltaConfig, so faceting works against
+            // any scolta-php in the supported range. $facetMode landed in
+            // 1.2.1; the shipped floor now covers it, so toBrowserConfig() does
+            // emit it and this entry is inert — kept so the local-read pattern
+            // survives a floor that moves backwards as well as forwards.
             'facetMode',
-            // Same pattern: ScoltaConfig::$labels only landed in 1.5.0, so
-            // against the shipped floor toBrowserConfig() does not emit it yet.
+            // Same pattern, and likewise now covered by the floor:
+            // ScoltaConfig::$labels landed in scolta-php 1.5.0.
             'labels',
         ];
 
