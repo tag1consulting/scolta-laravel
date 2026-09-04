@@ -240,34 +240,34 @@ class StructuralIntegrityTest extends TestCase
         );
     }
 
-    public function test_status_command_checks_pagefind_subdir(): void
+    /**
+     * The nested-first lookup lives in one place, and both readers use it.
+     *
+     * StatusCommand and HealthController used to spell the nested path out
+     * themselves, which is why neither could see an index the binary/Cloud
+     * pipeline had written flat into $outputDir — a layout the Blade
+     * component and scolta-php's HealthChecker both already handle. The
+     * order (pagefind/ first, then the flat directory) is asserted on the
+     * locator itself in IndexLocatorTest.
+     */
+    public function test_index_readers_delegate_to_the_locator(): void
     {
-        $src = file_get_contents($this->root.'/src/Commands/StatusCommand.php');
-        $this->assertStringContainsString(
-            "'/pagefind/pagefind.js'",
-            $src,
-            'StatusCommand must check for pagefind.js in the pagefind/ subdirectory.'
-        );
-        $this->assertStringNotContainsString(
-            "'/pagefind.js'",
-            $src,
-            'StatusCommand must not check for pagefind.js at the flat (non-subdir) path.'
-        );
-    }
-
-    public function test_health_controller_checks_pagefind_subdir(): void
-    {
-        $src = file_get_contents($this->root.'/src/Http/Controllers/HealthController.php');
-        $this->assertStringContainsString(
-            "'/pagefind/pagefind.js'",
-            $src,
-            'HealthController must check for pagefind.js in the pagefind/ subdirectory.'
-        );
-        $this->assertStringNotContainsString(
-            "'/pagefind.js'",
-            $src,
-            'HealthController must not check pagefind.js at the flat path.'
-        );
+        foreach ([
+            '/src/Commands/StatusCommand.php',
+            '/src/Http/Controllers/HealthController.php',
+        ] as $file) {
+            $src = file_get_contents($this->root.$file);
+            $this->assertStringContainsString(
+                'new IndexLocator',
+                $src,
+                "{$file} must locate the index via IndexLocator."
+            );
+            $this->assertStringNotContainsString(
+                "'/pagefind/pagefind.js'",
+                $src,
+                "{$file} must not spell the index path out itself; IndexLocator owns both layouts."
+            );
+        }
     }
 
     public function test_cleanup_command_checks_pagefind_subdir(): void

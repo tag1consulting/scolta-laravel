@@ -6,13 +6,13 @@ namespace Tag1\ScoltaLaravel\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Routing\Controller;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Tag1\Scolta\Health\HealthChecker;
 use Tag1\ScoltaLaravel\Cache\LaravelCacheDriver;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 use Tag1\ScoltaLaravel\Services\AssetStatus;
+use Tag1\ScoltaLaravel\Services\IndexLocator;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
 
 /**
@@ -61,13 +61,17 @@ class HealthController extends Controller
         }
 
         // Laravel-specific: index detail enrichment.
-        if ($result['index_exists']) {
-            $indexFile = $outputDir.'/pagefind/pagefind.js';
+        $locator = new IndexLocator;
+        $location = $locator->locate($outputDir);
+        if ($result['index_exists'] && $location !== null) {
+            $indexFile = $location['indexFile'];
             $mtime = filemtime($indexFile);
-            $fragments = File::glob($outputDir.'/pagefind/fragment/*') ?: [];
+            // `fragments` is the indexed page count — one fragment per page —
+            // read from pagefind-entry.json rather than from a directory
+            // listing that scales with the corpus on an endpoint monitors poll.
             $result['index'] = [
                 'built' => true,
-                'fragments' => count($fragments),
+                'fragments' => $locator->indexedPageCount($location),
                 'last_build' => $mtime ? date('c', $mtime) : null,
             ];
 
@@ -81,9 +85,10 @@ class HealthController extends Controller
                 $integrity['issues'][] = 'pagefind.js is empty or unreadable';
             }
 
-            if (count($fragments) > 0) {
-                // Spot-check first fragment is readable and non-empty.
-                $firstFragment = $fragments[0];
+            // Spot-check one fragment is readable and non-empty; the locator
+            // reads a single directory entry rather than listing them all.
+            $firstFragment = $locator->firstFragment($location);
+            if ($firstFragment !== null) {
                 $fragSize = filesize($firstFragment);
                 if ($fragSize === false || $fragSize === 0) {
                     $integrity['valid'] = false;

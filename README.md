@@ -118,6 +118,14 @@ This verifies PHP version, index directories, indexer selection, AI provider con
 php artisan scolta:status
 ```
 
+Add `--json` to get the same report as one JSON document on stdout, with the decorative output suppressed, for deploy scripts and monitoring:
+
+```bash
+php artisan scolta:status --json | jq '.pagefind_index'
+```
+
+Sections and fields match `drush scolta:status` wherever both adapters report the same thing, so one script can read either. Drush emits YAML; JSON is valid YAML, so a YAML parser handles both.
+
 The health endpoint also reports current state: `GET /api/scolta/v1/health`
 
 ## What Scolta Is Built For
@@ -640,6 +648,7 @@ php artisan scolta:export                   # Export content to HTML only
 php artisan scolta:export --incremental     # Only export tracked changes
 php artisan scolta:rebuild-index            # Rebuild index from existing HTML files
 php artisan scolta:status                   # Show tracker, content, index, and AI status
+php artisan scolta:status --json            # Same report as one JSON document on stdout (pipe to jq)
 php artisan scolta:discover                 # Find Searchable models not yet in config
 php artisan scolta:clear-cache              # Clear Scolta AI response caches
 php artisan scolta:cleanup                  # Remove stale index artifacts and orphaned state files
@@ -829,6 +838,7 @@ src/
   Observers/ScoltaObserver.php           Auto-tracking observer
   Services/ScoltaAiService.php           AI service wrapper
   Services/ContentSource.php             Eloquent content source
+  Services/IndexLocator.php              Finds the built index and its page count
 config/scolta.php                        Publishable configuration
 database/migrations/                     Tracker table migration
 routes/api.php                           API route definitions
