@@ -423,19 +423,14 @@ class SearchComponentRenderTest extends TestCase
      * the Blade component, which hand-builds its config array instead of
      * calling toBrowserConfig().
      *
-     * This is the Laravel-flavoured form of the browser-config parity guard the
-     * other five packages carry. The JS-extraction form used there is not
-     * possible here: this package ships no committed scolta.js. It publishes the
-     * bundle out of the composer-installed scolta-php into the app's public
-     * directory at install time, so there is no in-repo artifact to parse and no
-     * guarantee one exists at test time.
-     *
-     * Diffing against toBrowserConfig() instead still catches the class of bug
-     * this replaces: the component was missing hideEmptyFacets and
+     * This is the scolta-php-facing half of the browser-config parity guard.
+     * Diffing against toBrowserConfig() catches the class of bug it was added
+     * for: the component was missing hideEmptyFacets and
      * filterFieldDescriptions, both of which scolta-php emits and the browser
      * reads, so both features were dead on this platform. What it cannot catch
-     * is a key the browser reads that scolta-php itself does not emit; that gap
-     * is covered upstream by scolta-php's own parity test.
+     * is a key the browser reads that scolta-php's config object does not emit;
+     * BrowserConfigParityTest covers that direction by parsing the installed
+     * scolta-php's assets/js/scolta.js out of vendor.
      */
     public function test_component_emits_every_key_scolta_php_emits(): void
     {
