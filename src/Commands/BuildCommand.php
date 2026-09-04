@@ -63,7 +63,8 @@ class BuildCommand extends Command
         {--memory-budget= : Memory profile or byte value (conservative, 256M, 1G…). Default: from config.}
         {--chunk-size= : Pages per chunk. Overrides profile default and config setting.}
         {--resume : Resume a previously interrupted PHP index build}
-        {--restart : Discard interrupted state and restart the PHP index build}';
+        {--restart : Discard interrupted state and restart the PHP index build. Also discards the page-table ledger, renumbering every page from zero}
+        {--reset-ledger : Discard the page-table ledger under a plain build, renumbering every page from zero. Escape hatch for a corrupt page table (a duplicate page ordinal at the merge) without a full --restart. Cannot be combined with --resume}';
 
     protected $description = 'Build or rebuild the Scolta search index';
 
@@ -160,7 +161,10 @@ class BuildCommand extends Command
      * documented publish filters (scopeSearchable + shouldBeSearchable) apply,
      * exactly as on the binary and queue paths.
      *
-     * @since 0.2.0 (rewritten 0.3.0)
+     * Returns INVALID when the resume/restart/reset-ledger flags contradict
+     * each other; BuildIntentFactory owns that rule and its message.
+     *
+     * @since 0.2.0 (rewritten 0.3.0; --reset-ledger handling added in 1.4.0)
      *
      * @stability experimental
      */
@@ -188,6 +192,28 @@ class BuildCommand extends Command
         );
 
         $totalCount = $source->getTotalCount();
+
+        // Built before the empty-corpus early return so contradictory flags are
+        // reported as such rather than exiting 0 with "nothing to index".
+        // $partial is deliberately unwired, and the named argument below skips
+        // it: scolta:build has no scope filter and always streams the whole
+        // corpus, so partial: true would stop the merge pruning and publishing.
+        try {
+            $intent = BuildIntentFactory::fromFlags(
+                (bool) $this->option('resume'),
+                (bool) $this->option('restart'),
+                $totalCount,
+                $budget,
+                resetLedger: (bool) $this->option('reset-ledger'),
+            );
+        } catch (\LogicException $e) {
+            // The library's message explains the refusal (--reset-ledger with
+            // --resume, or with a partial scope) and what to run instead.
+            $this->error($e->getMessage());
+
+            return self::INVALID;
+        }
+
         if ($totalCount === 0) {
             $this->warn('No searchable content found. Check scolta.models config.');
 
@@ -198,20 +224,13 @@ class BuildCommand extends Command
         $exporter = new ContentExporter($outputDir);
         $items = $exporter->filterItems($source->getPublishedContent());
 
-        $intent = BuildIntentFactory::fromFlags(
-            (bool) $this->option('resume'),
-            (bool) $this->option('restart'),
-            $totalCount,
-            $budget,
-        );
-
         $reporter = new ArtisanProgressReporter($this);
         $logger = new Logger(app('log')->driver(), app('events'));
         $orchestrator = new IndexBuildOrchestrator($stateDir, $outputDir, $hmacSecret, $language);
         $report = $orchestrator->build($intent, $items, $logger, $reporter, force: (bool) $this->option('force'));
 
         if (! $report->success) {
-            if ($report->error === 'memory_abort') {
+            if ($report->isMemoryAbort()) {
                 if ($report->chunksWritten > 0) {
                     // Voluntary yield: RSS reached 75% of the memory limit mid-build.
                     // Spawn a fresh artisan process to resume; child starts with clean heap.

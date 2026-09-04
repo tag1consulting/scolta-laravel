@@ -618,6 +618,9 @@ php artisan scolta:build --queue            # Defer the build to the queue (inde
 php artisan scolta:build --incremental      # Only process tracked changes
 php artisan scolta:build --skip-pagefind    # Export HTML without rebuilding index
 php artisan scolta:build --memory-budget=balanced  # Use balanced memory profile
+php artisan scolta:build --resume           # Resume an interrupted PHP index build
+php artisan scolta:build --restart          # Discard interrupted state and rebuild from scratch (also discards the page-table ledger)
+php artisan scolta:build --reset-ledger     # Discard the page-table ledger under a plain build (escape hatch for a duplicate page ordinal)
 php artisan scolta:export                   # Export content to HTML only
 php artisan scolta:export --incremental     # Only export tracked changes
 php artisan scolta:rebuild-index            # Rebuild index from existing HTML files
