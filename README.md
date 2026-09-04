@@ -221,6 +221,7 @@ All settings live in `config/scolta.php` with `.env` overrides. After editing `c
 | Expansion model | `SCOLTA_EXPANSION_MODEL` | `ai_expansion_model` | `''` (same as `ai_model`) | Optional separate model for query expansion. When set, `expand-query` uses this model while `summarize` and `followup` use `ai_model`. Empty means all AI operations use `ai_model`. |
 | Base URL | `SCOLTA_AI_BASE_URL` | `ai_base_url` | provider default | Custom endpoint for proxies or Azure OpenAI |
 | Query expansion | `SCOLTA_AI_EXPAND` | `ai_expand_query` | `true` | Toggle AI query expansion on/off |
+| Visitor expansion switch | `SCOLTA_EXPANSION_TOGGLE` | `expansion_toggle` | `true` | Render a switch in the results header letting each visitor turn expanded terms off for themselves. The choice lives in browser storage and only ever narrows — it can never re-enable expansion that `ai_expand_query` has turned off, and no switch is drawn where expansion is unavailable. Set to `false` to make expansion a site-level decision only |
 | Summarization | `SCOLTA_AI_SUMMARIZE` | `ai_summarize` | `true` | Toggle AI result summarization on/off |
 | Summary top N | — | `ai_summary_top_n` | `10` | How many top results to send to AI for summarization |
 | Summary max chars | — | `ai_summary_max_chars` | `4000` | Max content characters sent to AI per request |
@@ -235,6 +236,7 @@ SCOLTA_API_KEY=sk-ant-...
 SCOLTA_AI_MODEL=claude-sonnet-4-5-20250929
 SCOLTA_AI_EXPAND=true
 SCOLTA_AI_SUMMARIZE=true
+SCOLTA_EXPANSION_TOGGLE=true
 ```
 
 For multilingual sites:
