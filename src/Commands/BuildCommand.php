@@ -25,6 +25,7 @@ use Tag1\ScoltaLaravel\Services\QueueRebuildDispatcher;
 use Tag1\ScoltaLaravel\Services\ResumeChain;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
 use Tag1\ScoltaLaravel\Support\HmacSecret;
+use Tag1\ScoltaLaravel\Support\IndexerResolver;
 
 /**
  * Build or rebuild the Scolta search index.
@@ -127,32 +128,16 @@ class BuildCommand extends Command
     /**
      * Resolve the effective indexer backend.
      *
-     * Priority: --indexer CLI option > config('scolta.indexer') > 'auto'.
-     * When 'auto', always uses the PHP indexer — it works on all PHP hosting
-     * environments without exec() or Node.js, uses less memory, and supports
-     * fast incremental re-indexing. Set indexer=binary to use the Pagefind
-     * binary explicitly.
+     * The rule lives in {@see IndexerResolver} so `scolta:status` can apply it
+     * without restating it.
      *
-     * Any value outside auto/php/binary is returned as-is so handle() can
-     * reject it with an explicit error — a typo must not silently select
-     * a different pipeline.
-     *
-     * @since 0.2.0
+     * @since 0.2.0 (extracted to IndexerResolver in 1.4.0)
      *
      * @stability experimental
      */
     private function resolveIndexer(ScoltaConfig $config): string
     {
-        $indexer = $this->option('indexer');
-        if (empty($indexer)) {
-            $indexer = config('scolta.indexer', $config->indexer);
-        }
-
-        if ($indexer === 'auto') {
-            return 'php';
-        }
-
-        return (string) $indexer;
+        return IndexerResolver::resolve($this->option('indexer'), $config->indexer);
     }
 
     /**

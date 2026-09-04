@@ -65,7 +65,11 @@ class PagefindRunner
         $result = Process::timeout(300)->run($cmd);
 
         if ($result->successful() && file_exists($pagefindOutputDir.'/pagefind.js')) {
-            $fragmentCount = count(File::glob($pagefindOutputDir.'/fragment/*') ?: []);
+            // Read the count Pagefind already wrote into pagefind-entry.json
+            // rather than listing one fragment file per indexed page.
+            $locator = new IndexLocator;
+            $location = $locator->locate($outputDir);
+            $fragmentCount = $location !== null ? $locator->indexedPageCount($location) : 0;
             // Content was re-indexed — invalidate all cached AI responses.
             Cache::increment('scolta_expand_generation');
 
