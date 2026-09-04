@@ -14,7 +14,10 @@ use Tag1\Scolta\Config\ScoltaConfig;
 use Tag1\Scolta\Export\ContentExporter;
 use Tag1\Scolta\Index\BuildIntentFactory;
 use Tag1\Scolta\Index\BuildState;
+use Tag1\Scolta\Index\IncrementalIndexUpdater;
+use Tag1\Scolta\Index\IncrementalUpdateUnavailable;
 use Tag1\Scolta\Index\IndexBuildOrchestrator;
+use Tag1\Scolta\Index\MemoryBudget;
 use Tag1\ScoltaLaravel\Jobs\FinalizeIndex;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 use Tag1\ScoltaLaravel\Progress\ArtisanProgressReporter;
@@ -41,6 +44,10 @@ use Tag1\ScoltaLaravel\Support\IndexerResolver;
  * gathers content directly from Eloquent models, feeds it through the
  * pure-PHP PhpIndexer, and writes a Pagefind-compatible index.
  *
+ * --incremental is a different entry point on that path, not a mode of it:
+ * IncrementalIndexUpdater updates the published index in place, and anything it
+ * cannot apply exactly falls back to a full build. See updateIncrementally().
+ *
  * Laravel's command system is beautifully expressive. The $signature
  * string declares options with types and defaults — the framework
  * handles parsing, validation, and help text generation. Compare this
@@ -56,7 +63,7 @@ use Tag1\ScoltaLaravel\Support\IndexerResolver;
 class BuildCommand extends Command
 {
     protected $signature = 'scolta:build
-        {--incremental : Only process content that changed since the last build}
+        {--incremental : Apply only the tracked changes. On the PHP indexer this updates the published index in place and falls back to a full build whenever the update cannot be applied exactly. On the binary indexer it re-exports only the changed HTML}
         {--skip-pagefind : Export HTML files but don\'t run the Pagefind CLI}
         {--indexer=  : Indexer backend: php, binary, or auto (overrides config)}
         {--force : Skip fingerprint check and force a full rebuild}
@@ -115,6 +122,21 @@ class BuildCommand extends Command
                 return self::INVALID;
             }
 
+            if ($this->option('incremental')) {
+                $conflict = $this->incrementalConflict();
+                if ($conflict !== null) {
+                    $this->error($conflict);
+
+                    return self::INVALID;
+                }
+
+                // A null return means the update declined and said why.
+                $updated = $this->updateIncrementally($source, $outputDir);
+                if ($updated !== null) {
+                    return $updated;
+                }
+            }
+
             if ($this->option('queue')) {
                 return $this->dispatchToQueue($source, $outputDir);
             }
@@ -138,6 +160,202 @@ class BuildCommand extends Command
     private function resolveIndexer(ScoltaConfig $config): string
     {
         return IndexerResolver::resolve($this->option('indexer'), $config->indexer);
+    }
+
+    /**
+     * The reason --incremental cannot be honoured alongside the other flags.
+     *
+     * An incremental update rewrites parts of an index that already exists, so it
+     * has no interrupted state to --resume or --restart, no page table to
+     * --reset-ledger, no fingerprint for --force, and no chunk jobs to --queue.
+     * Each asks for a full build, so the pair is refused rather than resolved.
+     *
+     * @return string|null Null when --incremental stands alone.
+     */
+    private function incrementalConflict(): ?string
+    {
+        $conflicts = [];
+        foreach (['queue', 'force', 'resume', 'restart', 'reset-ledger'] as $flag) {
+            if ($this->option($flag)) {
+                $conflicts[] = '--'.$flag;
+            }
+        }
+
+        if ($conflicts === []) {
+            return null;
+        }
+
+        return sprintf(
+            '--incremental cannot be combined with %s. An incremental update applies the tracked changes to '
+            .'the index that is already published; every one of those flags asks for a full build instead. '
+            .'Run `scolta:build` without --incremental to get one.',
+            implode(' or ', $conflicts),
+        );
+    }
+
+    /**
+     * Apply the tracked changes to the published index without rebuilding it.
+     *
+     * A different entry point from the full build, not a mode of it:
+     * IncrementalIndexUpdater rewrites the fragments and chunks the changed pages
+     * touch, reusing the ordinals the page-table ledger already assigned. Feeding
+     * a filtered item stream to IndexBuildOrchestrator::build() would NOT be the
+     * same thing: several stages there read "the build never yielded this page" as
+     * "the source no longer has this page", so a full-scope build handed only the
+     * changed pages publishes an index containing only those pages.
+     *
+     * Every refusal returns null and lets the caller run a full build: no index to
+     * update against, a change set too large, an unresolvable tracked row, or the
+     * library's own checks inside commit(). Same set, same order and near enough
+     * the same wording as scolta-drupal's
+     * ScoltaRebuildWorker::tryIncrementalUpdate(), which is the sibling
+     * implementation of this method.
+     *
+     * ## Why the tracker, and not ChangeSetPlanner
+     *
+     * scolta-php ships ChangeSetPlanner, which derives a change set by comparing
+     * a TimestampManifest against the page-table ledger. Nothing calls it —
+     * neither this package nor scolta-drupal nor scolta-php itself. Both adapters
+     * answer "what changed?" from the platform's own change events instead: here
+     * an Eloquent observer writes a scolta_tracker row, there an entity hook
+     * queues a payload carrying the entity id and the item ids it owns
+     * (scolta.module::_scolta_auto_rebuild_check()). The tracker is therefore the
+     * consistent design, not a divergence from one.
+     *
+     * The manifest could not stand in for it anyway. In scolta-drupal a
+     * TimestampManifest is a *full build* cache — the gatherer replays unchanged
+     * entities as CachedContentReference instead of loading their bodies — and
+     * the incremental path there deliberately passes no manifest at all. Planning
+     * from one also costs a scan of every published record on every run, where a
+     * change event costs a row. What this package does not have is that
+     * full-build cache: getPublishedContent() reloads every record on every full
+     * build. That is a real gap, and a separate one.
+     *
+     * @return int|null An exit code, or null when the caller must run a full build.
+     *
+     * @since 1.4.0
+     *
+     * @stability experimental
+     */
+    private function updateIncrementally(ContentSource $source, string $outputDir): ?int
+    {
+        $stateDir = config('scolta.state_dir', storage_path('app/scolta'));
+        $language = config('scolta.ai_languages.0', 'en');
+
+        // An un-migrated app reads as "no pending changes" through every tracker
+        // method, so say which of the two it is: an index nothing is recording
+        // changes against is not up to date, it is unmonitored.
+        if (! $source->trackerAvailable()) {
+            $this->warn('Change tracking is unavailable: the scolta_tracker table does not exist. '
+                .'Run php artisan migrate, then rebuild with php artisan scolta:build.');
+
+            return self::FAILURE;
+        }
+
+        $pending = $source->getPendingCount();
+        if ($pending === 0) {
+            $this->info('No changes pending. Index is up to date.');
+
+            return self::SUCCESS;
+        }
+
+        // Counted before the change set is resolved, because resolving it loads
+        // every tracked record. Above the threshold a full build is cheaper and
+        // is the only path with a bounded memory profile.
+        //
+        // scolta-drupal counts item ids and this counts tracker rows, which are
+        // the same number here: toSearchableContent() returns one ContentItem per
+        // record, where a Drupal node yields one page per translation.
+        $threshold = (int) config('scolta.incremental.max_changed_items', 100);
+        if ($threshold > 0 && $pending > $threshold) {
+            $this->warn(sprintf(
+                'Change set of %d items exceeds the incremental threshold of %d; falling back to a full rebuild.',
+                $pending,
+                $threshold,
+            ));
+
+            return null;
+        }
+
+        $logger = new Logger(app('log')->driver(), app('events'));
+        $budget = $this->memoryBudget();
+        $updater = new IncrementalIndexUpdater($stateDir, $outputDir, $language, null, $logger, $budget);
+
+        if (! $updater->isAvailable()) {
+            $this->warn(
+                'No page-table ledger for the existing index; falling back to a full rebuild. '
+                .'Incremental updates apply to an index, they do not create one.'
+            );
+
+            return null;
+        }
+
+        $changes = $source->getTrackedChanges();
+
+        if ($changes['unresolved'] !== []) {
+            $this->warn(sprintf(
+                '%d tracked change(s) name records that are no longer readable (%s%s), so the index item ids '
+                .'they own cannot be derived; falling back to a full rebuild. A full rebuild derives deletions '
+                .'from the page-table ledger and does not need that mapping.',
+                count($changes['unresolved']),
+                implode(', ', array_slice($changes['unresolved'], 0, 3)),
+                count($changes['unresolved']) > 3 ? ', …' : '',
+            ));
+
+            return null;
+        }
+
+        foreach ($changes['upserts'] as $item) {
+            $updater->stageUpsert($item);
+        }
+        foreach ($changes['deletes'] as $id) {
+            $updater->stageDelete($id);
+        }
+
+        try {
+            $result = $updater->commit();
+        } catch (IncrementalUpdateUnavailable $e) {
+            $this->warn('Incremental index update unavailable ('.$e->getMessage().'); falling back to a full rebuild.');
+
+            return null;
+        }
+
+        // Only now: the index that satisfies these tracker rows is on disk.
+        $source->clearTracker();
+        Cache::increment('scolta_expand_generation');
+
+        $this->info(sprintf(
+            'Index updated incrementally: %d page(s) updated, %d deleted, %d fragment(s) and %d chunk(s) '
+            .'rewritten in %.3fs (tombstones %.1f%%).',
+            $result->pagesUpdated,
+            $result->pagesDeleted,
+            $result->fragmentsWritten,
+            $result->chunksRewritten,
+            $result->durationSeconds,
+            $result->tombstoneRatio * 100,
+        ));
+
+        $this->publishAssets();
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * The memory budget for this run, from --memory-budget/--chunk-size or config.
+     *
+     * One reader for all three PHP paths, so an incremental update compresses the
+     * artifacts it rewrites exactly as the full build that wrote them did.
+     */
+    private function memoryBudget(): MemoryBudget
+    {
+        return MemoryBudgetConfig::fromCliAndConfig(
+            $this->option('memory-budget'),
+            $this->option('chunk-size'),
+            fn () => [
+                'profile' => config('scolta.memory_budget.profile', 'conservative'),
+                'chunk_size' => config('scolta.memory_budget.chunk_size'),
+            ],
+        );
     }
 
     /**
@@ -168,14 +386,7 @@ class BuildCommand extends Command
             }
         }
         $language = config('scolta.ai_languages.0', 'en');
-        $budget = MemoryBudgetConfig::fromCliAndConfig(
-            $this->option('memory-budget'),
-            $this->option('chunk-size'),
-            fn () => [
-                'profile' => config('scolta.memory_budget.profile', 'conservative'),
-                'chunk_size' => config('scolta.memory_budget.chunk_size'),
-            ],
-        );
+        $budget = $this->memoryBudget();
 
         $totalCount = $source->getTotalCount();
 
@@ -281,6 +492,12 @@ class BuildCommand extends Command
 
             return self::FAILURE;
         }
+
+        // A full build covers every tracked change by definition. Leaving the rows
+        // behind is what made scolta:status and /api/scolta/v1/health report a
+        // pending_index backlog no build could drain, since only the binary
+        // indexer cleared it.
+        $source->clearTracker();
 
         Cache::increment('scolta_expand_generation');
         $this->info(sprintf(
@@ -520,14 +737,7 @@ class BuildCommand extends Command
 
         $this->info('Dispatching index build to queue...');
 
-        $budget = MemoryBudgetConfig::fromCliAndConfig(
-            $this->option('memory-budget'),
-            $this->option('chunk-size'),
-            fn () => [
-                'profile' => config('scolta.memory_budget.profile', 'conservative'),
-                'chunk_size' => config('scolta.memory_budget.chunk_size'),
-            ],
-        );
+        $budget = $this->memoryBudget();
 
         try {
             // dispatch() initialises the build manifest under the cross-process
@@ -580,6 +790,10 @@ class BuildCommand extends Command
 
                 return self::FAILURE;
             }
+
+            // Same reasoning as the synchronous path: the chain that just ran
+            // inline was a full build, so every tracked change is covered.
+            $source->clearTracker();
 
             // FinalizeIndex (which just ran inline) already bumped the expand
             // generation counter, so no increment is needed here.
