@@ -213,6 +213,39 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Incremental Updates
+    |--------------------------------------------------------------------------
+    |
+    | `artisan scolta:build --incremental` applies the changes recorded in the
+    | scolta_tracker table to the published index instead of rebuilding the whole
+    | corpus, and falls back to a full build whenever it cannot apply them
+    | exactly.
+    |
+    */
+
+    'incremental' => [
+        // Tracked changes at or below this count are applied in place; above it
+        // a full rebuild is cheaper than updating page by page, and is the only
+        // path with a bounded memory profile. Set to 0 to disable the ceiling
+        // and always attempt an incremental update.
+        //
+        // Key name, comparison and default are scolta-drupal's
+        // (scolta.settings:incremental.max_changed_items, default 100): the
+        // crossover is a property of the updater and the corpus, not of the
+        // platform, so the two adapters have no business disagreeing about it.
+        // scolta-php's own ChangeSetPlanner default is 1000, but nothing in
+        // either adapter uses that class; see BuildCommand::updateIncrementally().
+        'max_changed_items' => (int) env('SCOLTA_INCREMENTAL_MAX_ITEMS', 100),
+
+        // No `enabled` switch, which scolta-drupal does have. There the
+        // incremental path runs unattended from cron on every content save, so
+        // an operator needs a way to turn it off; here it is reachable only by
+        // typing --incremental, and a config key that made an explicitly
+        // requested flag do the opposite would be worse than not having one.
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | State Directory
     |--------------------------------------------------------------------------
     |

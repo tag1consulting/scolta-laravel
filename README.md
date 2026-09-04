@@ -397,6 +397,7 @@ For the evidence behind each preset — the scoring sweeps and per-parameter dat
 | Indexer backend | `SCOLTA_INDEXER` | `indexer` | `auto` | `auto` (always PHP), `php`, or `binary` |
 | Memory budget | `SCOLTA_MEMORY_BUDGET` | `memory_budget.profile` | `conservative` | `conservative`, `balanced`, or `aggressive` |
 | Chunk size | `SCOLTA_CHUNK_SIZE` | `memory_budget.chunk_size` | profile default | Pages per chunk during PHP indexer build |
+| Incremental ceiling | `SCOLTA_INCREMENTAL_MAX_ITEMS` | `incremental.max_changed_items` | `100` | Tracked changes above which `--incremental` falls back to a full rebuild; `0` disables the ceiling. Same key and default as scolta-drupal |
 
 ### Pagefind
 
@@ -638,7 +639,7 @@ Register the model in `config/scolta.php`:
 ```bash
 php artisan scolta:build                    # Full build: synchronous and verified (exit 0 = index built and live)
 php artisan scolta:build --queue            # Defer the build to the queue (index is NOT built until a worker drains the chain)
-php artisan scolta:build --incremental      # Only process tracked changes
+php artisan scolta:build --incremental      # Apply only the tracked changes to the published index
 php artisan scolta:build --skip-pagefind    # Export HTML without rebuilding index
 php artisan scolta:build --memory-budget=balanced  # Use balanced memory profile
 php artisan scolta:build --resume           # Resume an interrupted PHP index build
@@ -686,6 +687,33 @@ php artisan scolta:cleanup --dry-run      # List what would be deleted, delete n
 ```
 
 Cleanup is always safe: the live `pagefind/` index is never touched, `.scolta-new` and `.scolta-building` are left alone because a build may be using them right now, and a directory that cannot be deleted is left for the next run. `.scolta-trash-*` directories are also safe to remove by hand at any time. `--retired-only` restricts the command to this sweep; without it, it also clears stale build-state files, which is why the scheduled run passes it. When the command cannot resolve `pagefind.output_dir`, or the directory is not there, it writes to the Laravel log as well as stdout, so a scheduled run that is quietly doing nothing is visible in `storage/logs/`.
+
+### Incremental builds
+
+`scolta:build --incremental` applies the changes recorded in `scolta_tracker` to the index that is
+already published, instead of rebuilding the whole corpus. On the PHP indexer (`indexer=auto`, the
+default) it rewrites only the fragments and index chunks the changed pages touch, reusing the page
+ordinals the existing index already assigned. On the binary indexer it re-exports only the changed
+HTML before running Pagefind.
+
+It falls back to a **full build**, saying why, whenever the update cannot be applied exactly:
+
+- there is no published index with a page-table ledger to update against (an incremental update
+  applies to an index, it does not create one);
+- the change set is larger than `scolta.incremental.max_changed_items` (default 100, or
+  `SCOLTA_INCREMENTAL_MAX_ITEMS`), above which a full rebuild is the cheaper of the two;
+- a tracked row names a record that has left the database, so the index item ids it owned can no
+  longer be derived — a full build derives deletions from the ledger instead and does not need that
+  mapping, so a hard delete is applied by the fallback rather than by the update;
+- the indexer itself refuses, for instance when a changed page's previous token data is no longer
+  cached and its stale postings cannot be located.
+
+The exit code is 0 in all of those cases: the index is built and live either way. `--incremental`
+cannot be combined with `--force`, `--resume`, `--restart`, `--reset-ledger` or `--queue`, each of
+which asks for a full build; the combination exits 2.
+
+A successful build of either kind clears the tracker rows it covered, which is what keeps
+`scolta:status` and `/api/scolta/v1/health` reporting a truthful `pending_index`.
 
 ## API Endpoints
 
@@ -792,7 +820,7 @@ protected function schedule(Schedule $schedule): void
 }
 ```
 
-`--incremental` only processes tracked changes, so runs are fast when nothing has changed.
+`--incremental` applies only the tracked changes, so runs are fast when little or nothing has changed, and falls back to a full build when the change set cannot be applied in place. See [Incremental builds](#incremental-builds).
 
 #### Path C: System cron (direct)
 
