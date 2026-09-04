@@ -54,16 +54,18 @@ class TrackerModelTest extends TestCase
             'Fillable should include action.');
         $this->assertContains('changed_at', $fillable,
             'Fillable should include changed_at.');
+        $this->assertContains('item_id', $fillable,
+            'Fillable should include item_id — the index item id recorded when a deletion is tracked.');
     }
 
-    public function test_fillable_has_exactly_four_fields(): void
+    public function test_fillable_has_exactly_five_fields(): void
     {
         $ref = new ReflectionClass(ScoltaTracker::class);
         $prop = $ref->getProperty('fillable');
 
         $fillable = $prop->getDefaultValue();
-        $this->assertCount(4, $fillable,
-            'ScoltaTracker should have exactly 4 fillable fields.');
+        $this->assertCount(5, $fillable,
+            'ScoltaTracker should have exactly 5 fillable fields.');
     }
 
     // -------------------------------------------------------------------
