@@ -20,6 +20,9 @@ This project uses [Semantic Versioning](https://semver.org/). Each Scolta packag
 ### Removed
 - **`tests/BuildCommandMemoryHandlingTest.php`, and the structural tests in `tests/CommandValidationTest.php`.** Both read `src/` as text (or reflected over class structure) and asserted on it, so they passed with the logic inverted and failed on a harmless rename. `CommandValidationTest` now asserts each `scolta:*` command is registered under its documented name in a booted console kernel; the build-flag behaviour is covered by `tests/BuildResetLedgerFlagTest.php`, which drives the command.
 
+### Fixed
+- **A memory-aborted build spawned a detached successor and exited 0 with no index; `scolta:build` now drives the resume chain in the foreground and bounds it (`src/Commands/BuildCommand.php`, `src/Services/ResumeChain.php`).** One process runs each segment as a child, streams its output and reads its exit code, so the command returns only once the chain has ended: `SUCCESS` only for an index verified on disk, `DEFERRED` when a segment hands finalize to the queue, `FAILURE` otherwise. Two bounds end it — a segment that commits no pages gets no successor, and no build may use more than 50 segments. Every failure exits non-zero, so the driver classifies from `BuildState::readOutcome()` (cleared before each segment) rather than from the exit code: a memory yield must not look like a merge that found the index corrupt. `--force`, `--memory-budget` and `--chunk-size` travel with every segment; without `--force` the tail of a forced build reads the token cache the operator asked to bypass. A child invoked with `--resume` reports its yield and returns instead of nesting a chain of its own. The internal `--resume-segment` option and `storage/logs/scolta-resume.log` go with the detached design — with a foreground chain the operator sees every segment's output on the console.
+
 ## [1.3.0] - 2026-08-19
 
 ### Added
