@@ -52,6 +52,17 @@ class ResumeChainBoundsTest extends TestCase
         return [ScoltaServiceProvider::class];
     }
 
+    /**
+     * Path to an artisan stub this test created, if it had to.
+     *
+     * testbench-core ships `laravel/artisan` from 10.x, but not at the 9.2
+     * floor `composer.json` declares — and `ResumeChain::runSegment()` returns
+     * null without one, which is its documented "cannot auto-resume" path. The
+     * tests that drive the real boundary need the file to exist, so they own
+     * the fixture rather than depending on the skeleton's contents.
+     */
+    private ?string $stubbedArtisan = null;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -62,6 +73,13 @@ class ResumeChainBoundsTest extends TestCase
         File::deleteDirectory($this->outputDir);
         File::ensureDirectoryExists($this->stateDir);
         config(['scolta.state_dir' => $this->stateDir]);
+
+        $artisan = base_path('artisan');
+        if (! file_exists($artisan)) {
+            File::ensureDirectoryExists(dirname($artisan));
+            File::put($artisan, "<?php // stub: see \$stubbedArtisan\n");
+            $this->stubbedArtisan = $artisan;
+        }
 
         $this->recorder = new ChainRecorder($this->stateDir);
 
@@ -82,6 +100,10 @@ class ResumeChainBoundsTest extends TestCase
     {
         File::deleteDirectory($this->stateDir);
         File::deleteDirectory($this->outputDir);
+        if ($this->stubbedArtisan !== null) {
+            File::delete($this->stubbedArtisan);
+            $this->stubbedArtisan = null;
+        }
 
         parent::tearDown();
     }
@@ -351,7 +373,7 @@ class ResumeChainBoundsTest extends TestCase
 
         $exit = (new ResumeChain('512M'))->runSegment('conservative', '25', force: false);
 
-        $this->assertNotNull($exit, 'Testbench ships an artisan binary, so the segment must run');
+        $this->assertNotNull($exit, 'setUp() guarantees an artisan binary, so the segment must run');
         $child = $this->childCommand();
 
         $this->assertStringContainsString(PHP_BINARY, $child, 'The segment needs its own process and a clean heap');

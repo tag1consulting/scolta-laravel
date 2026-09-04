@@ -18,21 +18,50 @@ env:
 
 jobs:
   test:
+    name: test-${{ matrix.cell }}
     runs-on: ubuntu-latest
     strategy:
+      # The cells are different resolutions of the same package; one failing
+      # says nothing about the others. (The Drupal adapter sets this on its
+      # integration matrix for the same reason; its unit matrix is two cells
+      # and leaves it at the default.)
+      fail-fast: false
       matrix:
         include:
-          - php: '8.2'
-            laravel: '11'
+          # Highest+lowest bracketing, the same shape as the Drupal adapter's
+          # ci.yml: lowest = minimum supported PHP resolved with
+          # --prefer-lowest, which proves the composer.json floors are real
+          # rather than fiction; highest = newest supported PHP with the
+          # newest resolution, and the only cell that lints — one canonical
+          # style environment. Deliberately only the two ends: an intermediate
+          # PHP x Laravel combination has never caught anything the brackets
+          # did not, and every extra cell is a required check to maintain.
+          #
+          # Cell names carry no version numbers because branch protection
+          # matches required checks by literal job name, so a PHP or Laravel
+          # rotation must not rename a check. What each cell means is defined
+          # here in the matrix.
+
+          # The declared floors, resolved rather than assumed.
+          # --prefer-stable alongside --prefer-lowest because "lowest" alone
+          # takes the lowest version of any stability. This cell pins no
+          # dependency version at all: the illuminate constraints are left as
+          # composer.json ships them (an empty matrix.laravel makes the step
+          # below skip the rewrite) and so is tag1/scolta-php, so raising
+          # either floor moves this cell with it instead of leaving a stale
+          # pin behind. The scolta-php floor carries @dev and no stable
+          # release satisfies it yet; --prefer-stable does not change that,
+          # composer still resolves the development branch, which is the
+          # lowest scolta-php that exists.
+          - cell: lowest
+            php: '8.2'
+            laravel: ''
+            composer-flags: '--prefer-lowest --prefer-stable'
             lint: false
-          - php: '8.3'
-            laravel: '11'
-            lint: false
-          - php: '8.3'
-            laravel: '12'
-            lint: false
-          - php: '8.4'
+          - cell: highest
+            php: '8.5'
             laravel: '13'
+            composer-flags: ''
             lint: true
     steps:
       - uses: actions/checkout@v4
@@ -60,14 +89,23 @@ jobs:
             $j = json_decode(file_get_contents("composer.json"), true);
             $j["repositories"] = [["type" => "vcs", "url" => "https://github.com/tag1consulting/scolta-php.git"]];
             $v = "${{ matrix.laravel }}";
-            foreach (["illuminate/support","illuminate/console","illuminate/database","illuminate/routing"] as $pkg) {
-                $j["require"][$pkg] = "^{$v}.0";
+            // An empty matrix.laravel leaves the shipped constraints alone.
+            // That is the lowest cell: it has to resolve what composer.json
+            // declares, not a Laravel version restated here.
+            if ($v !== "") {
+                foreach (["illuminate/support","illuminate/console","illuminate/database","illuminate/routing"] as $pkg) {
+                    $j["require"][$pkg] = "^{$v}.0";
+                }
             }
             file_put_contents("composer.json", json_encode($j, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
           '
 
       - name: Install dependencies
-        run: composer update --no-interaction --prefer-dist --ignore-platform-req=php
+        run: composer update --no-interaction --prefer-dist --ignore-platform-req=php ${{ matrix.composer-flags }}
+
+      # No silent resolutions: what this cell actually tested, in the log.
+      - name: Report resolved versions
+        run: composer show --direct
 
       - name: Lint (Laravel Pint)
         if: matrix.lint
@@ -85,7 +123,7 @@ jobs:
       - name: Setup PHP with Xdebug
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.5'
           extensions: intl
           coverage: xdebug
 
@@ -136,18 +174,18 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.5'
           extensions: intl
           coverage: none
 
-      - name: Replace path repo with GitHub VCS repo and pin Laravel 12
+      - name: Replace path repo with GitHub VCS repo and pin Laravel 13
         run: |
           php -r '
             $j = json_decode(file_get_contents("composer.json"), true);
             $j["repositories"] = [["type" => "vcs", "url" => "https://github.com/tag1consulting/scolta-php.git"]];
             $j["require"]["tag1/scolta-php"] = "dev-main@dev";
             foreach (["illuminate/support","illuminate/console","illuminate/database","illuminate/routing"] as $pkg) {
-                $j["require"][$pkg] = "^12.0";
+                $j["require"][$pkg] = "^13.0";
             }
             file_put_contents("composer.json", json_encode($j, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
           '
@@ -180,7 +218,7 @@ jobs:
 
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.5'
           coverage: none
 
       # A lock that no longer matches composer.json is not a slow-burning

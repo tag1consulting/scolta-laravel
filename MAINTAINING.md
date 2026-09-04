@@ -15,12 +15,17 @@ naming the same line.
 **Where it publishes.** Packagist, as `tag1/scolta-laravel`. To confirm:
 `composer show tag1/scolta-laravel -a | grep versions`.
 
-**CI checks.** phpunit (`test`, plus `coverage`), `docs-check` (CHANGELOG when code changes),
+**CI checks.** phpunit across two matrix cells that bracket the supported range — `test-lowest`
+(minimum PHP, installed with `--prefer-lowest --prefer-stable`, so the declared floors are exercised
+rather than assumed) and `test-highest` (newest PHP and Laravel, and the only cell that runs Pint) —
+plus `coverage`, `docs-check` (CHANGELOG when code changes),
 `analyse` (Larastan),
 `lock-guard` (`composer validate`, and the lock must not name `tag1/scolta-php` from a `dist.type=path`
 repo), `antipatterns` (which also refuses a duplicate `###` sub-header under `## [Unreleased]` in
 CHANGELOG.md), `Validate Composer dist archive`, and `Version coherence`. The scolta-php floor is
-covered by `tests/ScoltaPhpFloorTest.php` inside phpunit.
+covered by `tests/ScoltaPhpFloorTest.php` inside phpunit, and by `test-lowest` resolving the
+constraint `composer.json` actually declares. Cell names carry no version numbers because branch
+protection matches required checks by literal job name; what each cell means is defined in the matrix.
 
 **On release day.** Release this after scolta-php. During a cycle the floor carries `@dev`; once
 scolta-php `X.Y.0` is tagged, drop the `@dev`, re-lock, then release. `lock-guard` in `release.yml`
