@@ -193,8 +193,26 @@ jobs:
           # --- Analyzer / agent filtering (Python engine) ---
           # These are forwarded to rescan and review-full via the slash-commands job below
           # so both paths honor the same filtering without manual duplication.
+          #
+          # phpstan and phpcs are off by default here, for different reasons.
+          #
+          # phpstan duplicates ci.yml's `analyse` job, which runs `composer
+          # analyse` (Larastan) after a real `composer update`. The reviewer's
+          # container installs nothing, so its copy resolves no framework class
+          # and reports what it cannot see.
+          #
+          # phpcs is not a tool this package uses at all: style is Laravel Pint
+          # (`composer lint`, the lint cell of the test matrix), and there is no
+          # phpcs.xml here to find. The reviewer picks a standard from whatever
+          # its image ships, which is Drupal's — so on #132 it demanded 2-space
+          # indentation from a PSR-12 codebase at High severity
+          # (Drupal.WhiteSpace.ScopeIndent.IncorrectExact, 'expected 2 spaces,
+          # found 4') and flagged Drupal.Commenting rules on Pint-clean files.
+          # 34 of that PR's 46 findings came from these two analyzers.
+          #
+          # Override with the AI_REVIEW_EXCLUDE_ANALYZERS repo variable.
           analyzers: ${{ vars.AI_REVIEW_ANALYZERS || '' }}
-          exclude-analyzers: ${{ vars.AI_REVIEW_EXCLUDE_ANALYZERS || '' }}
+          exclude-analyzers: ${{ vars.AI_REVIEW_EXCLUDE_ANALYZERS || 'phpcs,phpstan' }}
           agents: ${{ vars.AI_REVIEW_AGENTS || '' }}
           exclude-agents: ${{ vars.AI_REVIEW_EXCLUDE_AGENTS || '' }}
 
@@ -249,8 +267,10 @@ jobs:
       # --- Analyzer / agent filtering (Python engine) ---
       # Forwarded to rescan and review-full to keep them in sync with the
       # main review above. Set the repo variables once, both paths stay aligned.
+      # The phpcs/phpstan default matches the review job above; see the comment
+      # there for why. A rescan must not resurrect what the review job skips.
       analyzers: ${{ vars.AI_REVIEW_ANALYZERS || '' }}
-      exclude-analyzers: ${{ vars.AI_REVIEW_EXCLUDE_ANALYZERS || '' }}
+      exclude-analyzers: ${{ vars.AI_REVIEW_EXCLUDE_ANALYZERS || 'phpcs,phpstan' }}
       agents: ${{ vars.AI_REVIEW_AGENTS || '' }}
       exclude-agents: ${{ vars.AI_REVIEW_EXCLUDE_AGENTS || '' }}
     secrets:
