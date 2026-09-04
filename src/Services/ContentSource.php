@@ -167,10 +167,12 @@ class ContentSource implements ContentSourceInterface
      *    getChangedContent() this applies scopeSearchable() as well as
      *    shouldBeSearchable(), so a record sent to draft under a scope predicate
      *    leaves the index instead of entering it.
-     *  - `deletes` — a publish filter now rejects the record, or it was tracked
-     *    for deletion and is still readable (a soft delete). Its item id is exact.
-     *  - `unresolved` — the record is gone from the database, so nothing can say
-     *    which item ids it owned. The caller must run a full build, which derives
+     *  - `deletes` — a publish filter now rejects the record, it was tracked for
+     *    deletion and is still readable (a soft delete), or the observer recorded
+     *    its item id before it went. Exact in every one of those cases.
+     *  - `unresolved` — the record is gone and no item id was recorded: a row
+     *    written before the item_id migration, or one whose toSearchableContent()
+     *    threw mid-delete. The caller must run a full build, which derives
      *    deletions from the ledger and does not need this mapping.
      *
      * The whole change set is materialised, which is safe only because callers
@@ -249,50 +251,13 @@ class ContentSource implements ContentSourceInterface
         }
 
         foreach (ScoltaTracker::getPending('delete')->groupBy('content_type') as $contentType => $rows) {
-            $contentType = (string) $contentType;
-            $ids = array_map(strval(...), $rows->pluck('content_id')->all());
+            $resolved = $this->resolveDeletedRows((string) $contentType, $rows);
 
-            if (! $this->isIndexableModel($contentType)) {
-                foreach ($ids as $id) {
-                    $unresolved[] = $contentType.':'.$id;
-                }
-
-                continue;
+            foreach ($resolved['ids'] as $id) {
+                $deletes[] = $id;
             }
-
-            /** @var Model $model */
-            $model = new $contentType;
-            $keyName = $model->getKeyName();
-            $query = $model->newQuery()->whereIn($keyName, $ids);
-
-            // A soft-deleted row is still readable, and the trashed record still
-            // knows the item id it published under.
-            if (in_array(SoftDeletes::class, class_uses_recursive($contentType), true)) {
-                $query = $query->withoutGlobalScope(SoftDeletingScope::class);
-            }
-
-            $seen = [];
-
-            foreach ($query->lazy(100) as $record) {
-                if (! method_exists($record, 'toSearchableContent')) {
-                    continue;
-                }
-
-                $item = $record->toSearchableContent();
-                if (! $item instanceof ContentItem) {
-                    continue;
-                }
-
-                $seen[(string) $record->getKey()] = true;
-                $deletes[] = $item->id;
-            }
-
-            foreach ($ids as $id) {
-                if (! isset($seen[$id])) {
-                    // A hard delete: the only description of the pages it owned
-                    // is gone with the row.
-                    $unresolved[] = $contentType.':'.$id;
-                }
+            foreach ($resolved['unresolved'] as $reference) {
+                $unresolved[] = $reference;
             }
         }
 
@@ -316,23 +281,154 @@ class ContentSource implements ContentSourceInterface
     }
 
     /**
-     * Get content IDs that have been deleted.
+     * Get the index item ids of content that has been deleted.
      *
-     * These are Eloquent primary keys — the id space the binary path's HTML
-     * export manifest uses, NOT the ContentItem id space the PHP index is keyed
-     * by. See getTrackedChanges() for that mapping.
+     * The interface asks for "content IDs to remove from the index", and the
+     * index — export manifest, exported HTML, page-table ledger — is keyed by
+     * ContentItem::$id. So that is what this returns, not the Eloquent primary
+     * keys the tracker stores in content_id and that this used to return.
      *
-     * @return string[] Content IDs to remove from the index.
+     * Rows this cannot map are dropped from the result. Use getDeletedItemIds()
+     * to see them; every caller in this package does.
+     *
+     * Rows this cannot map are dropped from the result. Use
+     * getDeletedItemIds() to see them: every caller in this package does,
+     * because a deletion that cannot be located is exactly the thing that must
+     * not pass silently.
+     *
+     * @return string[] Item IDs to remove from the index.
      */
     public function getDeletedIds(): array
     {
+        return $this->getDeletedItemIds()['ids'];
+    }
+
+    /**
+     * Resolve the pending delete rows into index item ids, and say what failed.
+     *
+     * Three sources of an answer, tried in order:
+     *
+     *  - `item_id` on the tracker row, written by ScoltaObserver when it recorded
+     *    the deletion. The only exact answer for a hard delete, because it was
+     *    taken while the record still existed.
+     *  - the record itself, reloaded with the soft-delete scope lifted, since a
+     *    trashed record still knows the item id it published under. Covers rows
+     *    predating the item_id migration and unpublish transitions.
+     *  - nothing: the record is gone and no id was recorded. Reported in
+     *    `unresolved` as "Class:key", never guessed at — a bare primary key
+     *    handed to deleteById() or stageDelete() matches nothing and is answered
+     *    by doing nothing, which is how this stayed invisible.
+     *
+     * An unresolved row is a one-shot warning, not a retry: the run that reports
+     * it goes on to clear the tracker, so only a full build removes the page.
+     *
+     * @return array{ids: list<string>, unresolved: list<string>}
+     *
+     * @since 1.4.0
+     *
+     * @stability experimental
+     */
+    public function getDeletedItemIds(): array
+    {
+        $ids = [];
+        $unresolved = [];
+
         if (! $this->trackerAvailable()) {
-            return [];
+            return ['ids' => $ids, 'unresolved' => $unresolved];
         }
 
-        return ScoltaTracker::getPending('delete')
-            ->pluck('content_id')
-            ->all();
+        foreach (ScoltaTracker::getPending('delete')->groupBy('content_type') as $contentType => $rows) {
+            $resolved = $this->resolveDeletedRows((string) $contentType, $rows);
+
+            foreach ($resolved['ids'] as $id) {
+                $ids[] = $id;
+            }
+            foreach ($resolved['unresolved'] as $reference) {
+                $unresolved[] = $reference;
+            }
+        }
+
+        return ['ids' => array_values(array_unique($ids)), 'unresolved' => $unresolved];
+    }
+
+    /**
+     * Map one content type's pending delete rows onto item ids.
+     *
+     * The single implementation of the tracker-key → item-id mapping for
+     * deletions. getDeletedItemIds() and getTrackedChanges() both go through it,
+     * so the binary export path and the PHP incremental path cannot disagree.
+     *
+     * @param  iterable<ScoltaTracker>  $rows
+     * @return array{ids: list<string>, unresolved: list<string>}
+     */
+    private function resolveDeletedRows(string $contentType, iterable $rows): array
+    {
+        $ids = [];
+        $unresolved = [];
+        $needsLookup = [];
+
+        foreach ($rows as $row) {
+            $recorded = $row->item_id;
+
+            if (is_string($recorded) && $recorded !== '') {
+                $ids[] = $recorded;
+
+                continue;
+            }
+
+            $needsLookup[] = (string) $row->content_id;
+        }
+
+        if ($needsLookup === []) {
+            return ['ids' => $ids, 'unresolved' => $unresolved];
+        }
+
+        if (! $this->isIndexableModel($contentType)) {
+            // Nothing left to ask, and a model dropped from config or stripped
+            // of the trait may still own exported pages. Reported, not skipped.
+            foreach ($needsLookup as $key) {
+                $unresolved[] = $contentType.':'.$key;
+            }
+
+            return ['ids' => $ids, 'unresolved' => $unresolved];
+        }
+
+        /** @var Model $model */
+        $model = new $contentType;
+        $keyName = $model->getKeyName();
+        $query = $model->newQuery()->whereIn($keyName, $needsLookup);
+
+        // A soft-deleted row is still readable, and the trashed record still
+        // knows the item id it published under.
+        if (in_array(SoftDeletes::class, class_uses_recursive($contentType), true)) {
+            $query = $query->withoutGlobalScope(SoftDeletingScope::class);
+        }
+
+        $seen = [];
+
+        foreach ($query->lazy(100) as $record) {
+            if (! method_exists($record, 'toSearchableContent')) {
+                continue;
+            }
+
+            $item = $record->toSearchableContent();
+            if (! $item instanceof ContentItem) {
+                continue;
+            }
+
+            $seen[(string) $record->getKey()] = true;
+            $ids[] = $item->id;
+        }
+
+        foreach ($needsLookup as $key) {
+            if (! isset($seen[$key])) {
+                // A hard delete recorded before the item_id column existed: the
+                // only description of the pages it owned went with the row.
+                $unresolved[] = $contentType.':'.$key;
+            }
+        }
+
+        return ['ids' => $ids, 'unresolved' => $unresolved];
     }
 
     /**

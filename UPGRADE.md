@@ -4,6 +4,35 @@ Breaking changes and the action each one requires, newest first. A release that
 needs nothing from you is not listed here; see `CHANGELOG.md` for the full
 record.
 
+## 1.4.0
+
+### A new migration adds `scolta_tracker.item_id`
+
+**Action required: re-publish the migrations and run them.**
+
+```bash
+php artisan vendor:publish --tag=scolta-migrations
+php artisan migrate
+```
+
+The tracker used to record only an Eloquent primary key for a deleted record,
+and a primary key cannot locate the exported page or index entry that record
+owned — those are keyed by `ContentItem::$id`, which `toSearchableContent()`
+invents. The new nullable `item_id` column holds that id, captured by
+`ScoltaObserver` at the moment it records the deletion, which is the last
+moment the answer exists.
+
+Nothing breaks if you delay: `ScoltaTracker::track()` checks for the column
+once per process and omits it when it is absent, and `ContentSource` falls back
+to reloading the record. But until the migration runs, a *hard*-deleted record
+cannot be resolved to a page — `scolta:export --incremental` and
+`scolta:build --incremental --indexer=binary` now say so on the console instead
+of reporting a removal that did not happen, and fall back to a full run for
+that build, which clears the orphans.
+
+Rows written before the migration ran keep a null `item_id` for the same
+reason. If any are still pending, run one full build after migrating.
+
 ## 1.2.0
 
 This package's own public API is unchanged in 1.2.0. Nothing in

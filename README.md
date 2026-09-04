@@ -520,6 +520,19 @@ php artisan migrate
 | `scolta_tracker` | Change tracking for Eloquent models. The `ScoltaObserver` writes here when models are created, updated, or deleted. Used by incremental builds to process only changed content. |
 | `scolta_config` | Key/value config store for Amazee.ai credentials and auto-configured model settings. Tokens are encrypted via Laravel's `Crypt` facade. |
 
+Re-run both commands after upgrading the package: migrations are added over
+time, and 1.4.0 adds `scolta_tracker.item_id`.
+
+`item_id` holds the value your model's `toSearchableContent()` returned as
+`ContentItem::$id` — the id the exported HTML, the export manifest and the index
+are keyed by. `content_id` is the Eloquent primary key, which is a different
+thing and cannot locate any of them once the record is gone. The observer
+captures `item_id` when it records a deletion, so a hard-deleted record can
+still have its page removed by an incremental build. Until the migration runs
+the column is simply absent; an incremental run that meets a deletion it cannot
+resolve says so and falls back to a full run, which removes the page by
+rebuilding the export from an empty directory.
+
 ## Debugging
 
 ### "Pagefind binary not found"

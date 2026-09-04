@@ -23,6 +23,7 @@ use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 use Tag1\ScoltaLaravel\Progress\ArtisanProgressReporter;
 use Tag1\ScoltaLaravel\Services\AssetStatus;
 use Tag1\ScoltaLaravel\Services\ContentSource;
+use Tag1\ScoltaLaravel\Services\ExportDeletions;
 use Tag1\ScoltaLaravel\Services\PagefindRunner;
 use Tag1\ScoltaLaravel\Services\QueueRebuildDispatcher;
 use Tag1\ScoltaLaravel\Services\ResumeChain;
@@ -846,15 +847,32 @@ class BuildCommand extends Command
         $exporter = new ContentExporter($buildDir);
 
         // Step 1: Determine what to index.
-        if ($this->option('incremental')) {
+        $incremental = (bool) $this->option('incremental');
+
+        if ($incremental) {
             $pendingCount = $source->getPendingCount();
             if ($pendingCount === 0) {
                 $this->info('No changes pending. Index is up to date.');
 
                 return self::SUCCESS;
             }
-            $this->info("Step 1: Processing {$pendingCount} tracked changes...");
-        } else {
+
+            // Swept before the mode is settled, because its answer can change it:
+            // an unresolvable deletion is a page left on disk for Pagefind to
+            // index again, and only a full run removes it. ExportDeletions is
+            // shared with scolta:export and reports every deletion it could not
+            // carry out. Incremental runs only — the full branch below empties
+            // the build directory, so there a deleted item is removed by not
+            // being re-exported.
+            $incremental = $this->laravel->make(ExportDeletions::class)
+                ->sweep($exporter, $this)['unresolved'] === [];
+
+            if ($incremental) {
+                $this->info("Step 1: Processing {$pendingCount} tracked changes...");
+            }
+        }
+
+        if (! $incremental) {
             $this->info('Step 1: Marking all published content for reindex...');
             $count = ScoltaTracker::markAllForReindex();
             $this->info("  Marked {$count} items.");
@@ -866,17 +884,8 @@ class BuildCommand extends Command
         // Step 2: Export content to HTML.
         $this->info('Step 2: Exporting content to HTML...');
 
-        // Handle deletions first.
-        $deletedIds = $source->getDeletedIds();
-        foreach ($deletedIds as $id) {
-            $exporter->deleteById($id);
-        }
-        if (count($deletedIds) > 0) {
-            $this->info('  Removed '.count($deletedIds).' deleted items.');
-        }
-
         // Export new/changed content.
-        $items = $this->option('incremental')
+        $items = $incremental
             ? $source->getChangedContent()
             : $source->getPublishedContent();
 
@@ -884,7 +893,7 @@ class BuildCommand extends Command
         $skipped = 0;
 
         // Laravel's command output helpers make progress reporting clean.
-        if (! $this->option('incremental')) {
+        if (! $incremental) {
             $total = $source->getTotalCount();
             $bar = $this->output->createProgressBar($total);
             $bar->start();
@@ -910,7 +919,13 @@ class BuildCommand extends Command
             }
         }
 
-        $exporter->writeManifest();
+        if (! $incremental) {
+            // writeManifest() serialises only the paths this process exported, so
+            // on an incremental run it would replace the whole site's id → path
+            // mapping with the few items that just changed — and that mapping is
+            // the only way a later deletion finds its file.
+            $exporter->writeManifest();
+        }
 
         $this->info("  Exported: {$exported}, Skipped (insufficient content): {$skipped}");
 

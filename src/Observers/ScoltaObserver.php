@@ -6,6 +6,7 @@ namespace Tag1\ScoltaLaravel\Observers;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
+use Tag1\Scolta\Export\ContentItem;
 use Tag1\ScoltaLaravel\Jobs\TriggerRebuild;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 
@@ -54,13 +55,17 @@ class ScoltaObserver
 
     /**
      * Handle the "deleted" event (including soft deletes).
+     *
+     * The item id is captured here because this is the last moment the record
+     * can be asked. See resolveItemId().
      */
     public function deleted(Model $model): void
     {
         ScoltaTracker::track(
             (string) $model->getKey(),
             $this->getContentType($model),
-            'delete'
+            'delete',
+            $this->resolveItemId($model)
         );
 
         $this->maybeDispatchRebuild();
@@ -83,13 +88,17 @@ class ScoltaObserver
      *
      * Permanent deletion — model is gone from the database.
      * Track as delete regardless of shouldBeSearchable().
+     *
+     * The case the item id has to be recorded for: after a force delete there is
+     * no row left to reconstruct it from.
      */
     public function forceDeleted(Model $model): void
     {
         ScoltaTracker::track(
             (string) $model->getKey(),
             $this->getContentType($model),
-            'delete'
+            'delete',
+            $this->resolveItemId($model)
         );
 
         $this->maybeDispatchRebuild();
@@ -111,10 +120,51 @@ class ScoltaObserver
         ScoltaTracker::track(
             (string) $model->getKey(),
             $this->getContentType($model),
-            $shouldIndex ? 'index' : 'delete'
+            $shouldIndex ? 'index' : 'delete',
+            // Delete branch only: resolving an item id renders the model's
+            // searchable content, which on an 'index' row the build is about to
+            // redo anyway, and there the record is still around to ask.
+            $shouldIndex ? null : $this->resolveItemId($model)
         );
 
         $this->maybeDispatchRebuild();
+    }
+
+    /**
+     * The id the index knows this model by, asked while the model still exists.
+     *
+     * The tracker's content_id is an Eloquent primary key; the export manifest,
+     * the exported files and the index are keyed by ContentItem::$id. Nothing
+     * maps one to the other except a live model instance, and a pending delete
+     * is the row whose model is about to stop existing.
+     *
+     * Returns null rather than throwing: the delete is already in flight, and a
+     * toSearchableContent() reaching for a cascaded-away relation must not take
+     * it down. Null lands as an unrecorded item id, which
+     * ContentSource::getDeletedItemIds() reports rather than guesses at, and
+     * which escalates the next incremental run to a full one.
+     */
+    private function resolveItemId(Model $model): ?string
+    {
+        if (! method_exists($model, 'toSearchableContent')) {
+            return null;
+        }
+
+        try {
+            $item = $model->toSearchableContent();
+        } catch (\Throwable $e) {
+            logger()->warning(sprintf(
+                '[scolta] Could not derive the index item id for %s #%s while tracking its deletion: %s. '
+                .'Its exported page can only be removed by a full rebuild.',
+                get_class($model),
+                (string) $model->getKey(),
+                $e->getMessage(),
+            ));
+
+            return null;
+        }
+
+        return $item instanceof ContentItem && $item->id !== '' ? $item->id : null;
     }
 
     /**
