@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel;
 
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
@@ -177,6 +178,7 @@ class ScoltaServiceProvider extends ServiceProvider
 
         if ($this->app->runningInConsole()) {
             $this->registerCommands();
+            $this->registerScheduledCleanup();
         }
 
         // First-run auto-build: if no index exists and auto_rebuild is enabled,
@@ -451,5 +453,57 @@ class ScoltaServiceProvider extends ServiceProvider
             RebuildIndexCommand::class,
             StatusCommand::class,
         ]);
+    }
+
+    /**
+     * Schedule the retired-index sweep on the application's scheduler.
+     *
+     * Deliberately mirrors the Drupal adapter's `hook_cron()`, which sweeps
+     * `.scolta-trash-*` on every cron run under the same `cleanup.cron_seconds`
+     * budget. The alternative — documenting a `Schedule::command()` line and
+     * registering nothing, the way `telescope:prune` and `sanctum:prune-expired`
+     * are documented — was rejected: those commands enforce a *retention
+     * policy* only the application can choose, whereas retired trash is garbage
+     * by construction that nobody has an opinion about. It would also have left
+     * a Drupal site with the backstop and a Laravel site without one, and the
+     * gap the backstop covers is not small. `IndexBuildOrchestrator` sweeps
+     * only on the success path, after the swap; a build that fails anywhere in
+     * the merge leaves the staging directory it retired into trash sitting
+     * there, and every retry adds another index-sized directory. Two publishing
+     * paths here — `scolta:build --indexer=binary` and `scolta:rebuild-index` —
+     * never reach the orchestrator and so never sweep at all.
+     *
+     * `callAfterResolving()` is the framework's own hook for this, so nothing
+     * is constructed unless the scheduler is actually resolved, and the entry
+     * shows up in `php artisan schedule:list` under its own command name.
+     *
+     * `--retired-only` because Drupal's cron does only the sweep, and because
+     * this command's other passes must not run unattended (see
+     * CleanupCommand::sweepStaleFiles()). No `max_execution_time` cap like
+     * Drupal's, because there is no web-triggered equivalent: `schedule:run` is
+     * always CLI, where the limit is 0. No `withoutOverlapping()`, matching
+     * hook_cron: a daily run capped at the budget cannot realistically stack,
+     * concurrent sweeps of the same trash are harmless, and a wedged mutex
+     * would silently disable the backstop it is meant to protect.
+     *
+     * @since 1.4.0
+     *
+     * @stability experimental
+     */
+    private function registerScheduledCleanup(): void
+    {
+        $seconds = (int) config('scolta.cleanup.cron_seconds', 180);
+
+        // 0 disables the scheduled sweep, exactly as on Drupal. Nothing is
+        // registered at all, so `schedule:list` does not claim a task that
+        // would immediately no-op.
+        if ($seconds <= 0) {
+            return;
+        }
+
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule) use ($seconds): void {
+            $schedule->command('scolta:cleanup', ['--retired-only', '--max-seconds='.$seconds])
+                ->daily();
+        });
     }
 }

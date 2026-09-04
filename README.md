@@ -642,8 +642,10 @@ php artisan scolta:rebuild-index            # Rebuild index from existing HTML f
 php artisan scolta:status                   # Show tracker, content, index, and AI status
 php artisan scolta:discover                 # Find Searchable models not yet in config
 php artisan scolta:clear-cache              # Clear Scolta AI response caches
-php artisan scolta:cleanup                  # Remove stale index artifacts and orphaned state files
+php artisan scolta:cleanup                  # Remove stale index artifacts, orphaned state files, and retired indexes
 php artisan scolta:cleanup --dry-run        # Show what would be removed without deleting
+php artisan scolta:cleanup --retired-only    # Sweep retired indexes only; leave build state alone
+php artisan scolta:cleanup --max-seconds=60 # Stop sweeping retired indexes after 60 seconds
 php artisan scolta:memory-budget            # Show the current memory budget profile
 php artisan scolta:memory-budget --set=balanced  # Set profile: conservative, balanced, or aggressive
 php artisan scolta:download-pagefind        # Download Pagefind binary for your platform
@@ -651,6 +653,30 @@ php artisan scolta:check-setup              # Verify PHP, indexer, and configura
 php artisan scolta:amazee:provision {email}  # Enable Amazee.ai with a free trial
 php artisan scolta:amazee:provision {email} --force  # Provision even if a provider is already configured
 ```
+
+### Retired-index cleanup
+
+Publishing a new index renames the outgoing one to a `.scolta-trash-*` directory beside `pagefind/` and deletes it after the swap, rather than unlinking it file by file inside the swap. On NFS-backed storage that inline deletion ran at single-digit files per second, so a finished build looked hung for hours while the new index was already live. A rename is O(1), and the deletion afterwards is parallelized (16 concurrent `rm` workers) under a CLI process; environments without process spawning fall back to serial deletion automatically.
+
+A successful build sweeps its own trash: `scolta:build` and the queued `FinalizeIndex` job both go through the orchestrator, which sweeps right after the swap. Two things are left over for a backstop — a build that failed or was killed during the merge (each retry retires the previous attempt's staging directory into trash), and the `--indexer=binary` paths (`scolta:build --indexer=binary`, `scolta:rebuild-index`), which never reach the orchestrator.
+
+**Scolta schedules that backstop for you.** The service provider registers a daily `scolta:cleanup --retired-only` on your application's scheduler, so nothing needs wiring beyond the `schedule:run` cron entry Laravel already asks for. It shows up under its own name in `php artisan schedule:list`. Each run spends at most `cleanup.cron_seconds` (default 180, `SCOLTA_CLEANUP_CRON_SECONDS`) deleting trash and then stops; the next run resumes on whatever is left. Set it to `0` to register no task at all, and schedule your own if you want different timing:
+
+```php
+// routes/console.php — only needed if you set SCOLTA_CLEANUP_CRON_SECONDS=0
+use Illuminate\Support\Facades\Schedule;
+
+Schedule::command('scolta:cleanup --retired-only --max-seconds=180')->hourly();
+```
+
+On demand, and unbounded unless you ask otherwise:
+
+```bash
+php artisan scolta:cleanup
+php artisan scolta:cleanup --dry-run      # List what would be deleted, delete nothing
+```
+
+Cleanup is always safe: the live `pagefind/` index is never touched, `.scolta-new` and `.scolta-building` are left alone because a build may be using them right now, and a directory that cannot be deleted is left for the next run. `.scolta-trash-*` directories are also safe to remove by hand at any time. `--retired-only` restricts the command to this sweep; without it, it also clears stale build-state files, which is why the scheduled run passes it. When the command cannot resolve `pagefind.output_dir`, or the directory is not there, it writes to the Laravel log as well as stdout, so a scheduled run that is quietly doing nothing is visible in `storage/logs/`.
 
 ## API Endpoints
 
