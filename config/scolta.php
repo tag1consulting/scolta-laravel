@@ -229,6 +229,19 @@ return [
         'output_dir' => env('SCOLTA_OUTPUT_DIR', public_path('scolta-pagefind')),
     ],
 
+    // Retired-index cleanup. Publishing an index renames the outgoing one to a
+    // `.scolta-trash-*` sibling; the package registers a daily scheduled sweep
+    // that deletes those, so a site gets the backstop without wiring anything.
+    'cleanup' => [
+        // Wall-clock seconds the scheduled sweep may spend deleting before it
+        // stops; an interrupted sweep is harmless, the next run resumes on the
+        // remainder. 0 disables the scheduled sweep entirely — `php artisan
+        // scolta:cleanup` still works by hand, and by hand it is unbounded.
+        // Same name, default and disable semantics as the Drupal adapter's
+        // `cleanup.cron_seconds`.
+        'cron_seconds' => env('SCOLTA_CLEANUP_CRON_SECONDS', 180),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Scoring
