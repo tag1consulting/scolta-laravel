@@ -714,6 +714,17 @@ who sees the detail, redefine the gate in your `AuthServiceProvider`:
 Gate::define('scolta.health-detail', fn (User $user) => $user->isAdmin());
 ```
 
+The detail payload comes from scolta-php's `HealthChecker::check()`, with the
+Laravel-specific `index`, `tracker` and `assets_*` fields merged on top. This
+package adds one fault of its own: an index that exists but fails the integrity
+spot check (`index.integrity.valid: false`, with the specifics in
+`index.integrity.issues`) reports `status: degraded`. Against a scolta-php that
+reports `status_reasons` — the list of machine-readable fault keys, empty
+exactly when the status is `ok`, added in scolta-php 1.5.0 — that failure also
+appends `index_integrity_invalid` to the list, so the reasons never contradict
+the status. An older scolta-php produces no `status_reasons` key and the
+adapter does not add one.
+
 > **Note:** Amazee.ai admin routes (`/scolta/amazee/*`) use `web` middleware and are documented in the [Amazee.ai Integration](#amazeeai-integration) section below.
 
 ## Searchable Trait API
