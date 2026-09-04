@@ -8,12 +8,12 @@ use Illuminate\Console\Command;
 use Illuminate\Log\Logger;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Process;
 use Tag1\Scolta\Binary\PagefindBinary;
 use Tag1\Scolta\Config\MemoryBudgetConfig;
 use Tag1\Scolta\Config\ScoltaConfig;
 use Tag1\Scolta\Export\ContentExporter;
 use Tag1\Scolta\Index\BuildIntentFactory;
+use Tag1\Scolta\Index\BuildState;
 use Tag1\Scolta\Index\IndexBuildOrchestrator;
 use Tag1\ScoltaLaravel\Jobs\FinalizeIndex;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
@@ -22,6 +22,7 @@ use Tag1\ScoltaLaravel\Services\AssetStatus;
 use Tag1\ScoltaLaravel\Services\ContentSource;
 use Tag1\ScoltaLaravel\Services\PagefindRunner;
 use Tag1\ScoltaLaravel\Services\QueueRebuildDispatcher;
+use Tag1\ScoltaLaravel\Services\ResumeChain;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
 use Tag1\ScoltaLaravel\Support\HmacSecret;
 
@@ -224,6 +225,12 @@ class BuildCommand extends Command
         $exporter = new ContentExporter($outputDir);
         $items = $exporter->filterItems($source->getPublishedContent());
 
+        // Floor for the progress check on a memory abort below. A fresh build
+        // (including --restart) has prepare() reset the manifest, so reading the
+        // file here would pick up the *previous* build's total and make a
+        // legitimately progressing first segment look stalled.
+        $pagesBefore = $intent->isFresh() ? 0 : $this->pagesCommitted($stateDir);
+
         $reporter = new ArtisanProgressReporter($this);
         $logger = new Logger(app('log')->driver(), app('events'));
         $orchestrator = new IndexBuildOrchestrator($stateDir, $outputDir, $hmacSecret, $language);
@@ -231,21 +238,13 @@ class BuildCommand extends Command
 
         if (! $report->success) {
             if ($report->isMemoryAbort()) {
-                if ($report->chunksWritten > 0) {
-                    // Voluntary yield: RSS reached 75% of the memory limit mid-build.
-                    // Spawn a fresh artisan process to resume; child starts with clean heap.
-                    $this->line(sprintf(
-                        'Memory pressure after %d chunks (%d pages committed). Spawning resume...',
-                        $report->chunksWritten,
-                        $report->pagesProcessed,
-                    ));
-
-                    return $this->spawnResumeProcess($budget->profile(), $this->option('chunk-size'));
-                }
-
-                $this->error('Memory limit hit before any chunks were committed. Reduce --chunk-size or increase memory_limit.');
-
-                return self::FAILURE;
+                return $this->answerMemoryAbort(
+                    $stateDir,
+                    $outputDir,
+                    $pagesBefore,
+                    $budget->profile(),
+                    $this->option('chunk-size'),
+                );
             }
 
             if ($report->error === 'index_only_complete') {
@@ -312,42 +311,198 @@ class BuildCommand extends Command
     }
 
     /**
-     * Spawn a fresh artisan process to resume a memory-aborted build.
+     * Decide what a memory-yielding build in this process does next.
      *
-     * Starts `php artisan scolta:build --sync --resume` in the background so
-     * the child begins with a clean heap. The parent returns immediately after
-     * launching the child — the child continues the build independently.
+     * Two callers reach this and must not do the same thing. A build an operator
+     * started drives the chain that finishes it. A process invoked with --resume
+     * is one segment of a chain some other process is already driving: the
+     * orchestrator has recorded how this segment ended, so the segment reports
+     * and returns, and the driver decides. --resume is the whole signal; nesting
+     * a chain inside every segment would keep one bootstrapped Laravel kernel
+     * alive per segment, which is exactly the memory the segmenting is buying
+     * back, and it would put the segment cap under a counter that resets in
+     * every child.
      *
-     * @since 1.0.0
+     * @param  int  $pagesBefore  Pages the manifest credited before this process ran.
+     *
+     * @since 1.4.0
      *
      * @stability experimental
      */
-    private function spawnResumeProcess(?string $memoryBudget, ?string $chunkSize): int
-    {
-        $artisan = base_path('artisan');
-        if (! file_exists($artisan)) {
-            $this->warn('Cannot auto-resume: artisan not found. Run: php artisan scolta:build --sync --resume');
+    private function answerMemoryAbort(
+        string $stateDir,
+        string $outputDir,
+        int $pagesBefore,
+        ?string $memoryBudget,
+        ?string $chunkSize,
+    ): int {
+        if ($this->option('resume')) {
+            $this->error(sprintf(
+                'Memory limit reached after %d pages committed. The build is incomplete and the index has not '
+                .'been republished. Re-run `php artisan scolta:build --resume` to continue, or raise PHP '
+                .'memory_limit (currently %s).',
+                $this->pagesCommitted($stateDir),
+                ini_get('memory_limit') ?: 'unknown',
+            ));
 
             return self::FAILURE;
         }
 
-        $cmd = PHP_BINARY.' '.escapeshellarg($artisan).' scolta:build --sync --resume';
+        return $this->runResumeChain($stateDir, $outputDir, $pagesBefore, $memoryBudget, $chunkSize);
+    }
 
-        if (! empty($memoryBudget)) {
-            $cmd .= ' --memory-budget='.escapeshellarg($memoryBudget);
+    /**
+     * Drive a memory-aborted build to its end in fresh processes, or fail.
+     *
+     * One process owns the chain: this one. It runs each segment in the
+     * foreground, streams the child's output so an operator watches the build
+     * rather than a log file, and reads the exit code — so `scolta:build` returns
+     * only when the chain has actually ended, and returns SUCCESS only when an
+     * index is published and verified on disk. The detached predecessor of this
+     * method returned SUCCESS the moment it had launched a successor, which is
+     * the same false success as calling a queued build built.
+     *
+     * The bounds are unchanged: a segment that commits nothing gets no successor,
+     * and no build may use more than ResumeChain::MAX_SEGMENTS processes. Because
+     * the driver stays alive, the segment counter is a local variable here rather
+     * than a flag on the successor's command line.
+     *
+     * @param  int  $pagesBefore  Pages the manifest credited before this process ran.
+     *
+     * @since 1.0.0 (bounded and made foreground in 1.4.0)
+     *
+     * @stability experimental
+     */
+    private function runResumeChain(
+        string $stateDir,
+        string $outputDir,
+        int $pagesBefore,
+        ?string $memoryBudget,
+        ?string $chunkSize,
+    ): int {
+        // Resolved through the container so a test can substitute the boundary
+        // that runs a child and drive the real loop against it.
+        /** @var ResumeChain $chain */
+        $chain = $this->laravel->make(ResumeChain::class, ['memoryLimit' => ini_get('memory_limit') ?: null]);
+
+        $force = (bool) $this->option('force');
+        $segment = 0;
+        $pagesNow = $this->pagesCommitted($stateDir);
+        // Segment 0 is the build this process just ran, and its outcome is the
+        // StatusReport in hand: a memory abort. Only progress decides for it.
+        $outcome = null;
+
+        while (true) {
+            $reason = $chain->failureReason($outcome, $pagesNow, $pagesBefore, $segment);
+            if ($reason !== null) {
+                $this->error($reason);
+
+                return self::FAILURE;
+            }
+
+            $this->line(sprintf(
+                'Memory pressure at %d pages committed (%d this segment). Continuing in a fresh process (segment %d of at most %d)...',
+                $pagesNow,
+                $pagesNow - $pagesBefore,
+                $segment + 1,
+                ResumeChain::MAX_SEGMENTS,
+            ));
+
+            $pagesBefore = $pagesNow;
+            $segment++;
+
+            // Cleared before the segment starts, so a missing file after it exits
+            // reads as "it died without reporting" rather than as the previous
+            // segment's verdict.
+            $this->clearSegmentOutcome($stateDir);
+
+            $exitCode = $chain->runSegment($memoryBudget, $chunkSize, $force, function (string $buffer): void {
+                $this->output->write($buffer);
+            });
+
+            if ($exitCode === null) {
+                $this->error('Cannot auto-resume: artisan not found. The index has not been republished. Run: php artisan scolta:build --resume');
+
+                return self::FAILURE;
+            }
+
+            if ($exitCode === self::SUCCESS) {
+                // The segment that finished the build published the index and
+                // bumped the expand generation itself. Verify rather than trust:
+                // SUCCESS from here has to mean the index is live.
+                try {
+                    IndexBuildOrchestrator::verifyIndexComplete($outputDir);
+                } catch (\Throwable $e) {
+                    $this->error('Resume segment '.$segment.' reported success but no usable index was published: '.$e->getMessage());
+
+                    return self::FAILURE;
+                }
+
+                $this->info(sprintf('Index built across %d resume segment(s).', $segment));
+
+                return self::SUCCESS;
+            }
+
+            if ($exitCode === self::DEFERRED) {
+                // The segment indexed every page but had to hand the merge to a
+                // queue worker. The chain is over — nothing is left for another
+                // segment to carry forward — but the index is not published until
+                // that job runs, so this is deferred, not success and not failure.
+                $this->warn(sprintf(
+                    'Index NOT yet published: resume segment %d handed finalize to the queue and a worker '
+                    .'(php artisan queue:work) must drain it before search reflects this build.',
+                    $segment,
+                ));
+
+                return self::DEFERRED;
+            }
+
+            $outcome = $this->segmentOutcome($stateDir);
+            $pagesNow = $this->pagesCommitted($stateDir);
         }
-        if (! empty($chunkSize)) {
-            $cmd .= ' --chunk-size='.escapeshellarg($chunkSize);
+    }
+
+    /**
+     * How the segment that just exited reported it ended, or null if it never did.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function segmentOutcome(string $stateDir): ?array
+    {
+        try {
+            return (new BuildState($stateDir))->readOutcome();
+        } catch (\Throwable) {
+            return null;
         }
+    }
 
-        $logFile = storage_path('logs/scolta-resume.log');
+    /**
+     * Drop any outcome on disk so the next segment's silence reads as silence.
+     */
+    private function clearSegmentOutcome(string $stateDir): void
+    {
+        try {
+            (new BuildState($stateDir))->clearOutcome();
+        } catch (\Throwable) {
+            // A state dir this cannot open is one the segment will fail on anyway.
+        }
+    }
 
-        // Start the process without waiting — orphaned processes survive on Linux/macOS.
-        Process::start($cmd.' >> '.escapeshellarg($logFile).' 2>&1');
-
-        $this->line('Resume log: '.$logFile);
-
-        return self::SUCCESS;
+    /**
+     * Pages the shared build manifest records as committed so far.
+     *
+     * Read from BuildState rather than StatusReport::pagesProcessed, which is
+     * cumulative on the memory-abort path and per-run elsewhere. That ambiguity
+     * is what the unbounded chain was built on; the manifest has one meaning.
+     */
+    private function pagesCommitted(string $stateDir): int
+    {
+        try {
+            return (new BuildState($stateDir))->getPagesProcessed();
+        } catch (\Throwable) {
+            // A state directory this cannot open is one the build failed on anyway.
+            return 0;
+        }
     }
 
     /**

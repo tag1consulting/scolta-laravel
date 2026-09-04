@@ -156,6 +156,14 @@ SCOLTA_MEMORY_BUDGET=balanced
 
 Tested ceiling at the `conservative` profile: 50,000 pages. Higher counts likely work; not certified yet.
 
+### Builds that continue themselves
+
+A corpus too large to index in one process yields when RSS approaches the PHP `memory_limit`, and `scolta:build` finishes the job in fresh processes. It runs each *resume segment* as a child in the foreground and streams its output, so one command drives the whole build and its exit code describes the whole build: 0 only once the index is published and verified on disk.
+
+The flags that shape a build travel with it: `--memory-budget`, `--chunk-size` and `--force` are all passed to each segment, so a forced build stays forced for its whole length rather than only for its first segment.
+
+Two things bound the chain. A segment that hits the memory limit without committing a single page gets no successor, because another one would do exactly the same; and no build may use more than 50 segments in total. Either way the command fails with a message naming the page count reached and the PHP `memory_limit` it ran under, and `The index has not been republished`: raise `memory_limit`, or lower the per-chunk footprint with `--memory-budget=conservative` / `--chunk-size`, then re-run with `--restart`.
+
 ## Deploying to PaaS Platforms
 
 On PaaS platforms — including Laravel Cloud, Forge with push-to-deploy, Vapor, Railway, and Render — the filesystem is rebuilt from your repository on every deploy. Any files written outside the repo at install time are wiped, including assets published by `vendor:publish`.
@@ -570,6 +578,13 @@ Raise `expand_primary_weight` (default: 0.5) to make original query terms domina
 ### "Models not being indexed"
 
 Run `php artisan scolta:discover` to find `Searchable` models not registered in `config/scolta.php`. The observer only tracks models listed there.
+
+### "The build stalled at N pages" / "did not complete within 50 resume segments"
+
+The build continued itself in fresh processes and the chain was stopped — a segment committed nothing, or the 50-segment allowance ran out. The index was **not** republished and the previous one is still serving; every segment's output is on the console above the message.
+
+1. Give each process more room and rebuild: `php artisan scolta:build --memory-budget=balanced --restart`
+2. If `memory_limit` cannot be raised, shrink the chunks instead: `--chunk-size=25`
 
 ## Add the Searchable Trait
 
