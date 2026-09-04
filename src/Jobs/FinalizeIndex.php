@@ -13,10 +13,18 @@ use Illuminate\Support\Facades\Cache;
 use Tag1\Scolta\Index\BuildCoordinator;
 use Tag1\Scolta\Index\IndexBuildOrchestrator;
 use Tag1\Scolta\Index\MemoryBudget;
+use Tag1\ScoltaLaravel\Services\ContentSource;
 use Tag1\ScoltaLaravel\Services\QueueRebuildDispatcher;
 
 /**
  * Finalize the search index after all chunks have been processed.
+ *
+ * The last job in the chain, and therefore the only place that sees a queued
+ * build land. That makes it the place the tracker is drained: nothing else on
+ * the observer -> TriggerRebuild -> queued-jobs path — the most common
+ * auto-rebuild configuration — ever cleared `scolta_tracker`, so `pending_index`
+ * grew forever there while `scolta:status` and `/api/scolta/v1/health` reported
+ * a backlog no rebuild could drain.
  *
  * @since 0.2.0 (rewritten 0.3.0 to use IndexBuildOrchestrator)
  *
@@ -36,6 +44,17 @@ class FinalizeIndex implements ShouldQueue
      *                                  is invoked outside the dispatcher chain
      *                                  (a direct CLI/test call), where there is
      *                                  no cross-process lock to release.
+     * @param  string|null  $trackerWatermark  The `changed_at` of the newest
+     *                                         pending tracker row when the build
+     *                                         gathered its content
+     *                                         ({@see ContentSource::pendingWatermark()}).
+     *                                         Rows at or before it are drained when
+     *                                         this job publishes an index; anything
+     *                                         written while the chain ran is left
+     *                                         pending, so an edit mid-build is not
+     *                                         thrown away. Null skips the drain, for a
+     *                                         FinalizeIndex invoked outside a build
+     *                                         whose change set it can vouch for.
      */
     public function __construct(
         public readonly string $stateDir,
@@ -44,6 +63,7 @@ class FinalizeIndex implements ShouldQueue
         public readonly string $language = 'en',
         public readonly string $memoryBudget = 'conservative',
         public readonly ?string $lockOwner = null,
+        public readonly ?string $trackerWatermark = null,
     ) {}
 
     public function handle(): void
@@ -73,12 +93,41 @@ class FinalizeIndex implements ShouldQueue
             }
 
             Cache::increment('scolta_expand_generation');
+
+            // Only after a published index: a full build covers every change
+            // recorded up to the gather by definition, and this is the first
+            // moment that build is on disk. Inside the try, so a finalize that
+            // threw above leaves the rows pending for the next rebuild.
+            $this->clearTracker();
         } finally {
             // End the build state cleanly whether finalize succeeded or threw,
             // so the chain never leaves a lingering build behind. This runs in
             // the chain's last worker process — the one place that sees the
             // whole chain's terminal state.
             $this->releaseBuildState();
+        }
+    }
+
+    /**
+     * Drain the tracker rows the build that just landed covered.
+     *
+     * Never fatal: the index is published and serving by the time this runs, and
+     * a failure here costs a re-run of work already done, not a broken index.
+     *
+     * @since 1.4.0
+     *
+     * @stability experimental
+     */
+    private function clearTracker(): void
+    {
+        if ($this->trackerWatermark === null) {
+            return;
+        }
+
+        try {
+            app(ContentSource::class)->clearTracker($this->trackerWatermark);
+        } catch (\Throwable $e) {
+            logger()->warning('[scolta] Failed to clear the change tracker after finalize', ['error' => $e->getMessage()]);
         }
     }
 

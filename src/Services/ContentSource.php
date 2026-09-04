@@ -159,7 +159,7 @@ class ContentSource implements ContentSourceInterface
      * the only thing that can be asked.
      *
      * scolta-php's ChangeSetPlanner is not the alternative it looks like. See
-     * BuildCommand::updateIncrementally() for why neither adapter uses it.
+     * IncrementalIndexUpdate for why neither adapter uses it.
      *
      * Three outcomes per row:
      *
@@ -432,26 +432,68 @@ class ContentSource implements ContentSourceInterface
     }
 
     /**
-     * Mark all tracked changes as processed after a successful build.
+     * The `changed_at` of the newest pending tracker row, or null when none are.
      *
-     * Known gap, and a divergence from scolta-drupal: this drains the table,
-     * where the Drupal worker deletes exactly the queue items it claimed before
-     * gathering — "an item that arrived after collectChangeSet() claimed its
-     * batch describes a change this build did not see, and deleting it would drop
-     * that edit permanently" (ScoltaRebuildWorker::deleteClaimed()). A record
-     * edited while a build is running therefore has its tracker row cleared here
-     * without that edit having been indexed. The drain predates the PHP build
-     * paths that now call this and affects the binary and export paths equally,
-     * so it is not changed alongside them; the fix is to clear only rows whose
-     * changed_at precedes the gather, in every caller at once.
+     * Read *before* a build gathers its content and handed back to
+     * {@see clearTracker()} when that build lands, so the drain covers exactly
+     * the rows the build could have seen. A row written while the build ran
+     * carries a later `changed_at` — `ScoltaTracker::track()` upserts, so even
+     * re-editing a record already in the change set moves its stamp forward —
+     * and survives the drain to be picked up by the next run.
+     *
+     * This is the Laravel spelling of scolta-drupal's
+     * `ScoltaRebuildWorker::deleteClaimed()`: "an item that arrived after
+     * collectChangeSet() claimed its batch describes a change this build did not
+     * see, and deleting it would drop that edit permanently". A watermark rather
+     * than a claimed-id list because the queued path has to carry it through a
+     * job payload, and an id list there is the payload-cap hazard
+     * {@see QueueRebuildDispatcher} exists to avoid.
+     *
+     * The remaining window is the timestamp's own resolution: an edit landing in
+     * the same second as the newest row the build saw is drained with it. That is
+     * seconds where the un-watermarked drain was the whole length of the build.
+     *
+     * @since 1.4.0
+     *
+     * @stability experimental
      */
-    public function clearTracker(): void
+    public function pendingWatermark(): ?string
+    {
+        if (! $this->trackerAvailable()) {
+            return null;
+        }
+
+        $watermark = ScoltaTracker::query()->max('changed_at');
+
+        return is_scalar($watermark) ? (string) $watermark : null;
+    }
+
+    /**
+     * Mark tracked changes as processed after a successful build.
+     *
+     * @param  string|null  $through  Drain only rows stamped at or before this
+     *                                {@see pendingWatermark()}. Null drains the
+     *                                whole table, which is what the binary build
+     *                                and `scolta:export` still do: a record edited
+     *                                while one of those runs has its row cleared
+     *                                without the edit having been indexed. Those
+     *                                paths are unchanged here, not fixed; every
+     *                                path that gained a drain in 1.4.0 passes a
+     *                                watermark.
+     */
+    public function clearTracker(?string $through = null): void
     {
         if (! $this->trackerAvailable()) {
             return;
         }
 
-        ScoltaTracker::clearAll();
+        if ($through === null) {
+            ScoltaTracker::clearAll();
+
+            return;
+        }
+
+        ScoltaTracker::clearThrough($through);
     }
 
     /**

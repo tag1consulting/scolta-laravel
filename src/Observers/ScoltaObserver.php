@@ -20,8 +20,9 @@ use Tag1\ScoltaLaravel\Models\ScoltaTracker;
  *
  * The observer is attached to every model listed in config('scolta.models')
  * by the service provider. When a model is created, updated, or deleted,
- * the observer writes a tracker record. The build command later consumes
- * these records for incremental indexing.
+ * the observer writes a tracker record and schedules a debounced
+ * TriggerRebuild, which applies those records to the published index in place
+ * rather than rebuilding the corpus. See IncrementalIndexUpdate.
  *
  * Laravel's observer system ensures we catch ALL persistence events:
  *   - Direct saves ($post->save())

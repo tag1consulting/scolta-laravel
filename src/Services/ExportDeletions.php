@@ -10,11 +10,14 @@ use Tag1\Scolta\Export\ContentExporter;
 /**
  * Remove the exported HTML of tracked deletions, and say what could not be.
  *
- * The one implementation of the deletion sweep on the HTML-export pipeline;
- * `scolta:export` and `scolta:build --indexer=binary` each used to run their own
- * copy that discarded `deleteById()`'s return value and printed rows attempted
- * as files removed. On the binary pipeline a file left behind is a file Pagefind
- * re-indexes on the next run, so every failure is reported instead.
+ * The deletion sweep on the HTML-export pipeline, used by
+ * `scolta:export --incremental`. `scolta:export` and `scolta:build
+ * --indexer=binary` each used to run their own copy that discarded
+ * `deleteById()`'s return value and printed rows attempted as files removed; on
+ * the binary pipeline a file left behind is a file Pagefind re-indexes on the
+ * next run, so every failure is reported instead. `scolta:build` no longer
+ * sweeps at all — it is always a full run, which empties the build directory
+ * first, so a deleted page is removed by not being exported again.
  *
  * @since 1.4.0
  *
@@ -39,7 +42,7 @@ class ExportDeletions
      *    names is still on disk, and Pagefind will index it again. This is the
      *    rule scolta-drupal applies to a queue payload that does not name what
      *    changed ("correct but slow — never wrong") and the one
-     *    BuildCommand::updateIncrementally() applies on the PHP indexer.
+     *    IncrementalIndexUpdate applies on the queued rebuild path.
      *  - `missing` — the id resolved, but neither the export manifest nor the
      *    legacy flat `{id}.html` path names a file that exists. Usually benign,
      *    and not distinguishable from the case that is not, so it is reported and

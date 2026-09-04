@@ -397,7 +397,8 @@ For the evidence behind each preset — the scoring sweeps and per-parameter dat
 | Indexer backend | `SCOLTA_INDEXER` | `indexer` | `auto` | `auto` (always PHP), `php`, or `binary` |
 | Memory budget | `SCOLTA_MEMORY_BUDGET` | `memory_budget.profile` | `conservative` | `conservative`, `balanced`, or `aggressive` |
 | Chunk size | `SCOLTA_CHUNK_SIZE` | `memory_budget.chunk_size` | profile default | Pages per chunk during PHP indexer build |
-| Incremental ceiling | `SCOLTA_INCREMENTAL_MAX_ITEMS` | `incremental.max_changed_items` | `100` | Tracked changes above which `--incremental` falls back to a full rebuild; `0` disables the ceiling. Same key and default as scolta-drupal |
+| Incremental updates | `SCOLTA_INCREMENTAL_ENABLED` | `incremental.enabled` | `true` | Whether a queued rebuild updates the published index in place before falling back to a full build. Same key and default as scolta-drupal |
+| Incremental ceiling | `SCOLTA_INCREMENTAL_MAX_ITEMS` | `incremental.max_changed_items` | `100` | Tracked changes above which a queued rebuild runs a full build instead; `0` disables the ceiling. Same key and default as scolta-drupal |
 
 ### Pagefind
 
@@ -517,7 +518,7 @@ php artisan migrate
 
 | Table | Description |
 | ----- | ----------- |
-| `scolta_tracker` | Change tracking for Eloquent models. The `ScoltaObserver` writes here when models are created, updated, or deleted. Used by incremental builds to process only changed content. |
+| `scolta_tracker` | Change tracking for Eloquent models. The `ScoltaObserver` writes here when models are created, updated, or deleted. The queued rebuild reads it to update only what changed, and drains the rows it covered. |
 | `scolta_config` | Key/value config store for Amazee.ai credentials and auto-configured model settings. Tokens are encrypted via Laravel's `Crypt` facade. |
 
 Re-run both commands after upgrading the package: migrations are added over
@@ -528,10 +529,10 @@ time, and 1.4.0 adds `scolta_tracker.item_id`.
 are keyed by. `content_id` is the Eloquent primary key, which is a different
 thing and cannot locate any of them once the record is gone. The observer
 captures `item_id` when it records a deletion, so a hard-deleted record can
-still have its page removed by an incremental build. Until the migration runs
-the column is simply absent; an incremental run that meets a deletion it cannot
-resolve says so and falls back to a full run, which removes the page by
-rebuilding the export from an empty directory.
+still have its page removed by an incremental update. Until the migration runs
+the column is simply absent; an incremental update that meets a deletion it
+cannot resolve says so and falls back to a full rebuild, which derives deletions
+from the index itself and does not need the mapping.
 
 ## Debugging
 
@@ -652,14 +653,14 @@ Register the model in `config/scolta.php`:
 ```bash
 php artisan scolta:build                    # Full build: synchronous and verified (exit 0 = index built and live)
 php artisan scolta:build --queue            # Defer the build to the queue (index is NOT built until a worker drains the chain)
-php artisan scolta:build --incremental      # Apply only the tracked changes to the published index
+php artisan scolta:build --incremental      # Deprecated no-op: this command is always a full build
 php artisan scolta:build --skip-pagefind    # Export HTML without rebuilding index
 php artisan scolta:build --memory-budget=balanced  # Use balanced memory profile
 php artisan scolta:build --resume           # Resume an interrupted PHP index build
 php artisan scolta:build --restart          # Discard interrupted state and rebuild from scratch (also discards the page-table ledger)
 php artisan scolta:build --reset-ledger     # Discard the page-table ledger under a plain build (escape hatch for a duplicate page ordinal)
 php artisan scolta:export                   # Export content to HTML only
-php artisan scolta:export --incremental     # Only export tracked changes
+php artisan scolta:export --incremental     # Only export tracked changes (Pagefind CLI pipeline)
 php artisan scolta:rebuild-index            # Rebuild index from existing HTML files
 php artisan scolta:status                   # Show tracker, content, index, and AI status
 php artisan scolta:status --json            # Same report as one JSON document on stdout (pipe to jq)
@@ -703,30 +704,50 @@ Cleanup is always safe: the live `pagefind/` index is never touched, `.scolta-ne
 
 ### Incremental builds
 
-`scolta:build --incremental` applies the changes recorded in `scolta_tracker` to the index that is
-already published, instead of rebuilding the whole corpus. On the PHP indexer (`indexer=auto`, the
-default) it rewrites only the fragments and index chunks the changed pages touch, reusing the page
-ordinals the existing index already assigned. On the binary indexer it re-exports only the changed
-HTML before running Pagefind.
+**Content edits update the index incrementally on their own. `scolta:build` is always a full
+build.** That split matches `drush scolta:build` in the Drupal adapter, and it puts the cheap
+operation where the frequent one is.
 
-It falls back to a **full build**, saying why, whenever the update cannot be applied exactly:
+Saving or deleting a model writes a `scolta_tracker` row and — with `auto_rebuild` on — queues a
+debounced `TriggerRebuild`. That job applies the tracked changes to the index that is already
+published rather than rebuilding the corpus: on the PHP indexer (`indexer=auto`, the default) it
+rewrites only the fragments and index chunks the changed pages touch, reusing the page ordinals the
+existing index already assigned. Nothing has to be scheduled or typed for this to happen; it needs
+a queue worker, like every other part of auto-rebuild.
 
+The queued rebuild falls back to a **full rebuild**, writing the reason to the application log,
+whenever the update cannot be applied exactly:
+
+- `scolta.incremental.enabled` is `false` (`SCOLTA_INCREMENTAL_ENABLED`);
+- change tracking is unavailable, because the `scolta_tracker` migration has not been run;
+- nothing is pending — `ScoltaObserver::afterBulkUpdate()` asks for a rebuild without naming what
+  changed, and so does the first-run auto-build;
 - there is no published index with a page-table ledger to update against (an incremental update
   applies to an index, it does not create one);
 - the change set is larger than `scolta.incremental.max_changed_items` (default 100, or
   `SCOLTA_INCREMENTAL_MAX_ITEMS`), above which a full rebuild is the cheaper of the two;
 - a tracked row names a record that has left the database, so the index item ids it owned can no
-  longer be derived — a full build derives deletions from the ledger instead and does not need that
+  longer be derived — a full rebuild derives deletions from the index itself and does not need that
   mapping, so a hard delete is applied by the fallback rather than by the update;
 - the indexer itself refuses, for instance when a changed page's previous token data is no longer
   cached and its stale postings cannot be located.
 
-The exit code is 0 in all of those cases: the index is built and live either way. `--incremental`
-cannot be combined with `--force`, `--resume`, `--restart`, `--reset-ledger` or `--queue`, each of
-which asks for a full build; the combination exits 2.
+A fallback is correct but slow, never wrong: the index is rebuilt and published either way.
 
-A successful build of either kind clears the tracker rows it covered, which is what keeps
-`scolta:status` and `/api/scolta/v1/health` reporting a truthful `pending_index`.
+> **Note:** the queued full rebuild discards the page-table ledger, because the chunked chain it
+> runs does not maintain one. Incremental updates are therefore unavailable until the next
+> `php artisan scolta:build` writes a ledger again — the rebuild after a fallback says so in the log
+> and runs a full rebuild. Running `scolta:build` as part of your deploy is what keeps the fast path
+> available.
+
+`--incremental` remains accepted on `scolta:build` and does nothing but print a deprecation warning,
+so a deploy script that still passes it keeps working. `scolta:export --incremental` is **not**
+deprecated: it exports only the changed HTML for the Pagefind CLI pipeline, which no automatic path
+covers.
+
+A rebuild of either kind clears the tracker rows it covered — those recorded before it gathered its
+content, so an edit made while it ran survives for the next run. That is what keeps `scolta:status`
+and `/api/scolta/v1/health` reporting a truthful `pending_index`.
 
 ## API Endpoints
 
@@ -806,7 +827,7 @@ php artisan queue:work --tries=3
 
 For production, use [Supervisor](https://laravel.com/docs/queues#supervisor-configuration) or [Laravel Forge](https://forge.laravel.com) to keep the worker running. Forge configures this automatically.
 
-Content saves trigger `ScoltaObserver`, which dispatches a `TriggerRebuild` job after the configured delay. The queue worker processes that job in the background.
+Content saves trigger `ScoltaObserver`, which dispatches a `TriggerRebuild` job after the configured delay. The queue worker processes that job in the background, applying just the tracked changes to the published index — see [Incremental builds](#incremental-builds).
 
 #### Path B: Laravel Scheduler
 
@@ -820,8 +841,10 @@ Then schedule the build in `routes/console.php` (Laravel 11+):
 
 ```php
 use Illuminate\Support\Facades\Schedule;
+use Tag1\ScoltaLaravel\Jobs\TriggerRebuild;
 
-Schedule::command('scolta:build --incremental')->everyFifteenMinutes();
+Schedule::job(new TriggerRebuild)->everyFifteenMinutes();
+Schedule::command('scolta:build')->dailyAt('03:00');
 ```
 
 Or in `app/Console/Kernel.php` (Laravel 10):
@@ -829,21 +852,22 @@ Or in `app/Console/Kernel.php` (Laravel 10):
 ```php
 protected function schedule(Schedule $schedule): void
 {
-    $schedule->command('scolta:build --incremental')->everyFifteenMinutes();
+    $schedule->job(new TriggerRebuild)->everyFifteenMinutes();
+    $schedule->command('scolta:build')->dailyAt('03:00');
 }
 ```
 
-`--incremental` applies only the tracked changes, so runs are fast when little or nothing has changed, and falls back to a full build when the change set cannot be applied in place. See [Incremental builds](#incremental-builds).
+`TriggerRebuild` is the same job the observer dispatches, so the frequent task applies only the tracked changes and is fast when little or nothing has changed. `scolta:build` is a full build: schedule it rarely, as the backstop for changes that bypass Eloquent events (query-builder mass updates) and to write the page-table ledger the incremental path needs. See [Incremental builds](#incremental-builds).
 
 #### Path C: System cron (direct)
 
 Call `scolta:build` directly from system cron, bypassing the Scheduler:
 
 ```
-*/15 * * * * cd /var/www/html && php artisan scolta:build --incremental 2>&1 | logger -t scolta
+0 3 * * * cd /var/www/html && php artisan scolta:build 2>&1 | logger -t scolta
 ```
 
-Simpler than the Scheduler but without Laravel's logging integration and overlap protection.
+Simpler than the Scheduler but without Laravel's logging integration and overlap protection. `scolta:build` is always a full build, so run it on a slow cadence and leave the per-edit work to the queued rebuild the observer schedules.
 
 ## Requirements
 

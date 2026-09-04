@@ -6,6 +6,55 @@ record.
 
 ## 1.4.0
 
+### The rebuild a content save queues is now incremental
+
+**Action required: none, unless you rely on every save triggering a full
+rebuild.**
+
+With `auto_rebuild` on, saving or deleting a model queued a `TriggerRebuild`
+that streamed the whole corpus. It now applies just the tracked changes to the
+published index, and streams the corpus only when it cannot — no index to update
+against, change tracking not installed, a change set over
+`incremental.max_changed_items`, a tracked row naming a record that has left the
+database, or the indexer's own refusal. Each fallback writes its reason to the
+application log. `POST /api/scolta/v1/rebuild-now` with `force=true` is
+unaffected: a forced rebuild is still a full one.
+
+Set `SCOLTA_INCREMENTAL_ENABLED=false` to keep the old behaviour.
+
+Two things worth knowing before you deploy:
+
+- The in-place update needs a page-table ledger, and only `php artisan
+  scolta:build` writes one — the queued chain discards it, because it does not
+  maintain one. Run `scolta:build` in your deploy (you almost certainly already
+  do) and the fast path stays available; without it every queued rebuild is a
+  full one, which is what this package did before 1.4.0.
+- A queued rebuild now clears the `scolta_tracker` rows it covered, which it
+  never did. If you were watching `pending_index` in `scolta:status` or
+  `/api/scolta/v1/health` and treating a permanently non-zero value as normal,
+  it will start reading zero.
+
+### `scolta:build --incremental` is a deprecated no-op
+
+**Action required: drop the flag from deploy scripts when convenient.**
+
+The option is still accepted and still exits 0; it prints a deprecation warning
+and runs a full build, which is now the only thing `scolta:build` does. That
+matches `drush scolta:build`, and it is where the flag's capability went: an
+edit gets an incremental update from the queued rebuild above, without anyone
+having to ask.
+
+Two behaviour changes come with it. `--incremental` no longer conflicts with
+`--force`, `--resume`, `--restart`, `--reset-ledger` or `--queue` — the pair used
+to exit 2 and now runs the full build all of them were asking for. And
+`scolta:build --indexer=binary --incremental` no longer re-exports only the
+changed HTML; it runs the full export, which removes a deleted page by emptying
+the build directory rather than by sweeping it.
+
+`scolta:export --incremental` is unchanged and not deprecated. It is the only
+way to re-export just the changed HTML for the Pagefind CLI pipeline, and no
+automatic path covers that pipeline.
+
 ### A new migration adds `scolta_tracker.item_id`
 
 **Action required: re-publish the migrations and run them.**
@@ -25,10 +74,10 @@ moment the answer exists.
 Nothing breaks if you delay: `ScoltaTracker::track()` checks for the column
 once per process and omits it when it is absent, and `ContentSource` falls back
 to reloading the record. But until the migration runs, a *hard*-deleted record
-cannot be resolved to a page — `scolta:export --incremental` and
-`scolta:build --incremental --indexer=binary` now say so on the console instead
-of reporting a removal that did not happen, and fall back to a full run for
-that build, which clears the orphans.
+cannot be resolved to a page — `scolta:export --incremental` now says so on the
+console instead of reporting a removal that did not happen, and the queued
+rebuild says so in the log; both fall back to a full run, which clears the
+orphans.
 
 Rows written before the migration ran keep a null `item_id` for the same
 reason. If any are still pending, run one full build after migrating.

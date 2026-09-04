@@ -279,10 +279,11 @@ class ExportDeletionTest extends TestCase
     }
 
     // -----------------------------------------------------------------
-    // scolta:build --indexer=binary, the other call site
+    // scolta:build --indexer=binary, which is always a full run and
+    // therefore removes a deleted page by not exporting it again.
     // -----------------------------------------------------------------
 
-    public function test_incremental_binary_build_deletes_the_file_of_a_deleted_record(): void
+    public function test_a_binary_build_removes_a_deleted_record_by_re_exporting_without_it(): void
     {
         $this->artisan('scolta:build', ['--indexer' => 'binary', '--skip-pagefind' => true])
             ->assertExitCode(Command::SUCCESS);
@@ -290,33 +291,13 @@ class ExportDeletionTest extends TestCase
 
         SluggedArticle::query()->whereKey($this->articleIds['alpha'])->first()?->delete();
 
-        $this->artisan('scolta:build', ['--indexer' => 'binary', '--skip-pagefind' => true, '--incremental' => true])
-            ->expectsOutputToContain('Removed 1 deleted item(s) from the export.')
-            ->assertExitCode(Command::SUCCESS);
-
-        $this->assertFileDoesNotExist($this->exportPath('alpha'));
-        $this->assertFileExists($this->exportPath('beta'));
-    }
-
-    public function test_an_unresolvable_deletion_escalates_the_binary_build_too(): void
-    {
+        // prepareOutputDir() empties the build directory first, so there is
+        // nothing for ExportDeletions to sweep and nothing it could fail to
+        // resolve. That is why this command no longer runs the sweep at all —
+        // and why an unresolvable row cannot strand a page here.
         $this->artisan('scolta:build', ['--indexer' => 'binary', '--skip-pagefind' => true])
-            ->assertExitCode(Command::SUCCESS);
-
-        ScoltaTracker::query()->delete();
-        ScoltaTracker::query()->create([
-            'content_id' => (string) $this->articleIds['alpha'],
-            'content_type' => SluggedArticle::class,
-            'action' => 'delete',
-            'changed_at' => now(),
-        ]);
-        SluggedArticle::withoutEvents(function () {
-            SluggedArticle::query()->whereKey($this->articleIds['alpha'])->delete();
-        });
-
-        $this->artisan('scolta:build', ['--indexer' => 'binary', '--skip-pagefind' => true, '--incremental' => true])
-            ->expectsOutputToContain('Falling back to a full run')
-            ->expectsOutputToContain('Marking all published content for reindex')
+            ->doesntExpectOutputToContain('no exported file to remove')
+            ->doesntExpectOutputToContain('carry no recorded item id')
             ->assertExitCode(Command::SUCCESS);
 
         $this->assertFileDoesNotExist($this->exportPath('alpha'));
@@ -345,23 +326,24 @@ class ExportDeletionTest extends TestCase
     // The PHP indexer, which resolves the same mapping for its own ledger
     // -----------------------------------------------------------------
 
-    public function test_a_recorded_item_id_lets_the_php_indexer_apply_a_hard_delete_incrementally(): void
+    public function test_a_recorded_item_id_lets_the_queued_update_apply_a_hard_delete(): void
     {
         $this->artisan('scolta:build')->assertExitCode(Command::SUCCESS);
         $this->assertSame(2, $this->ledgerLiveCount());
+        ScoltaTracker::clearAll();
+
+        config(['scolta.auto_rebuild' => true, 'queue.default' => 'sync']);
 
         SluggedArticle::query()->whereKey($this->articleIds['alpha'])->first()?->delete();
 
-        // Without a recorded item id this row is unresolvable and the command
-        // falls back to a full build — correct, but it rebuilds the corpus to
-        // remove one page. The id the observer captured makes the removal exact.
-        $this->artisan('scolta:build', ['--incremental' => true])
-            ->expectsOutputToContain('0 page(s) updated, 1 deleted')
-            ->doesntExpectOutputToContain('no longer readable')
-            ->assertExitCode(Command::SUCCESS);
-
+        // Without a recorded item id this row is unresolvable and the queued
+        // rebuild falls back to a full build — correct, but it rebuilds the
+        // corpus to remove one page. The id the observer captured while the
+        // record still existed makes the removal exact, and the ordinals of the
+        // pages it did not touch survive.
         $this->assertSame(1, $this->ledgerLiveCount());
         $this->assertNotContains('article:alpha', $this->ledgerItemIds());
+        $this->assertSame(0, ScoltaTracker::query()->count());
     }
 
     // -----------------------------------------------------------------

@@ -216,14 +216,27 @@ return [
     | Incremental Updates
     |--------------------------------------------------------------------------
     |
-    | `artisan scolta:build --incremental` applies the changes recorded in the
+    | The rebuild a content save queues applies the changes recorded in the
     | scolta_tracker table to the published index instead of rebuilding the whole
     | corpus, and falls back to a full build whenever it cannot apply them
-    | exactly.
+    | exactly. `artisan scolta:build` is always a full build.
     |
     */
 
     'incremental' => [
+        // Whether a queued rebuild tries an in-place update before it streams
+        // the corpus. Off, every content save costs a full rebuild — which is
+        // what this package did before 1.4.0 and why the switch exists: it is
+        // the way back if an update ever misbehaves against a particular corpus.
+        // Nothing is lost by turning it off except the speed.
+        //
+        // Same key and default as scolta-drupal's
+        // scolta.settings:incremental.enabled, and needed here for the same
+        // reason it is needed there: the path runs unattended on every save, so
+        // an operator needs a way to turn it off short of turning auto-rebuild
+        // off with it.
+        'enabled' => (bool) env('SCOLTA_INCREMENTAL_ENABLED', true),
+
         // Tracked changes at or below this count are applied in place; above it
         // a full rebuild is cheaper than updating page by page, and is the only
         // path with a bounded memory profile. Set to 0 to disable the ceiling
@@ -234,14 +247,8 @@ return [
         // crossover is a property of the updater and the corpus, not of the
         // platform, so the two adapters have no business disagreeing about it.
         // scolta-php's own ChangeSetPlanner default is 1000, but nothing in
-        // either adapter uses that class; see BuildCommand::updateIncrementally().
+        // either adapter uses that class; see IncrementalIndexUpdate.
         'max_changed_items' => (int) env('SCOLTA_INCREMENTAL_MAX_ITEMS', 100),
-
-        // No `enabled` switch, which scolta-drupal does have. There the
-        // incremental path runs unattended from cron on every content save, so
-        // an operator needs a way to turn it off; here it is reachable only by
-        // typing --incremental, and a config key that made an explicitly
-        // requested flag do the opposite would be worse than not having one.
     ],
 
     /*
