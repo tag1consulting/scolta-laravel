@@ -734,11 +734,12 @@ whenever the update cannot be applied exactly:
 
 A fallback is correct but slow, never wrong: the index is rebuilt and published either way.
 
-> **Note:** the queued full rebuild discards the page-table ledger, because the chunked chain it
-> runs does not maintain one. Incremental updates are therefore unavailable until the next
-> `php artisan scolta:build` writes a ledger again — the rebuild after a fallback says so in the log
-> and runs a full rebuild. Running `scolta:build` as part of your deploy is what keeps the fast path
-> available.
+> **Note:** the queued full rebuild maintains the page-table ledger itself — each `ProcessIndexChunk`
+> assigns its pages' ordinals from it and populates the token cache, and `FinalizeIndex` releases the
+> rows the corpus no longer yields. So a fallback leaves the fast path available: the next content
+> edit is an in-place update again, and a site whose only builds are queued gets incremental updates
+> without ever running `scolta:build`. Ordinals also survive the rebuild, so the fragment files an
+> earlier build wrote still name the same pages.
 
 `--incremental` remains accepted on `scolta:build` and does nothing but print a deprecation warning,
 so a deploy script that still passes it keeps working. `scolta:export --incremental` is **not**
@@ -857,7 +858,7 @@ protected function schedule(Schedule $schedule): void
 }
 ```
 
-`TriggerRebuild` is the same job the observer dispatches, so the frequent task applies only the tracked changes and is fast when little or nothing has changed. `scolta:build` is a full build: schedule it rarely, as the backstop for changes that bypass Eloquent events (query-builder mass updates) and to write the page-table ledger the incremental path needs. See [Incremental builds](#incremental-builds).
+`TriggerRebuild` is the same job the observer dispatches, so the frequent task applies only the tracked changes and is fast when little or nothing has changed. `scolta:build` is a full build: schedule it rarely, as the backstop for changes that bypass Eloquent events (query-builder mass updates). See [Incremental builds](#incremental-builds).
 
 #### Path C: System cron (direct)
 

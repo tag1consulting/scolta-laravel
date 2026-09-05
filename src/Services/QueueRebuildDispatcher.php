@@ -286,28 +286,31 @@ class QueueRebuildDispatcher
                 'fingerprint' => self::fingerprintFromEntries($fingerprintEntries),
             ]));
 
-            // This path does not maintain the page-table ledger: ProcessIndexChunk
-            // numbers its pages from a chunk offset and never calls allocate(), so
-            // whatever the ledger holds here was written by some *other* build.
-            // Left in place it is not merely stale, it is fatal — FinalizeIndex's
-            // integrity check compares the pages this build committed against the
-            // ledger's live count and refuses to publish when they disagree, which
-            // is every rebuild that follows a deletion. Discarding it makes the
-            // chain self-consistent (an empty ledger switches both integrity
-            // checks off) and honest: after this build, nothing on disk claims to
-            // know which ordinal a page holds.
+            // Open this build against the page-table ledger.
             //
-            // The cost is that an incremental update is unavailable until a
-            // `scolta:build` writes a ledger again, because IncrementalIndexUpdate
-            // has nothing to update against — it says so and rebuilds. Teaching
-            // the chunk jobs to own the ledger is the fix, and it is a change to
-            // how chunks allocate ordinals across processes, not to this line.
-            (new PageTableLedger($stateDir, new FilesystemDriver))->reset();
-            logger()->info(
-                '[scolta] Page-table ledger discarded for this queued rebuild. The next content edit '
-                .'rebuilds the whole corpus rather than updating in place; run php artisan scolta:build '
-                .'once to restore incremental updates.'
-            );
+            // beginBuild(true) takes the next generation, and checkpoint()
+            // puts that stamp in the journal before any worker process reads
+            // it. Every row the chunk jobs then allocate carries the new
+            // generation, so a row still carrying the previous one is a page
+            // the corpus no longer yields — which is precisely what lets
+            // FinalizeIndex's releaseStaleRows() tombstone a deletion instead
+            // of the chain failing the integrity check on it.
+            //
+            // This used to be `reset()`: the chain did not maintain a ledger at
+            // all, so whatever it found belonged to some other build and was
+            // fatal rather than merely stale. Discarding it made the chain
+            // self-consistent (an empty ledger switches both integrity checks
+            // off) at the price of an incremental update having nothing to
+            // update against until the next `scolta:build`. ProcessIndexChunk
+            // now allocates from the ledger, so there is nothing to discard.
+            //
+            // Done here, in the one process that knows this is a fresh build,
+            // rather than in a chunk job: beginBuild() is per build, and a job
+            // calling it would take a new generation per chunk and read every
+            // earlier chunk's pages as deleted.
+            $ledger = new PageTableLedger($stateDir, new FilesystemDriver);
+            $ledger->beginBuild(true);
+            $ledger->checkpoint();
 
             $coordinator->releaseLockOnly();
 
