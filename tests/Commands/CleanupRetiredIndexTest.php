@@ -203,26 +203,67 @@ class CleanupRetiredIndexTest extends TestCase
     }
 
     /**
-     * The pre-existing state-dir passes must keep working.
+     * The build lock survives a full run however old it looks.
+     *
+     * BuildState owns that file and keeps it at a stable path on purpose: it
+     * is flock()ed, so unlinking it hands the same path to a second holder.
+     * The mtime is not evidence of staleness either — the heartbeat is written
+     * per committed chunk, so a long merge leaves an hours-old file behind a
+     * running build. An age well past the hour this command used to delete at
+     * is the case that has to stay untouched.
+     *
+     * The summary count has to stay truthful with it: nothing was removed, so
+     * the command must say nothing was removed, and the dry run must agree.
      */
-    public function test_it_still_removes_a_stale_lock_file(): void
+    public function test_it_leaves_the_build_lock_alone(): void
     {
         File::makeDirectory($this->stateDir, 0755, true);
         File::put($this->stateDir.'/lock', '');
         touch($this->stateDir.'/lock', time() - 7200);
 
-        $this->artisan('scolta:cleanup')
+        $this->artisan('scolta:cleanup', ['--dry-run' => true])
             ->assertExitCode(0)
+            ->expectsOutputToContain('Dry run: would remove 0 stale file(s).')
+            ->doesntExpectOutputToContain('lock')
             ->run();
 
-        $this->assertFileDoesNotExist($this->stateDir.'/lock');
+        $this->assertFileExists($this->stateDir.'/lock');
+
+        $this->artisan('scolta:cleanup')
+            ->assertExitCode(0)
+            ->expectsOutputToContain('Cleaned 0 stale file(s).')
+            ->doesntExpectOutputToContain('lock')
+            ->run();
+
+        $this->assertFileExists($this->stateDir.'/lock');
+    }
+
+    /**
+     * The control for the --retired-only test below.
+     *
+     * That test proves the state directory is left alone by showing an
+     * orphaned chunk survives, which means nothing unless a full run would
+     * have removed it. Removing the lock file from the state-dir passes took
+     * away the only other evidence that they run at all, so this supplies it.
+     */
+    public function test_a_full_run_still_removes_an_orphaned_chunk_file(): void
+    {
+        File::makeDirectory($this->stateDir, 0755, true);
+        File::put($this->stateDir.'/chunk-9.dat', 'x');
+
+        $this->artisan('scolta:cleanup')
+            ->assertExitCode(0)
+            ->expectsOutputToContain('Cleaned 1 stale file(s).')
+            ->run();
+
+        $this->assertFileDoesNotExist($this->stateDir.'/chunk-9.dat');
     }
 
     /**
      * --retired-only is how the scheduled sweep runs: trash goes, the build
-     * state directory is not touched. The lock file in particular must survive,
-     * because scolta-php keeps it at a stable path on purpose and its heartbeat
-     * is not written during a long merge.
+     * state directory is not touched. The orphaned chunk is the discriminator
+     * — a full run removes it, as the test above pins — and the lock file
+     * survives here for the same reason it survives everywhere else.
      */
     public function test_retired_only_sweeps_trash_without_touching_the_state_dir(): void
     {

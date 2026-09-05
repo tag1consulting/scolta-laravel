@@ -15,9 +15,10 @@ use Tag1\ScoltaLaravel\Support\CommandLogger;
  * Remove stale index artifacts, orphaned build state, and retired indexes.
  *
  * Scans the state directory and Pagefind output directory for files that
- * are no longer referenced by the current build manifest. Stale lock files
- * older than one hour are removed. Deletes by default; pass --dry-run to
- * preview what would be removed without deleting anything.
+ * are no longer referenced by the current build manifest. The build lock is
+ * not one of them and is never reported or removed here; see
+ * sweepStaleFiles() for why. Deletes by default; pass --dry-run to preview
+ * what would be removed without deleting anything.
  *
  * Since scolta-php 1.5.0 a build renames the outgoing index to a
  * `.scolta-trash-*` sibling rather than unlinking it inline during the atomic
@@ -38,7 +39,7 @@ class CleanupCommand extends Command
 {
     protected $signature = 'scolta:cleanup
         {--dry-run : Show what would be removed without deleting}
-        {--retired-only : Sweep retired index directories only; skip the stale-lock and orphaned-file passes}
+        {--retired-only : Sweep retired index directories only; skip the orphaned chunk and fragment passes}
         {--max-seconds= : Wall-clock budget for deleting retired index directories; 0, or omitted, removes the limit}';
 
     protected $description = 'Remove stale index artifacts, orphaned build state files, and retired indexes';
@@ -69,21 +70,38 @@ class CleanupCommand extends Command
             return Command::FAILURE;
         }
 
-        // --- 4/5. Retired index directories ---
+        // --- 3/4. Retired index directories ---
         return $this->sweepRetiredIndexes($outputDir, $dryRun, $maxSeconds);
     }
 
     /**
-     * Delete the stale lock file, orphaned chunks, and orphaned index fragments.
+     * Delete orphaned chunks and orphaned index fragments.
      *
-     * Skipped under `--retired-only`, which is how the scheduled sweep runs it:
-     * an unattended process must not touch the build state directory. The stale
-     * lock pass in particular unlinks `<state_dir>/lock`, and scolta-php's
-     * BuildState keeps that file at a stable path on purpose — unlinking it
-     * lets a second process flock a fresh inode at the same path while the
-     * first still holds the old one. The heartbeat it ages against is only
-     * written per committed chunk, so a long merge/finalize leaves the file
-     * untouched for over an hour while the build is very much alive.
+     * `<state_dir>/lock` is deliberately absent from this method. BuildState
+     * owns that file's lifecycle and clears a stale lock itself, and it keeps
+     * the file at a *stable* path on purpose: the lock is an flock(), so the
+     * file must be created once and never unlinked, or an unlinked inode keeps
+     * its flock while the next process creates a fresh file underneath and
+     * locks that instead — two holders, one path. BuildState::cleanup()
+     * excludes the lock for exactly this reason and calls the exclusion
+     * load-bearing. This command deleting it reintroduces the bug from
+     * outside the class that fixed it.
+     *
+     * No read-only report either. Whether a lock is stale is a question about
+     * the ownership record inside it — owner token, host, pid, heartbeat,
+     * generation — which only BuildState can interpret, and it exposes
+     * `lockDiagnostics()` and `isRunning()` for that. This command has only
+     * the mtime, and the mtime is not an answer: the heartbeat is written per
+     * committed chunk, so a long merge/finalize leaves the file untouched for
+     * over an hour while the build is very much alive. Naming a live build's
+     * lock as an aged file invites an operator to unlink it by hand, which is
+     * the two-flock-holders failure again.
+     *
+     * Skipped under `--retired-only`, which is how the scheduled sweep runs
+     * it: both passes below delete files a concurrent build may still own, and
+     * they do it with a raw glob that bypasses BuildState::cleanup()'s own
+     * `assertCleanable()` guard. That is a judgement call for an operator at a
+     * terminal, not for an unattended task.
      *
      * @param  string|null  $outputDir  Null when the setting resolves to no path.
      */
@@ -92,22 +110,7 @@ class CleanupCommand extends Command
         $stateDir = config('scolta.state_dir', storage_path('app/scolta'));
         $removed = 0;
 
-        // --- 1. Stale lock file (older than 1 hour) ---
-        $lockFile = $stateDir.'/lock';
-        if (file_exists($lockFile)) {
-            $age = time() - (int) rescue(fn () => File::lastModified($lockFile), 0);
-            if ($age > 3600) {
-                if ($dryRun) {
-                    $this->line("[dry-run] Would remove stale lock: {$lockFile} (age: {$age}s)");
-                } else {
-                    File::delete($lockFile);
-                    $this->line("Removed stale lock: {$lockFile}");
-                }
-                $removed++;
-            }
-        }
-
-        // --- 2. Orphaned chunk files not referenced in current manifest ---
+        // --- 1. Orphaned chunk files not referenced in current manifest ---
         if (is_dir($stateDir)) {
             $state = new BuildState($stateDir);
 
@@ -128,7 +131,7 @@ class CleanupCommand extends Command
             }
         }
 
-        // --- 3. Orphaned fragment files in output directory ---
+        // --- 2. Orphaned fragment files in output directory ---
         // A fragment is orphaned when the output directory exists but the
         // pagefind entry file is gone — the index was partially built.
         if ($outputDir !== null && is_dir($outputDir)) {
