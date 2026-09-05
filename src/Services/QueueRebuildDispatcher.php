@@ -144,12 +144,9 @@ class QueueRebuildDispatcher
      *                             content-edit path (`TriggerRebuild` without
      *                             --force); false for `scolta:build --queue`,
      *                             which is always a full build.
-     * @param  bool  $resetLedger  Discard the page-table ledger before the chain
-     *                             opens its build, renumbering every page from
-     *                             zero. What `scolta:build --reset-ledger` and
-     *                             `--restart` mean under `--queue`: the escape
-     *                             hatch for a corrupt page table, on the one
-     *                             path a large site can afford to rebuild on.
+     * @param  bool  $resetLedger  Discard the page-table ledger first,
+     *                             renumbering from zero (`--reset-ledger` and
+     *                             `--restart` under `--queue`).
      * @return array{status: string, items: int, chunks: int}
      *
      * @since 1.0.4 (incremental-first in 1.4.0; $resetLedger in 1.4.0)
@@ -292,20 +289,10 @@ class QueueRebuildDispatcher
                 'fingerprint' => self::fingerprintFromEntries($fingerprintEntries),
             ]));
 
-            // Open this build against the page-table ledger.
-            //
-            // beginBuild(true) takes the next generation, and checkpoint()
-            // puts that stamp in the journal before any worker process reads
-            // it. Every row the chunk jobs then allocate carries the new
-            // generation, so a row still carrying the previous one is a page
-            // the corpus no longer yields — which is precisely what lets
-            // FinalizeIndex's releaseStaleRows() tombstone a deletion instead
-            // of the chain failing the integrity check on it.
-            //
-            // Done here, in the one process that knows this is a fresh build,
-            // rather than in a chunk job: beginBuild() is per build, and a job
-            // calling it would take a new generation per chunk and read every
-            // earlier chunk's pages as deleted.
+            // Open the build against the ledger here, once: beginBuild(true)
+            // takes the generation every chunk allocates under, so a row left
+            // on the previous one is a deletion for releaseStaleRows(). A job
+            // calling it would take a generation per chunk.
             $ledger = new PageTableLedger($stateDir, new FilesystemDriver);
             if ($resetLedger) {
                 $ledger->reset();
@@ -331,11 +318,9 @@ class QueueRebuildDispatcher
                 );
             }
 
-            // Hand the lock owner token to FinalizeIndex so the chain's final
-            // job releases the cross-process lock when it ends — on success or
-            // failure — regardless of which worker process runs it. The chunk
-            // jobs above carry it too, to check the lock has not expired under
-            // them before they allocate ordinals.
+            // The owner token lets FinalizeIndex release the cross-process lock
+            // from another worker; the chunk jobs use it to check the lock has
+            // not expired under them.
             $jobs[] = new FinalizeIndex(
                 $stateDir,
                 $outputDir,

@@ -69,18 +69,15 @@ class FinalizeIndex implements ShouldQueue
     public function handle(): void
     {
         try {
-            // Same check as ProcessIndexChunk::assertBuildLockHeld(): the lock
-            // expires after BUILD_LOCK_TTL and is never extended, and a chain
-            // that outlived it may be sharing the ledger with another rebuild.
-            // Inside the try so the finally still ends the build state.
+            // As ProcessIndexChunk::assertBuildLockHeld(): a chain that outlived
+            // the lock may share the ledger with another rebuild.
             $lock = $this->lockOwner === null
                 ? null
                 : Cache::restoreLock(QueueRebuildDispatcher::BUILD_LOCK, $this->lockOwner);
             if ($lock instanceof Lock && ! $lock->isOwnedByCurrentProcess()) {
                 throw new \RuntimeException(sprintf(
                     'The build lock this chain was dispatched under is no longer held (it expires after %d '
-                    .'seconds and the chain outlived it), so another rebuild may have written the page-table '
-                    .'ledger meanwhile. Refusing to publish; the previous index is untouched.',
+                    .'seconds), so another rebuild may have written the page-table ledger. Refusing to publish.',
                     QueueRebuildDispatcher::BUILD_LOCK_TTL,
                 ));
             }

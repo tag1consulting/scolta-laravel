@@ -195,11 +195,9 @@ class BuildCommand extends Command
      */
     private function buildWithPhpIndexer(ContentSource $source, string $outputDir): int
     {
-        // The same cross-process lock the queued chain holds from dispatch until
-        // FinalizeIndex. Both paths allocate page ordinals from the shared
-        // page-table ledger, and BuildState's flock cannot exclude a chain
-        // (releaseLockOnly() drops it between chunk jobs), so without this a
-        // deploy-time build landing mid-chain hands one ordinal to two pages.
+        // The lock the queued chain holds until FinalizeIndex: both paths
+        // allocate from the shared ledger, and BuildState's flock is dropped
+        // between chunk jobs.
         $lock = Cache::lock(QueueRebuildDispatcher::BUILD_LOCK, QueueRebuildDispatcher::BUILD_LOCK_TTL);
         if (! $lock->get()) {
             $this->warn(
@@ -608,10 +606,6 @@ class BuildCommand extends Command
             // build lock, so a worker that drains the chain actually produces an
             // index — uniformly on every entry point (the lock makes the
             // manifest init safe against concurrent dispatch).
-            // --reset-ledger and --restart mean the same thing here as on the
-            // synchronous build: discard the page table and renumber. Without
-            // this the flags were silently dropped under --queue, and a site too
-            // large to build inline had no way out of a corrupt ledger.
             $result = (new QueueRebuildDispatcher($source))->dispatch(
                 $budget,
                 (bool) $this->option('force'),

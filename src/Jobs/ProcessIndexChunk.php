@@ -37,52 +37,20 @@ use Tag1\ScoltaLaravel\Services\QueueRebuildDispatcher;
  *
  * ## Ordinals
  *
- * This job assigns page ordinals from the durable page-table ledger, exactly
- * as `IndexBuildOrchestrator::makeChunkEntry()` does in a single-process
- * build. It used to number them `chunkIdx * chunkSize + i` instead and never
- * open the ledger at all, which had two consequences. The numbering was a
- * function of the gather order, so it renumbered the whole corpus whenever a
- * page was inserted near the front and invalidated every fragment filename and
- * posting list with it; and the ledger the chain left behind belonged to some
- * other build, which made every queued rebuild following a deletion fail
- * `FinalizeIndex`'s integrity check. The dispatcher worked around the second by
- * discarding the ledger before dispatching, at the price of the incremental
- * update having nothing to update against afterwards.
+ * Pages are numbered from the page-table ledger, as
+ * `IndexBuildOrchestrator::makeChunkEntry()` numbers them in a single-process
+ * build, so ordinals survive a rebuild and `FinalizeIndex` can tombstone
+ * deletions. `allocate()` is a read-modify-write of an in-memory counter, so
+ * two writers at once hand one ordinal to two pages, and the merge keeps one.
+ * Allocation is single-writer because:
  *
- * ## Why allocation here does not race
- *
- * The ledger is shared state on disk and `allocate()` is a read-modify-write of
- * an in-memory next-ordinal that the constructor loaded from the snapshot and
- * the journal. Two processes allocating at once therefore hand the same ordinal
- * to two different pages, and `IndexMerger` resolves that by last-write-wins —
- * it drops one page's postings rather than failing. So the design does not
- * allocate concurrently at all:
- *
- *  - `QueueRebuildDispatcher` dispatches these jobs with `Bus::chain()`, which
- *    is strictly sequential: the next job is dispatched by
- *    `Queueable::dispatchNextJobInChain()` only after this one's `handle()`
- *    has returned. Two chunks of one build never overlap.
- *  - `QueueRebuildDispatcher::BUILD_LOCK` is held across the whole chain — from
- *    before the first payload file is written until `FinalizeIndex` releases it
- *    — so no second chain, no `IncrementalIndexUpdate` and no `scolta:build`
- *    (which takes the same lock) touches the ledger while this runs.
- *    (`BuildCoordinator::releaseLockOnly()` before dispatch drops only
- *    `BuildState`'s process-scoped flock, which cannot span the chain; the
- *    cross-process cache lock is untouched.) The lock has a TTL
- *    (`BUILD_LOCK_TTL`, one hour) and is never extended, so a chain that
- *    outlives it is no longer protected: each job therefore checks that the
- *    dispatcher's owner token still holds the lock before it allocates, and
- *    fails the chain when it does not.
- *  - {@see self::LEDGER_GUARD_FILE} makes the one-job-at-a-time rule an
- *    enforced invariant rather than an inherited one: the whole
- *    ledger-touching section runs under a non-blocking `flock()`, so two
- *    chunk jobs of one build running at once fail loudly here instead of
- *    silently writing an index with colliding ordinals. (The job does not use
- *    `Batchable`, so `Bus::batch()` refuses it at dispatch time as well.)
- *
- * Beyond that, `PageTableLedger::commitIncremental()` takes its own exclusive
- * flock on the journal, so the append is atomic, and `FinalizeIndex` re-reads the
- * journal and re-checks the result against the index before the swap.
+ *  - `Bus::chain()` runs the jobs strictly sequentially.
+ *  - `QueueRebuildDispatcher::BUILD_LOCK` is held from dispatch until
+ *    `FinalizeIndex` releases it; `scolta:build` takes the same lock. It
+ *    expires after `BUILD_LOCK_TTL`, so each job checks the dispatcher still
+ *    owns it before allocating.
+ *  - {@see self::LEDGER_GUARD_FILE} is a non-blocking `flock()` around the
+ *    ledger section, so two chunk jobs running at once fail loudly.
  *
  * @since 0.2.0 (rewritten 0.3.0 to use BuildCoordinator; file-based
  *   payloads since 1.0.4; ledger-allocated ordinals since 1.4.0)
@@ -94,12 +62,9 @@ class ProcessIndexChunk implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     /**
-     * Lock file, in the state directory, serialising ledger allocation.
-     *
-     * Held for the whole of the ledger-touching section of {@see self::handle()}.
-     * An advisory `flock()` rather than a `Cache::lock()`: it needs no
-     * lock-capable cache store, it has no TTL to outlive a long chunk, and the
-     * kernel releases it when a killed worker's file handle closes.
+     * Lock file, in the state directory, serialising ledger allocation. An
+     * advisory `flock()` rather than `Cache::lock()`: no TTL to outlive a long
+     * chunk, and the kernel releases it when a killed worker exits.
      *
      * @since 1.4.0
      *
@@ -140,9 +105,7 @@ class ProcessIndexChunk implements ShouldQueue
             $ledger = new PageTableLedger($this->stateDir, $storage);
             // Sized from the same budget the single-process build sizes it
             // from, so the two write interchangeable cache chunks.
-            // The logger matters: put() declines silently once the manifest is
-            // full, and that notice is the only sign the token cache is no
-            // longer serving new pages.
+            // The logger carries put()'s manifest-full notice.
             $cache = new PageWordCache(
                 $this->stateDir,
                 $storage,
@@ -158,13 +121,8 @@ class ProcessIndexChunk implements ShouldQueue
             foreach ($items as $item) {
                 $hash = PhpIndexer::contentHash($item);
 
-                // The token cache is not an optimisation here, it is what makes
-                // the next content edit incremental: IncrementalIndexUpdater
-                // locates a changed page's stale postings through the previous
-                // token data under the hash the ledger recorded, and refuses
-                // outright when it is missing. A chain that indexed without
-                // populating it would leave a ledger the updater could read and
-                // a cache it could not.
+                // Populating the cache is what makes the next edit incremental:
+                // IncrementalIndexUpdater refuses without the previous token data.
                 $tokenData = $cache->get($hash);
                 if ($tokenData === null) {
                     $tokenData = $builder->tokenizeItem($item);
@@ -174,12 +132,8 @@ class ProcessIndexChunk implements ShouldQueue
                 }
 
                 if ($tokenData === null) {
-                    // No indexable text after HTML cleaning. Allocating for it
-                    // would leave a live ledger row with no fragment behind it,
-                    // which is exactly the disagreement FinalizeIndex's
-                    // integrity check refuses to publish — so, as in the
-                    // single-process build, the ordinal is assigned after
-                    // tokenization and never for a page that is not written.
+                    // No indexable text: never allocate for a page that is not
+                    // written, or the integrity check fails.
                     continue;
                 }
 
@@ -198,26 +152,14 @@ class ProcessIndexChunk implements ShouldQueue
 
             $partial = $builder->buildFromTokenDataWithOrdinals($entries);
 
-            // Ordinals reach disk before the chunk that references them, never
-            // after: a chunk file naming ordinals no later process can see gets
-            // those same numbers handed to different pages, and the merge keeps
-            // one page per ordinal.
-            //
-            // commitIncremental() rather than checkpoint(): every job here
-            // constructs a fresh ledger and replays the whole journal, and
-            // every allocate() journals a row (the generation moved), so a
-            // plain append makes job k replay k chunks' worth of records.
-            // commitIncremental() snapshots and truncates once the journal
-            // passes 8 MB, which bounds that replay; either branch flushes the
-            // allocations before commitChunk() below.
+            // Ordinals reach disk before the chunk file that names them.
+            // commitIncremental() compacts the journal past 8 MB, bounding
+            // what each job replays on construction.
             $ledger->commitIncremental();
 
             $coordinator->commitChunk($this->chunkIdx, $partial);
 
-            // saveWithoutPruning(), never pruneAndSave(): this job looked up one
-            // chunk of the corpus, so "not looked up here" means "in another
-            // chunk", and pruning would delete the token data of every page but
-            // this one's.
+            // Never pruneAndSave(): this job saw one chunk of the corpus.
             $cache->saveWithoutPruning();
         } finally {
             self::releaseLedgerGuard($guard);
@@ -227,11 +169,8 @@ class ProcessIndexChunk implements ShouldQueue
     }
 
     /**
-     * Take the exclusive ledger guard for this state directory.
-     *
-     * Non-blocking, and a refusal is fatal: with `tries = 1` a throw fails the
-     * chain and leaves the previously published index serving, where waiting
-     * would only postpone the collision.
+     * Take the exclusive ledger guard. Non-blocking: with `tries = 1` a refusal
+     * fails the chain and leaves the published index serving.
      *
      * @return resource
      *
@@ -244,11 +183,7 @@ class ProcessIndexChunk implements ShouldQueue
         $path = $this->stateDir.'/'.self::LEDGER_GUARD_FILE;
         $handle = fopen($path, 'c');
         if ($handle === false) {
-            throw new \RuntimeException(
-                "Failed to open the chunk ledger guard at {$path}. Refusing to allocate page ordinals "
-                .'without it: two chunk jobs allocating at once hand one ordinal to two pages, and the '
-                .'merge resolves that by dropping one of them.'
-            );
+            throw new \RuntimeException("Failed to open the chunk ledger guard at {$path}; refusing to allocate page ordinals without it.");
         }
 
         if (! flock($handle, LOCK_EX | LOCK_NB)) {
@@ -256,9 +191,7 @@ class ProcessIndexChunk implements ShouldQueue
 
             throw new \RuntimeException(
                 'Another Scolta chunk job is already allocating page ordinals in '.$this->stateDir.'. '
-                .'Chunk jobs share the page-table ledger and must run one at a time — dispatch them as a '
-                .'Bus::chain(), which is sequential, not as a batch. Nothing was written and the '
-                .'published index is untouched.'
+                .'Chunk jobs share the page-table ledger and must run one at a time. Nothing was written.'
             );
         }
 
@@ -266,16 +199,9 @@ class ProcessIndexChunk implements ShouldQueue
     }
 
     /**
-     * Refuse to run once the chain has outlived the cross-process build lock.
-     *
-     * `QueueRebuildDispatcher::BUILD_LOCK` expires after `BUILD_LOCK_TTL` and
-     * nothing extends it, so a slow chain can still be running when the lock
-     * lapses and another dispatch — an `IncrementalIndexUpdate`, a second
-     * chain — takes it and starts allocating from the same ledger. A chunk that
-     * allocated beside it would hand one ordinal to two pages. Failing the
-     * chain instead leaves the previously published index serving. Null owner:
-     * the job was constructed outside the dispatcher (a direct call), where
-     * there is no lock to check.
+     * Refuse to run once the chain has outlived the build lock, which expires
+     * after `BUILD_LOCK_TTL`; another dispatch may hold the ledger by then. A
+     * null owner means a direct call with no lock to check.
      *
      * @throws \RuntimeException When the dispatcher's owner token no longer holds the lock.
      */
@@ -285,18 +211,16 @@ class ProcessIndexChunk implements ShouldQueue
             return;
         }
 
-        // The ownership check lives on the concrete Lock, not the contract; a
-        // store whose lock cannot answer it is left alone.
+        // isOwnedByCurrentProcess() is on the concrete Lock, not the contract.
         $lock = Cache::restoreLock(QueueRebuildDispatcher::BUILD_LOCK, $this->lockOwner);
         if (! $lock instanceof Lock || $lock->isOwnedByCurrentProcess()) {
             return;
         }
 
         throw new \RuntimeException(sprintf(
-            'The build lock this chain was dispatched under is no longer held (it expires after %d seconds '
-            .'and the chain outlived it), so another rebuild may be writing the page-table ledger. Refusing '
-            .'to allocate page ordinals beside it; the published index is untouched. Dispatch the rebuild '
-            .'again, or raise the chunk size so the chain finishes sooner.',
+            'The build lock this chain was dispatched under is no longer held (it expires after %d seconds), '
+            .'so another rebuild may be writing the page-table ledger. Refusing to allocate beside it; the '
+            .'published index is untouched. Dispatch the rebuild again.',
             QueueRebuildDispatcher::BUILD_LOCK_TTL,
         ));
     }

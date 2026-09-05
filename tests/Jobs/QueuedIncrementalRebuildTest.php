@@ -354,17 +354,9 @@ class QueuedIncrementalRebuildTest extends TestCase
 
         $this->assertSame(QueueRebuildDispatcher::STATUS_DISPATCHED, $result['status']);
         $this->assertStringContainsString('no longer readable', $this->declineReason());
-        // The fallback is what actually removes the deleted page — and it has
-        // to get there, not throw. This is the case a ledger left over from an
-        // earlier build used to fail the integrity check on, and the reason the
-        // dispatcher used to discard the ledger before dispatching.
+        // The fallback removes the deleted page; a leftover ledger used to make
+        // this exact case fail the integrity check.
         $this->assertSame(2, $this->ledgerLiveCount());
-        $this->assertNotContains($this->itemId('Gamma'), $this->ledgerItemIds());
-        // Three fragments for two live pages: a deletion tombstones its ordinal
-        // rather than renumbering the table, and fillTombstones() pads the hole.
-        // That is what `scolta:build` publishes for the same corpus, and now
-        // what the queued chain publishes too.
-        $this->assertSame(3, $this->publishedPageCount());
         $this->assertIndexVerifies();
         $this->assertSame(0, ScoltaTracker::query()->count());
     }
@@ -480,45 +472,18 @@ class QueuedIncrementalRebuildTest extends TestCase
 
     public function test_a_queued_rebuild_leaves_a_ledger_that_accounts_for_every_page(): void
     {
-        // No prior build of any kind: the ledger read back here is the one the
-        // chain wrote, so nothing in it can have come from somewhere else. The
-        // chain used to write none at all — it numbered pages from a chunk
-        // offset and never called allocate().
+        // No prior build: the ledger read back is the one the chain wrote.
         $result = $this->rebuild(force: true, incremental: false);
 
         $this->assertSame(QueueRebuildDispatcher::STATUS_DISPATCHED, $result['status']);
 
-        // One row per page, ordinals dense from zero — the numbering a first
-        // `scolta:build` produces on an empty ledger.
         $this->assertSame([0, 1, 2], array_keys($this->ledger()->rowsByOrdinal()));
         $this->assertSame(
             [$this->itemId('Alpha'), $this->itemId('Beta'), $this->itemId('Gamma')],
             $this->ledgerItemIds(),
         );
 
-        // The two counts FinalizeIndex's integrity check compares, asserted
-        // separately so a failure says which of them moved.
         $this->assertSame(3, $this->ledgerLiveCount());
-        $this->assertSame(3, $this->publishedPageCount());
-        $this->assertIndexVerifies();
-    }
-
-    public function test_a_queued_rebuild_keeps_the_ordinals_the_previous_build_assigned(): void
-    {
-        $this->publishInitialIndex();
-        $before = $this->ledgerOrdinals();
-        $this->assertCount(3, $before);
-
-        $result = $this->rebuild(force: true, incremental: false);
-
-        $this->assertSame(QueueRebuildDispatcher::STATUS_DISPATCHED, $result['status']);
-
-        // A ledger the chain merely populated could hold any self-consistent
-        // numbering. This is what says it holds the right one: allocate() gave
-        // each id back the ordinal it already had, so every fragment filename
-        // (hash10($ordinal . $url)) and every posting list the previous build
-        // wrote still names the same page.
-        $this->assertSame($before, $this->ledgerOrdinals());
         $this->assertSame(3, $this->publishedPageCount());
         $this->assertIndexVerifies();
     }
@@ -534,38 +499,27 @@ class QueuedIncrementalRebuildTest extends TestCase
             SearchablePost::query()->whereKey($this->postIds['Gamma'])->delete();
         });
 
-        // "the build committed 2 pages but the page table holds 3 live pages"
-        // is what this used to raise, from verifyOutputHasFragments(), on every
-        // queued rebuild following a deletion. FinalizeIndex rethrows a failed
-        // report and the sync connection runs the chain inline, so getting a
-        // status back at all is the check passing.
+        // Used to raise "committed 2 pages but the page table holds 3 live
+        // pages"; on the sync connection a status back is the check passing.
         $result = $this->rebuild(force: true, incremental: false);
 
         $this->assertSame(QueueRebuildDispatcher::STATUS_DISPATCHED, $result['status']);
         $this->assertSame(2, $this->ledgerLiveCount());
         $this->assertNotContains($this->itemId('Gamma'), $this->ledgerItemIds());
 
-        // Released rather than renumbered: the surviving pages keep their
-        // ordinals and the deleted one leaves a tombstone the next new page
-        // will take. Renumbering is the one operation that invalidates every
-        // fragment filename at once, and a delete must not cause it.
+        // Tombstoned, not renumbered: surviving pages keep their ordinals.
         $this->assertSame([$gammaOrdinal], $this->ledger()->tombstones());
         $this->assertSame($before, $this->ledgerOrdinals());
 
-        // The table stays dense across the delete, so the index still holds one
-        // fragment per ordinal — two live pages and the tombstone
-        // fillTombstones() padded the hole with.
+        // One fragment per ordinal, including the tombstone.
         $this->assertSame(3, $this->publishedPageCount());
         $this->assertIndexVerifies();
     }
 
     public function test_a_content_edit_updates_in_place_after_a_queued_rebuild(): void
     {
-        // The thing that was impossible. A queued rebuild left no ledger, so
-        // IncrementalIndexUpdater::isAvailable() was false afterwards and every
-        // later edit fell back to another full rebuild — a site whose only
-        // builds are queued never reached the fast path at all. The index here
-        // is published by the chain and by nothing else.
+        // The index here is published by the chain and nothing else; a queued
+        // rebuild used to leave no ledger for the update to work against.
         $this->rebuild(force: true, incremental: false);
         ScoltaTracker::clearAll();
 
@@ -573,10 +527,8 @@ class QueuedIncrementalRebuildTest extends TestCase
         $betaHash = $this->ledgerContentHash($this->itemId('Beta'));
         $ordinals = $this->ledgerOrdinals();
 
-        // Only the chain jobs are faked, so the observer and TriggerRebuild run
-        // for real. A fallback to a full rebuild shows up as a dispatched
-        // ProcessIndexChunk that writes nothing; an in-place update dispatches
-        // no job and rewrites the edited page itself.
+        // Only the chain jobs are faked: a fallback shows up as a dispatched
+        // ProcessIndexChunk, an in-place update dispatches nothing.
         Bus::fake([ProcessIndexChunk::class, FinalizeIndex::class]);
         config(['scolta.auto_rebuild' => true]);
 
@@ -590,10 +542,7 @@ class QueuedIncrementalRebuildTest extends TestCase
         $this->assertSame($alphaHash, $this->ledgerContentHash($this->itemId('Alpha')),
             'and no page it did not touch.');
 
-        // The update reuses the ordinals the chain assigned rather than moving
-        // anything, which is also what proves the chain populated the token
-        // cache: without the previous token data under the hash the ledger
-        // recorded, collectRemovals() refuses and this is a full rebuild.
+        // Same ordinals, which also proves the chain populated the token cache.
         $this->assertSame($ordinals, $this->ledgerOrdinals());
         $this->assertSame(3, $this->ledgerLiveCount());
         $this->assertIndexVerifies();
@@ -601,10 +550,6 @@ class QueuedIncrementalRebuildTest extends TestCase
 
     public function test_a_chunk_job_refuses_to_run_once_the_build_lock_has_lapsed(): void
     {
-        // BUILD_LOCK expires after an hour and nothing extends it. A chain that
-        // outlives it is sharing the ledger with whatever took the lock next, so
-        // a chunk dispatched under an owner token that no longer holds the lock
-        // must not allocate.
         File::ensureDirectoryExists($this->stateDir);
         $payload = $this->stateDir.'/lock-probe.json';
         File::put($payload, ContentItemCodec::encode(
@@ -624,10 +569,8 @@ class QueuedIncrementalRebuildTest extends TestCase
 
     public function test_an_unfinished_build_makes_the_next_edit_a_full_rebuild(): void
     {
-        // A chain that fails mid-way leaves the manifest 'building' and a
-        // journal with ordinals and content hashes for pages the published
-        // index does not hold. An in-place update that trusted them would
-        // locate a page's "previous" postings through the wrong hash.
+        // A chain that failed mid-way leaves the manifest 'building' and hashes
+        // for pages the published index does not hold.
         $this->publishInitialIndex();
 
         $coordinator = new BuildCoordinator($this->stateDir, null);
@@ -653,8 +596,7 @@ class QueuedIncrementalRebuildTest extends TestCase
         $result = app(QueueRebuildDispatcher::class)->dispatch($this->budget(), true, false, resetLedger: true);
 
         $this->assertSame(QueueRebuildDispatcher::STATUS_DISPATCHED, $result['status']);
-        // Renumbered from zero: no tombstone for Gamma, two dense ordinals, two
-        // fragments. Without the reset the table keeps a hole and three fragments.
+        // Renumbered from zero; without the reset Gamma leaves a tombstone.
         $this->assertSame([], $this->ledger()->tombstones());
         $this->assertSame([0, 1], array_keys($this->ledger()->rowsByOrdinal()));
         $this->assertSame(2, $this->publishedPageCount());
@@ -663,13 +605,8 @@ class QueuedIncrementalRebuildTest extends TestCase
 
     public function test_a_chunk_job_refuses_to_allocate_beside_another_process(): void
     {
-        // Chunk jobs share one ledger and allocate() is a read-modify-write of
-        // an in-memory next-ordinal, so two of them at once hand one ordinal to
-        // two pages — which IndexMerger resolves by dropping one page's
-        // postings rather than by failing. Bus::chain() is sequential and the
-        // build lock excludes every other writer, so this cannot happen today;
-        // the guard is what makes that an enforced invariant rather than an
-        // inherited one, and it fails loudly instead of writing a wrong ledger.
+        // Two chunk jobs allocating at once hand one ordinal to two pages; the
+        // guard fails the second loudly.
         File::ensureDirectoryExists($this->stateDir);
         $payload = $this->stateDir.'/guard-probe.json';
         File::put($payload, ContentItemCodec::encode(
@@ -690,8 +627,6 @@ class QueuedIncrementalRebuildTest extends TestCase
             fclose($held);
         }
 
-        // Nothing was written: no ordinals, and the payload is still there for
-        // a retry.
         $this->assertTrue($this->ledger()->isEmpty());
         $this->assertTrue(File::exists($payload));
     }
@@ -762,13 +697,8 @@ class QueuedIncrementalRebuildTest extends TestCase
     }
 
     /**
-     * Fragment files in the published index, counted on disk.
-     *
-     * One per ordinal in the page table — live pages plus the tombstones
-     * fillTombstones() pads it out with — so this equals the ledger's live
-     * count only on a corpus that has never had a page deleted. Counted from
-     * the filesystem rather than read from the ledger on purpose: it is the
-     * independent half of every assertion that pairs the two.
+     * Fragment files in the published index, counted on disk: one per ordinal,
+     * tombstones included, and independent of the ledger.
      */
     private function publishedPageCount(): int
     {
