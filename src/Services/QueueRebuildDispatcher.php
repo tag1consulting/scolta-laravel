@@ -144,13 +144,16 @@ class QueueRebuildDispatcher
      *                             content-edit path (`TriggerRebuild` without
      *                             --force); false for `scolta:build --queue`,
      *                             which is always a full build.
+     * @param  bool  $resetLedger  Discard the page-table ledger first,
+     *                             renumbering from zero (`--reset-ledger` and
+     *                             `--restart` under `--queue`).
      * @return array{status: string, items: int, chunks: int}
      *
-     * @since 1.0.4 (incremental-first in 1.4.0)
+     * @since 1.0.4 (incremental-first in 1.4.0; $resetLedger in 1.4.0)
      *
      * @stability experimental
      */
-    public function dispatch(MemoryBudget $budget, bool $force = false, bool $incremental = false): array
+    public function dispatch(MemoryBudget $budget, bool $force = false, bool $incremental = false, bool $resetLedger = false): array
     {
         // Acquire the cross-process build lock first, before touching any build
         // state. A non-blocking failure means another chain is already running:
@@ -286,28 +289,16 @@ class QueueRebuildDispatcher
                 'fingerprint' => self::fingerprintFromEntries($fingerprintEntries),
             ]));
 
-            // This path does not maintain the page-table ledger: ProcessIndexChunk
-            // numbers its pages from a chunk offset and never calls allocate(), so
-            // whatever the ledger holds here was written by some *other* build.
-            // Left in place it is not merely stale, it is fatal — FinalizeIndex's
-            // integrity check compares the pages this build committed against the
-            // ledger's live count and refuses to publish when they disagree, which
-            // is every rebuild that follows a deletion. Discarding it makes the
-            // chain self-consistent (an empty ledger switches both integrity
-            // checks off) and honest: after this build, nothing on disk claims to
-            // know which ordinal a page holds.
-            //
-            // The cost is that an incremental update is unavailable until a
-            // `scolta:build` writes a ledger again, because IncrementalIndexUpdate
-            // has nothing to update against — it says so and rebuilds. Teaching
-            // the chunk jobs to own the ledger is the fix, and it is a change to
-            // how chunks allocate ordinals across processes, not to this line.
-            (new PageTableLedger($stateDir, new FilesystemDriver))->reset();
-            logger()->info(
-                '[scolta] Page-table ledger discarded for this queued rebuild. The next content edit '
-                .'rebuilds the whole corpus rather than updating in place; run php artisan scolta:build '
-                .'once to restore incremental updates.'
-            );
+            // Open the build against the ledger here, once: beginBuild(true)
+            // takes the generation every chunk allocates under, so a row left
+            // on the previous one is a deletion for releaseStaleRows(). A job
+            // calling it would take a generation per chunk.
+            $ledger = new PageTableLedger($stateDir, new FilesystemDriver);
+            if ($resetLedger) {
+                $ledger->reset();
+            }
+            $ledger->beginBuild(true);
+            $ledger->checkpoint();
 
             $coordinator->releaseLockOnly();
 
@@ -323,12 +314,13 @@ class QueueRebuildDispatcher
                     $language,
                     $budget->profile(),
                     $budget->chunkSize(),
+                    $lock->owner(),
                 );
             }
 
-            // Hand the lock owner token to FinalizeIndex so the chain's final
-            // job releases the cross-process lock when it ends — on success or
-            // failure — regardless of which worker process runs it.
+            // The owner token lets FinalizeIndex release the cross-process lock
+            // from another worker; the chunk jobs use it to check the lock has
+            // not expired under them.
             $jobs[] = new FinalizeIndex(
                 $stateDir,
                 $outputDir,

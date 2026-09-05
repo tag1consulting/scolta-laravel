@@ -24,11 +24,14 @@ Set `SCOLTA_INCREMENTAL_ENABLED=false` to keep the old behaviour.
 
 Two things worth knowing before you deploy:
 
-- The in-place update needs a page-table ledger, and only `php artisan
-  scolta:build` writes one — the queued chain discards it, because it does not
-  maintain one. Run `scolta:build` in your deploy (you almost certainly already
-  do) and the fast path stays available; without it every queued rebuild is a
-  full one, which is what this package did before 1.4.0.
+- The in-place update needs a page-table ledger, and both build paths now write
+  one: `php artisan scolta:build` and the queued chunk chain alike. Nothing has
+  to be scheduled to keep the fast path available, and a site whose only builds
+  are queued gets incremental updates too. If you are upgrading an installation
+  that has only ever built through the queue, the first queued rebuild after
+  this release is what writes the ledger; the edit after it is incremental.
+  Keep an occasional `scolta:build` scheduled all the same: it is the only
+  build that prunes the token cache, which the queued path only adds to.
 - A queued rebuild now clears the `scolta_tracker` rows it covered, which it
   never did. If you were watching `pending_index` in `scolta:status` or
   `/api/scolta/v1/health` and treating a permanently non-zero value as normal,

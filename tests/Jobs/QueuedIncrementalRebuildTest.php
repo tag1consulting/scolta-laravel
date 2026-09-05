@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase;
 use Tag1\Scolta\Config\MemoryBudgetConfig;
 use Tag1\Scolta\Export\ContentExporter;
+use Tag1\Scolta\Index\BuildCoordinator;
+use Tag1\Scolta\Index\BuildIntent;
 use Tag1\Scolta\Index\IndexBuildOrchestrator;
 use Tag1\Scolta\Index\MemoryBudget;
 use Tag1\Scolta\Index\PageTableLedger;
@@ -24,6 +26,7 @@ use Tag1\ScoltaLaravel\Jobs\TriggerRebuild;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 use Tag1\ScoltaLaravel\Observers\ScoltaObserver;
 use Tag1\ScoltaLaravel\ScoltaServiceProvider;
+use Tag1\ScoltaLaravel\Services\ContentItemCodec;
 use Tag1\ScoltaLaravel\Services\ContentSource;
 use Tag1\ScoltaLaravel\Services\QueueRebuildDispatcher;
 use Tag1\ScoltaLaravel\Tests\Support\SearchablePost;
@@ -351,10 +354,9 @@ class QueuedIncrementalRebuildTest extends TestCase
 
         $this->assertSame(QueueRebuildDispatcher::STATUS_DISPATCHED, $result['status']);
         $this->assertStringContainsString('no longer readable', $this->declineReason());
-        $this->assertSame(2, $this->publishedPageCount(),
-            'The full-rebuild fallback is what actually removes the deleted page — and it has to get '
-            .'there, not throw. The chunked chain does not maintain the page-table ledger, so a ledger '
-            .'left over from an earlier build made this exact case fail the integrity check.');
+        // The fallback removes the deleted page; a leftover ledger used to make
+        // this exact case fail the integrity check.
+        $this->assertSame(2, $this->ledgerLiveCount());
         $this->assertIndexVerifies();
         $this->assertSame(0, ScoltaTracker::query()->count());
     }
@@ -465,6 +467,171 @@ class QueuedIncrementalRebuildTest extends TestCase
     }
 
     // -----------------------------------------------------------------
+    // The chunked chain owns the page-table ledger.
+    // -----------------------------------------------------------------
+
+    public function test_a_queued_rebuild_leaves_a_ledger_that_accounts_for_every_page(): void
+    {
+        // No prior build: the ledger read back is the one the chain wrote.
+        $result = $this->rebuild(force: true, incremental: false);
+
+        $this->assertSame(QueueRebuildDispatcher::STATUS_DISPATCHED, $result['status']);
+
+        $this->assertSame([0, 1, 2], array_keys($this->ledger()->rowsByOrdinal()));
+        $this->assertSame(
+            [$this->itemId('Alpha'), $this->itemId('Beta'), $this->itemId('Gamma')],
+            $this->ledgerItemIds(),
+        );
+
+        $this->assertSame(3, $this->ledgerLiveCount());
+        $this->assertSame(3, $this->publishedPageCount());
+        $this->assertIndexVerifies();
+    }
+
+    public function test_a_queued_rebuild_after_a_deletion_passes_the_integrity_check(): void
+    {
+        $this->publishInitialIndex();
+        $before = $this->ledgerOrdinals();
+        $gammaOrdinal = $before[$this->itemId('Gamma')];
+        unset($before[$this->itemId('Gamma')]);
+
+        SearchablePost::withoutEvents(function () {
+            SearchablePost::query()->whereKey($this->postIds['Gamma'])->delete();
+        });
+
+        // Used to raise "committed 2 pages but the page table holds 3 live
+        // pages"; on the sync connection a status back is the check passing.
+        $result = $this->rebuild(force: true, incremental: false);
+
+        $this->assertSame(QueueRebuildDispatcher::STATUS_DISPATCHED, $result['status']);
+        $this->assertSame(2, $this->ledgerLiveCount());
+        $this->assertNotContains($this->itemId('Gamma'), $this->ledgerItemIds());
+
+        // Tombstoned, not renumbered: surviving pages keep their ordinals.
+        $this->assertSame([$gammaOrdinal], $this->ledger()->tombstones());
+        $this->assertSame($before, $this->ledgerOrdinals());
+
+        // One fragment per ordinal, including the tombstone.
+        $this->assertSame(3, $this->publishedPageCount());
+        $this->assertIndexVerifies();
+    }
+
+    public function test_a_content_edit_updates_in_place_after_a_queued_rebuild(): void
+    {
+        // The index here is published by the chain and nothing else; a queued
+        // rebuild used to leave no ledger for the update to work against.
+        $this->rebuild(force: true, incremental: false);
+        ScoltaTracker::clearAll();
+
+        $alphaHash = $this->ledgerContentHash($this->itemId('Alpha'));
+        $betaHash = $this->ledgerContentHash($this->itemId('Beta'));
+        $ordinals = $this->ledgerOrdinals();
+
+        // Only the chain jobs are faked: a fallback shows up as a dispatched
+        // ProcessIndexChunk, an in-place update dispatches nothing.
+        Bus::fake([ProcessIndexChunk::class, FinalizeIndex::class]);
+        config(['scolta.auto_rebuild' => true]);
+
+        SearchablePost::query()->findOrFail($this->postIds['Beta'])->update(['title' => 'Beta Revised']);
+
+        Bus::assertNotDispatched(ProcessIndexChunk::class);
+        Bus::assertNotDispatched(FinalizeIndex::class);
+
+        $this->assertNotSame($betaHash, $this->ledgerContentHash($this->itemId('Beta')),
+            'The edited page must actually have been rewritten in place.');
+        $this->assertSame($alphaHash, $this->ledgerContentHash($this->itemId('Alpha')),
+            'and no page it did not touch.');
+
+        // Same ordinals, which also proves the chain populated the token cache.
+        $this->assertSame($ordinals, $this->ledgerOrdinals());
+        $this->assertSame(3, $this->ledgerLiveCount());
+        $this->assertIndexVerifies();
+    }
+
+    public function test_a_chunk_job_refuses_to_run_once_the_build_lock_has_lapsed(): void
+    {
+        File::ensureDirectoryExists($this->stateDir);
+        $payload = $this->stateDir.'/lock-probe.json';
+        File::put($payload, ContentItemCodec::encode(
+            iterator_to_array(app(ContentSource::class)->getPublishedContent(), false)
+        ));
+
+        try {
+            (new ProcessIndexChunk(0, $payload, 3, $this->stateDir, $this->outputDir, lockOwner: 'expired-owner'))->handle();
+            $this->fail('A chunk job must refuse to run when the dispatcher no longer holds the build lock.');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('no longer held', $e->getMessage());
+        }
+
+        $this->assertTrue($this->ledger()->isEmpty());
+        $this->assertTrue(File::exists($payload));
+    }
+
+    public function test_an_unfinished_build_makes_the_next_edit_a_full_rebuild(): void
+    {
+        // A chain that failed mid-way leaves the manifest 'building' and hashes
+        // for pages the published index does not hold.
+        $this->publishInitialIndex();
+
+        $coordinator = new BuildCoordinator($this->stateDir, null);
+        $coordinator->prepare(BuildIntent::fresh(3, $this->budget()));
+        $coordinator->releaseLockOnly();
+
+        $this->track('Beta', 'index');
+        $result = $this->rebuild();
+
+        $this->assertSame(QueueRebuildDispatcher::STATUS_DISPATCHED, $result['status']);
+        $this->assertStringContainsString('did not finish', $this->declineReason());
+        $this->assertSame(3, $this->ledgerLiveCount());
+        $this->assertIndexVerifies();
+    }
+
+    public function test_a_queued_rebuild_honours_reset_ledger(): void
+    {
+        $this->publishInitialIndex();
+        SearchablePost::withoutEvents(function () {
+            SearchablePost::query()->whereKey($this->postIds['Gamma'])->delete();
+        });
+
+        $result = app(QueueRebuildDispatcher::class)->dispatch($this->budget(), true, false, resetLedger: true);
+
+        $this->assertSame(QueueRebuildDispatcher::STATUS_DISPATCHED, $result['status']);
+        // Renumbered from zero; without the reset Gamma leaves a tombstone.
+        $this->assertSame([], $this->ledger()->tombstones());
+        $this->assertSame([0, 1], array_keys($this->ledger()->rowsByOrdinal()));
+        $this->assertSame(2, $this->publishedPageCount());
+        $this->assertIndexVerifies();
+    }
+
+    public function test_a_chunk_job_refuses_to_allocate_beside_another_process(): void
+    {
+        // Two chunk jobs allocating at once hand one ordinal to two pages; the
+        // guard fails the second loudly.
+        File::ensureDirectoryExists($this->stateDir);
+        $payload = $this->stateDir.'/guard-probe.json';
+        File::put($payload, ContentItemCodec::encode(
+            iterator_to_array(app(ContentSource::class)->getPublishedContent(), false)
+        ));
+
+        $held = fopen($this->stateDir.'/'.ProcessIndexChunk::LEDGER_GUARD_FILE, 'c');
+        $this->assertIsResource($held);
+        $this->assertTrue(flock($held, LOCK_EX | LOCK_NB));
+
+        try {
+            (new ProcessIndexChunk(0, $payload, 3, $this->stateDir, $this->outputDir))->handle();
+            $this->fail('A chunk job must refuse to allocate while another process holds the ledger.');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('must run one at a time', $e->getMessage());
+        } finally {
+            flock($held, LOCK_UN);
+            fclose($held);
+        }
+
+        $this->assertTrue($this->ledger()->isEmpty());
+        $this->assertTrue(File::exists($payload));
+    }
+
+    // -----------------------------------------------------------------
     // Helpers.
     // -----------------------------------------------------------------
 
@@ -530,10 +697,8 @@ class QueuedIncrementalRebuildTest extends TestCase
     }
 
     /**
-     * Pages in the published index, counted from the fragments on disk.
-     *
-     * The page-table ledger cannot answer this after a queued rebuild: the
-     * chunked chain discards it, because it does not maintain one.
+     * Fragment files in the published index, counted on disk: one per ordinal,
+     * tombstones included, and independent of the ledger.
      */
     private function publishedPageCount(): int
     {
@@ -575,6 +740,22 @@ class QueuedIncrementalRebuildTest extends TestCase
     private function ledgerLiveCount(): int
     {
         return $this->ledger()->liveCount();
+    }
+
+    /**
+     * Item id => the ordinal the ledger currently assigns it.
+     *
+     * @return array<string, int>
+     */
+    private function ledgerOrdinals(): array
+    {
+        $ordinals = [];
+        foreach ($this->ledger()->rowsByOrdinal() as $ordinal => $row) {
+            $ordinals[(string) $row['id']] = $ordinal;
+        }
+        ksort($ordinals);
+
+        return $ordinals;
     }
 
     /**
