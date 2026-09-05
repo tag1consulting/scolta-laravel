@@ -196,6 +196,23 @@ jobs:
       - name: Run PHPStan (Larastan)
         run: composer analyse
 
+  # Semgrep runs here as a real, blocking check — the same scan `composer
+  # semgrep` runs locally. It used to reach PRs only through the AI reviewer,
+  # which scans changed files only and reports findings as informational;
+  # ai-pr-review.yml now excludes it (alongside phpcs and phpstan) so findings
+  # gate the build here instead of surfacing as review comments there.
+  # Pre-existing findings in .github/workflows/ are excluded via .semgrepignore
+  # until they are fixed; see the note in that file.
+  semgrep:
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        run: semgrep scan --config=auto --error
+
   # What the committed lock has to be true of on a branch, which is not the same
   # as what it has to be true of in a release.
   #

@@ -210,9 +210,15 @@ jobs:
           # found 4') and flagged Drupal.Commenting rules on Pint-clean files.
           # 34 of that PR's 46 findings came from these two analyzers.
           #
+          # semgrep moved to a real, blocking `semgrep` job in ci.yml (the
+          # same scan as `composer semgrep` locally), following phpstan and
+          # phpcs out of the reviewer: a deterministic scanner belongs in CI
+          # where its findings gate the merge, not in an advisory review that
+          # only sees changed files.
+          #
           # Override with the AI_REVIEW_EXCLUDE_ANALYZERS repo variable.
           analyzers: ${{ vars.AI_REVIEW_ANALYZERS || '' }}
-          exclude-analyzers: ${{ vars.AI_REVIEW_EXCLUDE_ANALYZERS || 'phpcs,phpstan' }}
+          exclude-analyzers: ${{ vars.AI_REVIEW_EXCLUDE_ANALYZERS || 'phpcs,phpstan,semgrep' }}
           agents: ${{ vars.AI_REVIEW_AGENTS || '' }}
           exclude-agents: ${{ vars.AI_REVIEW_EXCLUDE_AGENTS || '' }}
 
@@ -267,10 +273,10 @@ jobs:
       # --- Analyzer / agent filtering (Python engine) ---
       # Forwarded to rescan and review-full to keep them in sync with the
       # main review above. Set the repo variables once, both paths stay aligned.
-      # The phpcs/phpstan default matches the review job above; see the comment
-      # there for why. A rescan must not resurrect what the review job skips.
+      # The phpcs/phpstan/semgrep default matches the review job above; see the
+      # comment there for why. A rescan must not resurrect what the review job skips.
       analyzers: ${{ vars.AI_REVIEW_ANALYZERS || '' }}
-      exclude-analyzers: ${{ vars.AI_REVIEW_EXCLUDE_ANALYZERS || 'phpcs,phpstan' }}
+      exclude-analyzers: ${{ vars.AI_REVIEW_EXCLUDE_ANALYZERS || 'phpcs,phpstan,semgrep' }}
       agents: ${{ vars.AI_REVIEW_AGENTS || '' }}
       exclude-agents: ${{ vars.AI_REVIEW_EXCLUDE_AGENTS || '' }}
     secrets:

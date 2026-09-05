@@ -72,6 +72,9 @@ EXCLUDED_PATHS=(
   "composer.lock"
   ".phpunit.cache"
   "phpstan-baseline.neon"
+  "testbench.yaml"
+  "workbench"
+  ".semgrepignore"
 )
 
 # Committed runtime assets that MUST be present in the archive. A broken or
