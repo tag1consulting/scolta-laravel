@@ -6,15 +6,16 @@ on:
   pull_request:
     branches: [main]
 
-# Composer resolves the tag1consulting/scolta-php VCS repo and every packagist
-# dist through api.github.com. Unauthenticated that is 60 req/hour/IP, and when
-# it runs dry composer cannot prompt under no-interaction and dies with
-# "Could not authenticate against github.com" (AuthHelper.php:152, exit 100).
-# The run's own token raises it to 1,000 req/hour/repo. Read-only is enough:
-# scolta-php is public, so GITHUB_TOKEN can read it even though the token is
-# scoped to this repository.
-env:
-  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.GITHUB_TOKEN }}"}}'
+# COMPOSER_AUTH on the dependency-install steps: Composer resolves the
+# tag1consulting/scolta-php VCS repo and every packagist dist through
+# api.github.com. Unauthenticated that is 60 req/hour/IP, and when it runs dry
+# composer cannot prompt under no-interaction and dies with "Could not
+# authenticate against github.com" (AuthHelper.php:152, exit 100). The run's
+# own token raises it to 1,000 req/hour/repo. Read-only is enough: scolta-php
+# is public, so GITHUB_TOKEN can read it even though the token is scoped to
+# this repository. Set per step, not workflow-wide (gha-workflow-env-secret):
+# only `composer update` talks to the GitHub API, and a workflow-level secret
+# is exposed to every step of every job.
 
 jobs:
   test:
@@ -64,10 +65,10 @@ jobs:
             composer-flags: ''
             lint: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: ${{ matrix.php }}
           extensions: intl
@@ -101,6 +102,8 @@ jobs:
           '
 
       - name: Install dependencies
+        env:
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.GITHUB_TOKEN }}"}}'
         run: composer update --no-interaction --prefer-dist --ignore-platform-req=php ${{ matrix.composer-flags }}
 
       # No silent resolutions: what this cell actually tested, in the log.
@@ -118,10 +121,10 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Setup PHP with Xdebug
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: '8.5'
           extensions: intl
@@ -137,6 +140,8 @@ jobs:
           '
 
       - name: Install dependencies
+        env:
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.GITHUB_TOKEN }}"}}'
         run: composer update --no-interaction --prefer-dist
 
       - name: Run tests with coverage
@@ -146,16 +151,21 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
 
       - name: Check CHANGELOG.md updated when code changes
+        # base_ref goes through an env var, not ${{ }} interpolation in the
+        # script: interpolation pastes the value into the shell source, where a
+        # crafted branch name would execute (run-shell-injection).
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          CODE_CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- \
+          CODE_CHANGED=$(git diff --name-only "origin/${BASE_REF}...HEAD" -- \
             'src/' 'composer.json' 'tests/' 'config/' 'database/' 'routes/' 'resources/' | head -1)
           if [ -n "$CODE_CHANGED" ]; then
-            CHANGELOG_CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- CHANGELOG.md)
+            CHANGELOG_CHANGED=$(git diff --name-only "origin/${BASE_REF}...HEAD" -- CHANGELOG.md)
             if [ -z "$CHANGELOG_CHANGED" ]; then
               echo "FAIL: Code changed but CHANGELOG.md was not updated."
               echo "Please add an entry under ## [Unreleased] in CHANGELOG.md."
@@ -169,10 +179,10 @@ jobs:
   analyse:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: '8.5'
           extensions: intl
@@ -191,10 +201,29 @@ jobs:
           '
 
       - name: Install dependencies
+        env:
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.GITHUB_TOKEN }}"}}'
         run: composer update --no-interaction --prefer-dist --ignore-platform-req=php
 
       - name: Run PHPStan (Larastan)
         run: composer analyse
+
+  # Semgrep runs here as a real, blocking check — the same scan `composer
+  # semgrep` runs locally. It used to reach PRs only through the AI reviewer,
+  # which scans changed files only and reports findings as informational;
+  # ai-pr-review.yml now excludes it (alongside phpcs and phpstan) so findings
+  # gate the build here instead of surfacing as review comments there.
+  # Pre-existing findings in .github/workflows/ are excluded via .semgrepignore
+  # until they are fixed; see the note in that file.
+  semgrep:
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Run Semgrep
+        run: semgrep scan --config=auto --error
 
   # What the committed lock has to be true of on a branch, which is not the same
   # as what it has to be true of in a release.
@@ -214,9 +243,9 @@ jobs:
   lock-guard:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: '8.5'
           coverage: none
@@ -260,7 +289,7 @@ jobs:
   antipatterns:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Check for known bad patterns
         run: |
@@ -298,7 +327,7 @@ jobs:
     name: Validate Composer dist archive
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Validate Composer distribution archive
         run: scripts/validate-dist-archive.sh
@@ -307,7 +336,7 @@ jobs:
     name: Version coherence
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       # What this catches that the other version jobs do not.
       #

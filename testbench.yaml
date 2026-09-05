@@ -1,0 +1,27 @@
+providers:
+  - Tag1\ScoltaLaravel\ScoltaServiceProvider
+  - Workbench\App\Providers\WorkbenchServiceProvider
+
+migrations:
+  - database/migrations
+  - workbench/database/migrations
+
+seeders:
+  - Workbench\Database\Seeders\DatabaseSeeder
+
+# Environment lives in workbench/.env, which testbench copies into the
+# skeleton's .env at startup.
+
+workbench:
+  start: '/'
+  install: true
+  build:
+    - create-sqlite-db
+    - migrate:fresh
+    - asset-publish
+    - scolta:build
+  assets:
+    - scolta-assets
+  discovers:
+    web: true
+    views: true
