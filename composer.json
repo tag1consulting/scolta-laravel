@@ -36,6 +36,7 @@
         "analyse": "phpstan analyse --no-progress --memory-limit=512M",
         "validate-release": "php scripts/validate-release.php",
         "testing-site": [
+            "Composer\\Config::disableProcessTimeout",
             "@php vendor/bin/testbench workbench:build --ansi",
             "@php vendor/bin/testbench serve --ansi"
         ]
