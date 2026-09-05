@@ -72,6 +72,9 @@ class DatabaseSeeder extends Seeder
         // Body: everything inside <body> except the h1 (rendered by the view
         // from the title column) and the hidden meta/filter paragraphs.
         $body = $xpath->query('//body')->item(0);
+        if ($body === null) {
+            throw new RuntimeException("Fixture {$file} has no <body> element.");
+        }
         $html = '';
         foreach (iterator_to_array($body->childNodes) as $child) {
             if ($child instanceof DOMElement && (

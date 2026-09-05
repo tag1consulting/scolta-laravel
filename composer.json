@@ -34,6 +34,7 @@
         "lint": "pint --test",
         "format": "pint",
         "analyse": "phpstan analyse --no-progress --memory-limit=512M",
+        "semgrep": "semgrep scan --config=auto --error --quiet",
         "validate-release": "php scripts/validate-release.php",
         "testing-site": [
             "Composer\\Config::disableProcessTimeout",

@@ -11,5 +11,7 @@ require __DIR__.'/../vendor/autoload.php';
 // testbench CLI invocation recreates it from workbench/.env(.example).
 $skeletonEnv = __DIR__.'/../vendor/orchestra/testbench-core/laravel/.env';
 if (is_file($skeletonEnv)) {
+    // The path is a compile-time constant relative to this file — no user input.
+    // nosemgrep: php.lang.security.unlink-use.unlink-use
     unlink($skeletonEnv);
 }

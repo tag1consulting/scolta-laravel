@@ -913,8 +913,9 @@ ddev exec php vendor/bin/phpunit --testsuite=Integration
 
 ```bash
 cd packages/scolta-laravel
-composer lint    # Laravel Pint
-composer format  # Auto-fix violations
+composer lint     # Laravel Pint
+composer format   # Auto-fix violations
+composer semgrep  # Security scan — same tool the AI PR reviewer runs (needs `brew install semgrep`)
 ```
 
 ### Testing site
