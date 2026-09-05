@@ -33,9 +33,16 @@ class DatabaseSeeder extends Seeder
             );
         }
 
+        $files = glob($dir.'/*.html');
+        if ($files === false || $files === []) {
+            // Without this a broken fixture install seeds an empty table and
+            // the failure surfaces later as inexplicable empty search results.
+            throw new RuntimeException("No recipe fixtures matched {$dir}/*.html.");
+        }
+
         Recipe::query()->delete();
 
-        foreach (glob($dir.'/*.html') as $file) {
+        foreach ($files as $file) {
             Recipe::create($this->parseFixture($file));
         }
     }
@@ -52,7 +59,11 @@ class DatabaseSeeder extends Seeder
     private function parseFixture(string $file): array
     {
         $doc = new DOMDocument;
-        $doc->loadHTMLFile($file, LIBXML_NOERROR);
+        if (! $doc->loadHTMLFile($file, LIBXML_NOERROR)) {
+            // An unreadable fixture would otherwise parse as an empty
+            // document and seed a blank recipe.
+            throw new RuntimeException("Could not parse fixture {$file}.");
+        }
         $xpath = new DOMXPath($doc);
 
         $title = trim($xpath->evaluate('string(//title)'));
