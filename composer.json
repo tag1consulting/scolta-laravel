@@ -34,7 +34,11 @@
         "lint": "pint --test",
         "format": "pint",
         "analyse": "phpstan analyse --no-progress --memory-limit=512M",
-        "validate-release": "php scripts/validate-release.php"
+        "validate-release": "php scripts/validate-release.php",
+        "testing-site": [
+            "@php vendor/bin/testbench workbench:build --ansi",
+            "@php vendor/bin/testbench serve --ansi"
+        ]
     },
     "autoload": {
         "psr-4": {
@@ -43,7 +47,9 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "Tag1\\ScoltaLaravel\\Tests\\": "tests/"
+            "Tag1\\ScoltaLaravel\\Tests\\": "tests/",
+            "Workbench\\App\\": "workbench/app/",
+            "Workbench\\Database\\Seeders\\": "workbench/database/seeders/"
         }
     },
     "extra": {
@@ -68,6 +74,9 @@
     ],
     "config": {
         "sort-packages": true,
+        "preferred-install": {
+            "tag1/scolta-php": "source"
+        },
         "audit": {
             "ignore": {
                 "PKSA-m5cs-t1y6-qpcs": {

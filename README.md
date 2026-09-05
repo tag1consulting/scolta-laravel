@@ -917,6 +917,23 @@ composer lint    # Laravel Pint
 composer format  # Auto-fix violations
 ```
 
+### Testing site
+
+The repo ships a runnable demo site — a Laravel app (via [Testbench Workbench](https://packages.tools/workbench)) with SQLite and a `Recipe` model seeded from the 20 recipe fixtures in scolta-php's test suite, so what this adapter indexes is directly comparable with what scolta-php's own tests index:
+
+```bash
+composer install
+composer testing-site
+```
+
+That migrates, seeds, publishes assets, builds the index, and serves the site at `http://127.0.0.1:8000`. Search for `aubergine parmesan` — Eggplant Parmigiana should surface first. Faceting (cuisine, diet, cook time) works out of the box.
+
+Notes:
+
+- The fixtures come from scolta-php's `tests/` directory, so this repo's `composer.json` installs `tag1/scolta-php` from source (`preferred-install`) — a git clone rather than a dist zip.
+- The site lives in `workbench/`; environment defaults are in `workbench/.env.example`. For local tweaks (e.g. an AI provider key to exercise expansion and summaries), copy it to `workbench/.env` — git-ignored, and it takes precedence.
+- The served app runs inside Testbench's skeleton under `vendor/`. Running the phpunit suite clears its public directory — just run `composer testing-site` again; the rebuild takes seconds.
+
 ## Architecture
 
 ```text
