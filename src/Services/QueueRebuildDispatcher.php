@@ -13,6 +13,7 @@ use Tag1\Scolta\Index\BuildCoordinator;
 use Tag1\Scolta\Index\BuildIntent;
 use Tag1\Scolta\Index\MemoryBudget;
 use Tag1\Scolta\Index\PageTableLedger;
+use Tag1\Scolta\Index\PhpIndexer;
 use Tag1\Scolta\Storage\FilesystemDriver;
 use Tag1\ScoltaLaravel\Jobs\FinalizeIndex;
 use Tag1\ScoltaLaravel\Jobs\ProcessIndexChunk;
@@ -348,13 +349,15 @@ class QueueRebuildDispatcher
     }
 
     /**
-     * Per-item fingerprint entry, matching PhpIndexer::computeFingerprint().
+     * Per-item fingerprint entry.
      *
      * Streaming makes it impossible to hold all items for a single
      * computeFingerprint() call, so the per-item entries are accumulated
      * here (a few dozen bytes per item) and combined in
-     * fingerprintFromEntries(). Byte-parity with scolta-php is pinned by a
-     * regression test.
+     * fingerprintFromEntries(). This used to mirror scolta-php's formula
+     * byte for byte — and drifted from it, silently skipping attachment-only
+     * edits — so scolta-php 1.5 exposes the formula itself and this
+     * delegates. The parity test remains as a regression pin.
      *
      * @since 1.0.4
      *
@@ -362,12 +365,12 @@ class QueueRebuildDispatcher
      */
     public static function fingerprintEntry(ContentItem $item): string
     {
-        return $item->id.':'.hash('sha256', $item->bodyHtml);
+        return PhpIndexer::fingerprintEntry($item);
     }
 
     /**
-     * Combine per-item entries into the corpus fingerprint, matching
-     * PhpIndexer::computeFingerprint().
+     * Combine per-item entries into the corpus fingerprint, the same value
+     * PhpIndexer::computeFingerprint() produces for the full item array.
      *
      * @param  string[]  $entries
      *
@@ -377,9 +380,7 @@ class QueueRebuildDispatcher
      */
     public static function fingerprintFromEntries(array $entries): string
     {
-        sort($entries);
-
-        return hash('sha256', 'php-indexer-v1:'.json_encode($entries));
+        return PhpIndexer::combineFingerprintEntries($entries);
     }
 
     /**
