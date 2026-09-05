@@ -219,8 +219,23 @@ class QueueRebuildDispatchTest extends TestCase
 
     public function test_streaming_fingerprint_matches_php_indexer(): void
     {
+        // Every fingerprinted field is populated on at least one item, so
+        // the streaming path cannot drop a field and still pass — the
+        // pre-1.5 mirror did exactly that with attachmentText.
         $items = [
-            new ContentItem(id: 'b-2', title: 'B', bodyHtml: '<p>Second body</p>', url: '/b', date: '2026-01-02'),
+            new ContentItem(
+                id: 'b-2',
+                title: 'B — unicode Tïtle',
+                bodyHtml: '<p>Second body</p>',
+                url: '/b',
+                date: '2026-01-02',
+                siteName: 'Site B',
+                language: 'es',
+                filters: ['topics' => ['Science', 'History'], 'grade' => '5'],
+                metadata: ['published' => '2026-01-02'],
+                sortable: ['rating' => '4.5'],
+                attachmentText: 'Text extracted from a PDF.',
+            ),
             new ContentItem(id: 'a-1', title: 'A', bodyHtml: '<p>First body</p>', url: '/a', date: '2026-01-01'),
             new ContentItem(id: 'c-3', title: 'C', bodyHtml: '<p>Third body</p>', url: '/c', date: '2026-01-03'),
         ];
@@ -234,6 +249,25 @@ class QueueRebuildDispatchTest extends TestCase
             PhpIndexer::computeFingerprint($items),
             QueueRebuildDispatcher::fingerprintFromEntries($entries),
             'The dispatcher\'s streaming fingerprint must stay byte-identical to PhpIndexer::computeFingerprint().'
+        );
+    }
+
+    // -------------------------------------------------------------------
+    // A title-only edit must change the fingerprint.
+    // -------------------------------------------------------------------
+
+    public function test_title_only_edit_changes_fingerprint_entry(): void
+    {
+        // Under the v1 formula a title-only (or URL-only, filter-only …)
+        // edit produced an identical fingerprint, so the dispatcher drained
+        // it as STATUS_UNCHANGED, cleared its pending-tracker rows, and the
+        // edit never reached the index.
+        $item = new ContentItem(id: 'p-1', title: 'Original', bodyHtml: '<p>Body</p>', url: '/p', date: '2026-01-01');
+
+        $this->assertNotSame(
+            QueueRebuildDispatcher::fingerprintEntry($item),
+            QueueRebuildDispatcher::fingerprintEntry($item->cloneWith(['title' => 'Edited'])),
+            'A title-only edit must move the fingerprint, or it is silently dropped as unchanged.'
         );
     }
 
