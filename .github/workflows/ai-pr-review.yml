@@ -71,7 +71,7 @@
 #
 # --- HARDENED pull_request_target variant (replace steps in review job) -----
 # steps:
-#   - uses: actions/checkout@v4
+#   - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 #     with:
 #       fetch-depth: 0
 #       ref: ${{ github.event.pull_request.head.sha }}
@@ -116,12 +116,12 @@ jobs:
       !contains(github.event.pull_request.labels.*.name, 'skip-ai-review')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
 
       - name: Run AI review
-        uses: tag1consulting/ai-pr-review/container-action@main
+        uses: tag1consulting/ai-pr-review/container-action@b284d67887a444b8b2da893f6b6635757f821a4e # main
         env:
           FORCE_FULL_DIFF: ${{ contains(github.event.pull_request.labels.*.name, 'ai-review-rescan') }}
         with:
@@ -245,7 +245,9 @@ jobs:
       ) &&
       (github.event_name == 'pull_request_review_comment' ||
        (github.event_name == 'issue_comment' && github.event.issue.pull_request))
-    uses: tag1consulting/ai-pr-review/.github/workflows/slash-commands.yml@main
+    # Pinned to the same commit as the container-action above so a review and
+    # the slash commands that act on it always come from one version.
+    uses: tag1consulting/ai-pr-review/.github/workflows/slash-commands.yml@b284d67887a444b8b2da893f6b6635757f821a4e # main
     with:
       event-name: ${{ github.event_name }}
       comment-body: ${{ github.event.comment.body }}
