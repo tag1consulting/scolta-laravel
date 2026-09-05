@@ -12,16 +12,29 @@ use Tag1\Scolta\Export\ContentItem;
 use Tag1\Scolta\Index\BuildCoordinator;
 use Tag1\Scolta\Index\BuildIntent;
 use Tag1\Scolta\Index\MemoryBudget;
+use Tag1\Scolta\Index\PageTableLedger;
+use Tag1\Scolta\Storage\FilesystemDriver;
 use Tag1\ScoltaLaravel\Jobs\FinalizeIndex;
 use Tag1\ScoltaLaravel\Jobs\ProcessIndexChunk;
 use Tag1\ScoltaLaravel\Support\HmacSecret;
 
 /**
- * Stream content into state-dir chunk files and dispatch the rebuild chain.
+ * Apply the tracked changes, or stream the corpus into chunk files and dispatch
+ * the rebuild chain.
  *
  * This is the single queue-dispatch path, shared by the observer-driven
- * TriggerRebuild job and `artisan scolta:build` (non-sync). It exists to
- * fix three defects that lived in two diverging copies of this logic:
+ * TriggerRebuild job and `artisan scolta:build --queue`.
+ *
+ * The content-edit path asks for `$incremental` and gets
+ * {@see IncrementalIndexUpdate} first: a save costs an in-place update of the
+ * pages that changed, not a stream of the whole corpus. The full chain below is
+ * what that update falls back to, and what `scolta:build --queue` always runs.
+ * The split is scolta-drupal's — its queue worker tries an incremental update
+ * and `drush scolta:build` is always full — and it is the right way round: the
+ * operation that fires on every content edit is the cheap one.
+ *
+ * The full path exists to fix three defects that lived in two diverging copies
+ * of this logic:
  *
  *  - Content was gathered via Model::all(), bypassing the documented
  *    scopeSearchable()/shouldBeSearchable() publish filters. All gathering
@@ -45,6 +58,17 @@ class QueueRebuildDispatcher
     public const STATUS_UNCHANGED = 'unchanged';
 
     public const STATUS_DISPATCHED = 'dispatched';
+
+    /**
+     * Returned when the pending changes were applied to the published index in
+     * place and no rebuild chain was dispatched — the ordinary outcome of a
+     * content edit. See {@see IncrementalIndexUpdate}.
+     *
+     * @since 1.4.0
+     *
+     * @stability experimental
+     */
+    public const STATUS_UPDATED = 'updated';
 
     /**
      * Returned when another rebuild chain already holds the cross-process
@@ -90,12 +114,18 @@ class QueueRebuildDispatcher
     public function __construct(private readonly ContentSource $source) {}
 
     /**
-     * Gather published content and dispatch the chunked rebuild chain.
+     * Apply the tracked changes, or dispatch the chunked rebuild chain.
      *
-     * Streams items through ContentSource (publish filters applied) and the
-     * exporter's minimum-content filter, writes each chunk to a JSON file in
-     * {state_dir}/queue-payload/, then dispatches ProcessIndexChunk jobs
-     * (one per chunk file) followed by FinalizeIndex.
+     * With `$incremental`, {@see IncrementalIndexUpdate} runs first and returns
+     * STATUS_UPDATED when it applied the change set in place — no chain, no
+     * corpus stream. Everything it declines falls through to the full path, and
+     * the reason is logged.
+     *
+     * The full path streams items through ContentSource (publish filters
+     * applied) and the exporter's minimum-content filter, writes each chunk to a
+     * JSON file in {state_dir}/queue-payload/, then dispatches ProcessIndexChunk
+     * jobs (one per chunk file) followed by FinalizeIndex — which drains the
+     * tracker rows the gather covered.
      *
      * The whole dispatch is serialised by a cross-process build lock
      * (self::BUILD_LOCK). It is acquired before any build state is touched —
@@ -108,13 +138,19 @@ class QueueRebuildDispatcher
      * @param  MemoryBudget  $budget  Memory budget driving both dispatcher
      *                                chunking and job offset computation.
      * @param  bool  $force  Skip the fingerprint check and always rebuild.
+     * @param  bool  $incremental  Try to apply the tracked changes to the
+     *                             published index first, and stream the corpus
+     *                             only if that update declines. True on the
+     *                             content-edit path (`TriggerRebuild` without
+     *                             --force); false for `scolta:build --queue`,
+     *                             which is always a full build.
      * @return array{status: string, items: int, chunks: int}
      *
-     * @since 1.0.4
+     * @since 1.0.4 (incremental-first in 1.4.0)
      *
      * @stability experimental
      */
-    public function dispatch(MemoryBudget $budget, bool $force = false): array
+    public function dispatch(MemoryBudget $budget, bool $force = false, bool $incremental = false): array
     {
         // Acquire the cross-process build lock first, before touching any build
         // state. A non-blocking failure means another chain is already running:
@@ -130,6 +166,24 @@ class QueueRebuildDispatcher
         $chainOwnsLock = false;
 
         try {
+            // The cheap path first, and under the same lock: an update rewrites
+            // the live index in place, so it must not run beside a chain that is
+            // about to swap a new one in. Whatever it declines to do falls
+            // through to the full dispatch below, which is why every refusal is
+            // logged rather than returned — the operator reading the log needs to
+            // know a corpus stream happened and why.
+            if ($incremental && ! $force) {
+                $outcome = (new IncrementalIndexUpdate($this->source))->attempt($budget);
+
+                if ($outcome['applied']) {
+                    logger()->info('[scolta] '.$outcome['summary']);
+
+                    return ['status' => self::STATUS_UPDATED, 'items' => 0, 'chunks' => 0];
+                }
+
+                logger()->info('[scolta] Incremental update declined, rebuilding: '.$outcome['reason']);
+            }
+
             $stateDir = config('scolta.state_dir', storage_path('app/scolta'));
             $outputDir = config('scolta.pagefind.output_dir', public_path('scolta-pagefind'));
             // Same empty-APP_KEY coercion as BuildCommand: '' would abort the
@@ -157,6 +211,14 @@ class QueueRebuildDispatcher
             $buffer = [];
             $total = 0;
 
+            // Read before the corpus is gathered and carried to FinalizeIndex,
+            // which drains the tracker when the chain lands. A full build covers
+            // every change recorded up to this point by definition; a row written
+            // while the chain runs carries a later stamp and is left pending, so
+            // the edit it describes is not thrown away. Without this the observer
+            // path never drained at all and pending_index grew forever.
+            $watermark = $this->source->pendingWatermark();
+
             foreach ($exporter->filterItems($this->source->getPublishedContent()) as $item) {
                 $buffer[] = $item;
                 $fingerprintEntries[] = self::fingerprintEntry($item);
@@ -181,6 +243,13 @@ class QueueRebuildDispatcher
 
             if (! $force && ! $this->contentChanged($outputDir, $fingerprintEntries)) {
                 File::deleteDirectory($payloadDir);
+
+                // The published index already has this exact corpus in it, so the
+                // rows that asked for this rebuild are satisfied — they describe
+                // saves that changed nothing the index holds. Leaving them is how
+                // a site accumulates a pending_index backlog that no rebuild can
+                // drain, since every subsequent rebuild reaches this same branch.
+                $this->source->clearTracker($watermark);
 
                 return ['status' => self::STATUS_UNCHANGED, 'items' => $total, 'chunks' => 0];
             }
@@ -216,6 +285,30 @@ class QueueRebuildDispatcher
                 'language' => $language,
                 'fingerprint' => self::fingerprintFromEntries($fingerprintEntries),
             ]));
+
+            // This path does not maintain the page-table ledger: ProcessIndexChunk
+            // numbers its pages from a chunk offset and never calls allocate(), so
+            // whatever the ledger holds here was written by some *other* build.
+            // Left in place it is not merely stale, it is fatal — FinalizeIndex's
+            // integrity check compares the pages this build committed against the
+            // ledger's live count and refuses to publish when they disagree, which
+            // is every rebuild that follows a deletion. Discarding it makes the
+            // chain self-consistent (an empty ledger switches both integrity
+            // checks off) and honest: after this build, nothing on disk claims to
+            // know which ordinal a page holds.
+            //
+            // The cost is that an incremental update is unavailable until a
+            // `scolta:build` writes a ledger again, because IncrementalIndexUpdate
+            // has nothing to update against — it says so and rebuilds. Teaching
+            // the chunk jobs to own the ledger is the fix, and it is a change to
+            // how chunks allocate ordinals across processes, not to this line.
+            (new PageTableLedger($stateDir, new FilesystemDriver))->reset();
+            logger()->info(
+                '[scolta] Page-table ledger discarded for this queued rebuild. The next content edit '
+                .'rebuilds the whole corpus rather than updating in place; run php artisan scolta:build '
+                .'once to restore incremental updates.'
+            );
+
             $coordinator->releaseLockOnly();
 
             $jobs = [];
@@ -243,6 +336,7 @@ class QueueRebuildDispatcher
                 $language,
                 $budget->profile(),
                 $lock->owner(),
+                $watermark,
             );
 
             Bus::chain($jobs)->dispatch();

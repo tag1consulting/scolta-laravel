@@ -158,6 +158,24 @@ class ScoltaTracker extends Model
     }
 
     /**
+     * Clear the entries stamped at or before a watermark.
+     *
+     * The build that drains reads the watermark before it gathers, so a change
+     * recorded while it ran carries a later stamp and is left for the next run.
+     * See ContentSource::pendingWatermark().
+     *
+     * @param  string  $watermark  A `changed_at` value, as the database renders it.
+     *
+     * @since 1.4.0
+     *
+     * @stability experimental
+     */
+    public static function clearThrough(string $watermark): int
+    {
+        return static::query()->where('changed_at', '<=', $watermark)->delete();
+    }
+
+    /**
      * Mark all published content from configured models for reindex.
      *
      * This is the full-rebuild path. We query each configured model
