@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase;
 use Tag1\Scolta\Config\MemoryBudgetConfig;
 use Tag1\Scolta\Export\ContentExporter;
+use Tag1\Scolta\Index\BuildCoordinator;
+use Tag1\Scolta\Index\BuildIntent;
 use Tag1\Scolta\Index\IndexBuildOrchestrator;
 use Tag1\Scolta\Index\MemoryBudget;
 use Tag1\Scolta\Index\PageTableLedger;
@@ -594,6 +596,68 @@ class QueuedIncrementalRebuildTest extends TestCase
         // recorded, collectRemovals() refuses and this is a full rebuild.
         $this->assertSame($ordinals, $this->ledgerOrdinals());
         $this->assertSame(3, $this->ledgerLiveCount());
+        $this->assertIndexVerifies();
+    }
+
+    public function test_a_chunk_job_refuses_to_run_once_the_build_lock_has_lapsed(): void
+    {
+        // BUILD_LOCK expires after an hour and nothing extends it. A chain that
+        // outlives it is sharing the ledger with whatever took the lock next, so
+        // a chunk dispatched under an owner token that no longer holds the lock
+        // must not allocate.
+        File::ensureDirectoryExists($this->stateDir);
+        $payload = $this->stateDir.'/lock-probe.json';
+        File::put($payload, ContentItemCodec::encode(
+            iterator_to_array(app(ContentSource::class)->getPublishedContent(), false)
+        ));
+
+        try {
+            (new ProcessIndexChunk(0, $payload, 3, $this->stateDir, $this->outputDir, lockOwner: 'expired-owner'))->handle();
+            $this->fail('A chunk job must refuse to run when the dispatcher no longer holds the build lock.');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('no longer held', $e->getMessage());
+        }
+
+        $this->assertTrue($this->ledger()->isEmpty());
+        $this->assertTrue(File::exists($payload));
+    }
+
+    public function test_an_unfinished_build_makes_the_next_edit_a_full_rebuild(): void
+    {
+        // A chain that fails mid-way leaves the manifest 'building' and a
+        // journal with ordinals and content hashes for pages the published
+        // index does not hold. An in-place update that trusted them would
+        // locate a page's "previous" postings through the wrong hash.
+        $this->publishInitialIndex();
+
+        $coordinator = new BuildCoordinator($this->stateDir, null);
+        $coordinator->prepare(BuildIntent::fresh(3, $this->budget()));
+        $coordinator->releaseLockOnly();
+
+        $this->track('Beta', 'index');
+        $result = $this->rebuild();
+
+        $this->assertSame(QueueRebuildDispatcher::STATUS_DISPATCHED, $result['status']);
+        $this->assertStringContainsString('did not finish', $this->declineReason());
+        $this->assertSame(3, $this->ledgerLiveCount());
+        $this->assertIndexVerifies();
+    }
+
+    public function test_a_queued_rebuild_honours_reset_ledger(): void
+    {
+        $this->publishInitialIndex();
+        SearchablePost::withoutEvents(function () {
+            SearchablePost::query()->whereKey($this->postIds['Gamma'])->delete();
+        });
+
+        $result = app(QueueRebuildDispatcher::class)->dispatch($this->budget(), true, false, resetLedger: true);
+
+        $this->assertSame(QueueRebuildDispatcher::STATUS_DISPATCHED, $result['status']);
+        // Renumbered from zero: no tombstone for Gamma, two dense ordinals, two
+        // fragments. Without the reset the table keeps a hole and three fragments.
+        $this->assertSame([], $this->ledger()->tombstones());
+        $this->assertSame([0, 1], array_keys($this->ledger()->rowsByOrdinal()));
+        $this->assertSame(2, $this->publishedPageCount());
         $this->assertIndexVerifies();
     }
 

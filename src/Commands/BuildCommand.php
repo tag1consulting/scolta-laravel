@@ -74,7 +74,7 @@ class BuildCommand extends Command
         {--chunk-size= : Pages per chunk. Overrides profile default and config setting.}
         {--resume : Resume a previously interrupted PHP index build}
         {--restart : Discard interrupted state and restart the PHP index build. Also discards the page-table ledger, renumbering every page from zero}
-        {--reset-ledger : Discard the page-table ledger under a plain build, renumbering every page from zero. Escape hatch for a corrupt page table (a duplicate page ordinal at the merge) without a full --restart. Cannot be combined with --resume}';
+        {--reset-ledger : Discard the page-table ledger under a plain build (inline or --queue), renumbering every page from zero. Escape hatch for a corrupt page table (a duplicate page ordinal at the merge) without a full --restart. Cannot be combined with --resume}';
 
     protected $description = 'Build or rebuild the Scolta search index';
 
@@ -194,6 +194,33 @@ class BuildCommand extends Command
      * @stability experimental
      */
     private function buildWithPhpIndexer(ContentSource $source, string $outputDir): int
+    {
+        // The same cross-process lock the queued chain holds from dispatch until
+        // FinalizeIndex. Both paths allocate page ordinals from the shared
+        // page-table ledger, and BuildState's flock cannot exclude a chain
+        // (releaseLockOnly() drops it between chunk jobs), so without this a
+        // deploy-time build landing mid-chain hands one ordinal to two pages.
+        $lock = Cache::lock(QueueRebuildDispatcher::BUILD_LOCK, QueueRebuildDispatcher::BUILD_LOCK_TTL);
+        if (! $lock->get()) {
+            $this->warn(
+                'Index NOT built by this command: a queued rebuild is already in progress and owns the '
+                .'page-table ledger. Wait for it to finish, then re-run.'
+            );
+
+            return self::DEFERRED;
+        }
+
+        try {
+            return $this->buildWithPhpIndexerLocked($source, $outputDir);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /**
+     * The synchronous PHP build proper, under the cross-process build lock.
+     */
+    private function buildWithPhpIndexerLocked(ContentSource $source, string $outputDir): int
     {
         $stateDir = config('scolta.state_dir', storage_path('app/scolta'));
         // An app that has not run key:generate has APP_KEY='', not null, and
@@ -581,7 +608,15 @@ class BuildCommand extends Command
             // build lock, so a worker that drains the chain actually produces an
             // index — uniformly on every entry point (the lock makes the
             // manifest init safe against concurrent dispatch).
-            $result = (new QueueRebuildDispatcher($source))->dispatch($budget, (bool) $this->option('force'));
+            // --reset-ledger and --restart mean the same thing here as on the
+            // synchronous build: discard the page table and renumber. Without
+            // this the flags were silently dropped under --queue, and a site too
+            // large to build inline had no way out of a corrupt ledger.
+            $result = (new QueueRebuildDispatcher($source))->dispatch(
+                $budget,
+                (bool) $this->option('force'),
+                resetLedger: (bool) $this->option('reset-ledger') || (bool) $this->option('restart'),
+            );
         } catch (\Throwable $e) {
             // On the sync connection the chain runs inline during dispatch(); a
             // chunk/merge/finalize failure surfaces here. Treat it as a hard

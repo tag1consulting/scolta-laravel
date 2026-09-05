@@ -30,6 +30,8 @@ Two things worth knowing before you deploy:
   are queued gets incremental updates too. If you are upgrading an installation
   that has only ever built through the queue, the first queued rebuild after
   this release is what writes the ledger; the edit after it is incremental.
+  Keep an occasional `scolta:build` scheduled all the same: it is the only
+  build that prunes the token cache, which the queued path only adds to.
 - A queued rebuild now clears the `scolta_tracker` rows it covered, which it
   never did. If you were watching `pending_index` in `scolta:status` or
   `/api/scolta/v1/health` and treating a permanently non-zero value as normal,

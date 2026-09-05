@@ -144,13 +144,19 @@ class QueueRebuildDispatcher
      *                             content-edit path (`TriggerRebuild` without
      *                             --force); false for `scolta:build --queue`,
      *                             which is always a full build.
+     * @param  bool  $resetLedger  Discard the page-table ledger before the chain
+     *                             opens its build, renumbering every page from
+     *                             zero. What `scolta:build --reset-ledger` and
+     *                             `--restart` mean under `--queue`: the escape
+     *                             hatch for a corrupt page table, on the one
+     *                             path a large site can afford to rebuild on.
      * @return array{status: string, items: int, chunks: int}
      *
-     * @since 1.0.4 (incremental-first in 1.4.0)
+     * @since 1.0.4 (incremental-first in 1.4.0; $resetLedger in 1.4.0)
      *
      * @stability experimental
      */
-    public function dispatch(MemoryBudget $budget, bool $force = false, bool $incremental = false): array
+    public function dispatch(MemoryBudget $budget, bool $force = false, bool $incremental = false, bool $resetLedger = false): array
     {
         // Acquire the cross-process build lock first, before touching any build
         // state. A non-blocking failure means another chain is already running:
@@ -296,19 +302,14 @@ class QueueRebuildDispatcher
             // FinalizeIndex's releaseStaleRows() tombstone a deletion instead
             // of the chain failing the integrity check on it.
             //
-            // This used to be `reset()`: the chain did not maintain a ledger at
-            // all, so whatever it found belonged to some other build and was
-            // fatal rather than merely stale. Discarding it made the chain
-            // self-consistent (an empty ledger switches both integrity checks
-            // off) at the price of an incremental update having nothing to
-            // update against until the next `scolta:build`. ProcessIndexChunk
-            // now allocates from the ledger, so there is nothing to discard.
-            //
             // Done here, in the one process that knows this is a fresh build,
             // rather than in a chunk job: beginBuild() is per build, and a job
             // calling it would take a new generation per chunk and read every
             // earlier chunk's pages as deleted.
             $ledger = new PageTableLedger($stateDir, new FilesystemDriver);
+            if ($resetLedger) {
+                $ledger->reset();
+            }
             $ledger->beginBuild(true);
             $ledger->checkpoint();
 
@@ -326,12 +327,15 @@ class QueueRebuildDispatcher
                     $language,
                     $budget->profile(),
                     $budget->chunkSize(),
+                    $lock->owner(),
                 );
             }
 
             // Hand the lock owner token to FinalizeIndex so the chain's final
             // job releases the cross-process lock when it ends — on success or
-            // failure — regardless of which worker process runs it.
+            // failure — regardless of which worker process runs it. The chunk
+            // jobs above carry it too, to check the lock has not expired under
+            // them before they allocate ordinals.
             $jobs[] = new FinalizeIndex(
                 $stateDir,
                 $outputDir,

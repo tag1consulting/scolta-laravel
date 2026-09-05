@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Tag1\ScoltaLaravel\Jobs;
 
-use Illuminate\Bus\Batchable;
 use Illuminate\Bus\Queueable;
+use Illuminate\Cache\Lock;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -32,7 +32,7 @@ use Tag1\ScoltaLaravel\Services\QueueRebuildDispatcher;
  */
 class FinalizeIndex implements ShouldQueue
 {
-    use Batchable, Dispatchable, InteractsWithQueue, Queueable;
+    use Dispatchable, InteractsWithQueue, Queueable;
 
     public int $tries = 1;
 
@@ -68,11 +68,23 @@ class FinalizeIndex implements ShouldQueue
 
     public function handle(): void
     {
-        if ($this->batch()?->cancelled()) {
-            return;
-        }
-
         try {
+            // Same check as ProcessIndexChunk::assertBuildLockHeld(): the lock
+            // expires after BUILD_LOCK_TTL and is never extended, and a chain
+            // that outlived it may be sharing the ledger with another rebuild.
+            // Inside the try so the finally still ends the build state.
+            $lock = $this->lockOwner === null
+                ? null
+                : Cache::restoreLock(QueueRebuildDispatcher::BUILD_LOCK, $this->lockOwner);
+            if ($lock instanceof Lock && ! $lock->isOwnedByCurrentProcess()) {
+                throw new \RuntimeException(sprintf(
+                    'The build lock this chain was dispatched under is no longer held (it expires after %d '
+                    .'seconds and the chain outlived it), so another rebuild may have written the page-table '
+                    .'ledger meanwhile. Refusing to publish; the previous index is untouched.',
+                    QueueRebuildDispatcher::BUILD_LOCK_TTL,
+                ));
+            }
+
             $budget = MemoryBudget::fromString($this->memoryBudget);
             $orchestrator = new IndexBuildOrchestrator(
                 $this->stateDir,

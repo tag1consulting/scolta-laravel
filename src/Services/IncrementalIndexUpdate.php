@@ -6,6 +6,7 @@ namespace Tag1\ScoltaLaravel\Services;
 
 use Illuminate\Log\Logger;
 use Illuminate\Support\Facades\Cache;
+use Tag1\Scolta\Index\BuildState;
 use Tag1\Scolta\Index\IncrementalIndexUpdater;
 use Tag1\Scolta\Index\IncrementalUpdateUnavailable;
 use Tag1\Scolta\Index\MemoryBudget;
@@ -148,6 +149,21 @@ class IncrementalIndexUpdate
         $stateDir = config('scolta.state_dir', storage_path('app/scolta'));
         $outputDir = config('scolta.pagefind.output_dir', public_path('scolta-pagefind'));
         $language = config('scolta.ai_languages.0', 'en');
+
+        // A manifest still 'building' is a full build that never finished: a
+        // chunk chain that failed mid-way (FinalizeIndex never ran), or an
+        // interrupted `scolta:build`. Either one checkpointed page ordinals and
+        // content hashes for an index that was never published, and the
+        // updater would locate a page's "previous" postings through those
+        // hashes — in a live index that holds different ones. The full build
+        // below supersedes that journal (prepare() resets the manifest and
+        // beginBuild() takes a new generation), so decline into it.
+        if ((new BuildState($stateDir))->shouldResume() !== null) {
+            return self::decline(
+                'A previous full build did not finish, so the page-table ledger may describe pages the '
+                .'published index does not hold; rebuilding the whole corpus instead.'
+            );
+        }
 
         $logger = new Logger(app('log')->driver(), app('events'));
         $updater = new IncrementalIndexUpdater($stateDir, $outputDir, $language, null, $logger, $budget);
