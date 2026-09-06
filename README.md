@@ -666,9 +666,9 @@ php artisan scolta:status                   # Show tracker, content, index, and 
 php artisan scolta:status --json            # Same report as one JSON document on stdout (pipe to jq)
 php artisan scolta:discover                 # Find Searchable models not yet in config
 php artisan scolta:clear-cache              # Clear Scolta AI response caches
-php artisan scolta:cleanup                  # Remove stale index artifacts, orphaned state files, and retired indexes
+php artisan scolta:cleanup                  # Remove stale index artifacts, orphaned index fragments, and retired indexes
 php artisan scolta:cleanup --dry-run        # Show what would be removed without deleting
-php artisan scolta:cleanup --retired-only    # Sweep retired indexes only; leave build state alone
+php artisan scolta:cleanup --retired-only    # Sweep retired indexes only; skip the orphaned-fragment pass
 php artisan scolta:cleanup --max-seconds=60 # Stop sweeping retired indexes after 60 seconds
 php artisan scolta:memory-budget            # Show the current memory budget profile
 php artisan scolta:memory-budget --set=balanced  # Set profile: conservative, balanced, or aggressive
@@ -700,7 +700,7 @@ php artisan scolta:cleanup
 php artisan scolta:cleanup --dry-run      # List what would be deleted, delete nothing
 ```
 
-Cleanup is always safe: the live `pagefind/` index is never touched, `.scolta-new` and `.scolta-building` are left alone because a build may be using them right now, and a directory that cannot be deleted is left for the next run. `.scolta-trash-*` directories are also safe to remove by hand at any time. `--retired-only` restricts the command to this sweep; without it, it also clears orphaned chunk and index-fragment files from the build state directory, which a build still in flight may own — that is why the scheduled run passes it. The build lock (`<state_dir>/lock`) is never touched under either flag: scolta-php's `BuildState` owns that file, keeps it at a fixed path because it is `flock()`ed, and clears a genuinely stale lock itself. Do not delete it by hand either: unlinking an `flock()`ed file lets a second process lock a fresh file at the same path while the first still holds the old one, so a manual `rm` can put two builds into one state directory. When the command cannot resolve `pagefind.output_dir`, or the directory is not there, it writes to the Laravel log as well as stdout, so a scheduled run that is quietly doing nothing is visible in `storage/logs/`.
+Cleanup is always safe: the live `pagefind/` index is never touched, `.scolta-new` and `.scolta-building` are left alone because a build may be using them right now, and a directory that cannot be deleted is left for the next run. `.scolta-trash-*` directories are also safe to remove by hand at any time. `--retired-only` restricts the command to this sweep; without it, it also clears orphaned index-fragment files from a partially built output directory, which a build still in flight may own — that is why the scheduled run passes it. The build state directory is never touched: chunk files live under `builds/<generation>/` and scolta-php purges a dead build's directory itself at the start of the next build. The build lock (`<state_dir>/lock`) is never touched under either flag: scolta-php's `BuildState` owns that file, keeps it at a fixed path because it is `flock()`ed, and clears a genuinely stale lock itself. Do not delete it by hand either: unlinking an `flock()`ed file lets a second process lock a fresh file at the same path while the first still holds the old one, so a manual `rm` can put two builds into one state directory. When the command cannot resolve `pagefind.output_dir`, or the directory is not there, it writes to the Laravel log as well as stdout, so a scheduled run that is quietly doing nothing is visible in `storage/logs/`.
 
 ### Incremental builds
 

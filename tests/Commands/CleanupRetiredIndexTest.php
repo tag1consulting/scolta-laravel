@@ -241,36 +241,37 @@ class CleanupRetiredIndexTest extends TestCase
     /**
      * The control for the --retired-only test below.
      *
-     * That test proves the state directory is left alone by showing an
-     * orphaned chunk survives, which means nothing unless a full run would
-     * have removed it. Removing the lock file from the state-dir passes took
-     * away the only other evidence that they run at all, so this supplies it.
+     * That test proves the fragment pass is skipped by showing an orphaned
+     * fragment survives, which means nothing unless a full run would have
+     * removed it. A fragment is orphaned when the pagefind entry file is
+     * missing beside it — a partially built index.
      */
-    public function test_a_full_run_still_removes_an_orphaned_chunk_file(): void
+    public function test_a_full_run_removes_an_orphaned_fragment_file(): void
     {
-        File::makeDirectory($this->stateDir, 0755, true);
-        File::put($this->stateDir.'/chunk-9.dat', 'x');
+        File::makeDirectory($this->outputDir.'/pagefind/fragment', 0755, true);
+        File::put($this->outputDir.'/pagefind/fragment/en_abc.pf_fragment', 'x');
 
         $this->artisan('scolta:cleanup')
             ->assertExitCode(0)
             ->expectsOutputToContain('Cleaned 1 stale file(s).')
             ->run();
 
-        $this->assertFileDoesNotExist($this->stateDir.'/chunk-9.dat');
+        $this->assertFileDoesNotExist($this->outputDir.'/pagefind/fragment/en_abc.pf_fragment');
     }
 
     /**
-     * --retired-only is how the scheduled sweep runs: trash goes, the build
-     * state directory is not touched. The orphaned chunk is the discriminator
+     * --retired-only is how the scheduled sweep runs: trash goes, the
+     * orphaned-fragment pass does not run. The fragment is the discriminator
      * — a full run removes it, as the test above pins — and the lock file
      * survives here for the same reason it survives everywhere else.
      */
-    public function test_retired_only_sweeps_trash_without_touching_the_state_dir(): void
+    public function test_retired_only_sweeps_trash_without_the_fragment_pass(): void
     {
         File::makeDirectory($this->stateDir, 0755, true);
         File::put($this->stateDir.'/lock', '');
         touch($this->stateDir.'/lock', time() - 7200);
-        File::put($this->stateDir.'/chunk-9.dat', 'x');
+        File::makeDirectory($this->outputDir.'/pagefind/fragment', 0755, true);
+        File::put($this->outputDir.'/pagefind/fragment/en_abc.pf_fragment', 'x');
         $this->makeTree($this->trashPath('one'));
 
         $this->artisan('scolta:cleanup', ['--retired-only' => true])
@@ -279,6 +280,6 @@ class CleanupRetiredIndexTest extends TestCase
 
         $this->assertDirectoryDoesNotExist($this->trashPath('one'));
         $this->assertFileExists($this->stateDir.'/lock');
-        $this->assertFileExists($this->stateDir.'/chunk-9.dat');
+        $this->assertFileExists($this->outputDir.'/pagefind/fragment/en_abc.pf_fragment');
     }
 }
