@@ -2,7 +2,7 @@
 
 ## Versioning (CRITICAL — read scolta-core/VERSIONING.md)
 
-Each Scolta package versions independently, from its own git tags. Compatibility with scolta-php is expressed by the caret constraint in `composer.json`, not by matching version numbers with it. Adapters pin scolta-php via `composer.lock` within that constraint. This is a platform adapter — it depends on scolta-php, never on scolta-core directly.
+Each Scolta package versions independently, from its own git tags. Compatibility with scolta-php is expressed by the caret constraint in `composer.json`, not by matching version numbers with it. No `composer.lock` is committed (it is git-ignored, and CI's `composer-json-guard` refuses one): the constraint is the whole contract, and every install resolves fresh within it. This is a platform adapter — it depends on scolta-php, never on scolta-core directly.
 
 ### Rules
 
@@ -21,9 +21,9 @@ The `version` field in `composer.json` is always either a tagged release (`0.2.0
 
 ### Local cross-package development
 
-To test against un-released scolta-php locally, run `composer config minimum-stability dev && composer require tag1/scolta-php:@dev` (the path repo then supplies the dev build). **Do not commit a lock resolved from the path repo** — it describes one developer's machine, and the CI lock guard rejects `dist.type=path` on every branch.
+To test against un-released scolta-php locally, run `composer config minimum-stability dev && composer require tag1/scolta-php:@dev` (the path repo then supplies the dev build). Your local `composer.lock` is git-ignored; whatever it resolves — path repo included — stays on your machine.
 
-The lock does not have to name a stable scolta-php on a branch, and while the floor is `^1.2@dev` it cannot: no stable release satisfies `^1.2`. The committed lock names `dev-main` from Packagist, `composer validate` in CI keeps it agreeing with `composer.json`, and `release.yml` refuses to publish while it is a development version. That is the gate: scolta-laravel 1.2.0 cannot be released before scolta-php 1.2.0 exists. Drop the `@dev` suffix from the constraint and re-lock when it does.
+The release gate lives in `release.yml`: at tag time, `resolve-guard` resolves `composer.json` fresh from Packagist and refuses to publish while the `tag1/scolta-php` constraint carries `@dev` or resolves to a development version. That is the gate: scolta-laravel 1.2.0 cannot be released before scolta-php 1.2.0 exists. Drop the `@dev` suffix from the constraint when it does.
 
 ### Laravel conventions
 
