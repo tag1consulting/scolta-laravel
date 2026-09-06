@@ -326,13 +326,13 @@ class StructuralIntegrityTest extends TestCase
             'CI workflow should include a PHPStan analyse job');
     }
 
-    public function test_release_workflow_has_lock_guard(): void
+    public function test_release_workflow_has_resolve_guard(): void
     {
         $workflow = file_get_contents($this->root.'/.github/workflows/release.yml');
         $this->assertStringContainsString(
-            'LOCK GUARD FAILED',
+            'RESOLVE GUARD FAILED',
             $workflow,
-            'Release workflow must include the scolta-php lock-source guard'
+            'Release workflow must include the scolta-php resolve guard'
         );
     }
 

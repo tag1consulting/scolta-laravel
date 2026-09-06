@@ -7,21 +7,34 @@ on:
       - '[0-9]+.[0-9]+.[0-9]+*'
 
 jobs:
-  # The stable-release rule lives here alone, and this is now the gate that
-  # enforces the coordination the CHANGELOG used to promise in prose: while main
-  # requires an unreleased scolta-php, the committed lock names a development
-  # branch and this job refuses the release. scolta-laravel 1.2.0 cannot ship
-  # before scolta-php 1.2.0 exists, and nobody has to remember that.
-  lock-guard:
-    name: Verify scolta-php lock source
+  # The stable-release rule lives here alone, and this is the gate that
+  # enforces the coordination the CHANGELOG used to promise in prose. No lock
+  # is committed, so the job resolves fresh from Packagist at tag time: while
+  # main requires an unreleased scolta-php, the constraint still carries @dev
+  # and no stable release satisfies it, so this job refuses the release.
+  # scolta-laravel 1.2.0 cannot ship before scolta-php 1.2.0 exists, and
+  # nobody has to remember that.
+  resolve-guard:
+    name: Verify scolta-php resolves stable from Packagist
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.5'
+          coverage: none
+
+      # --no-install writes only composer.lock; nothing is downloaded, so the
+      # `preferred-install: source` for scolta-php never triggers a clone.
+      - name: Resolve dependencies from Packagist
+        run: composer update --no-install --no-interaction --ignore-platform-req=php
 
       - name: Check scolta-php is stable and from Packagist
         run: |
           python3 - <<'PY'
           import json,sys,re
+          constraint=(json.load(open("composer.json")).get("require") or {}).get("tag1/scolta-php","")
           lock=json.load(open("composer.lock"))
           pkgs=lock.get("packages",[])+lock.get("packages-dev",[])
           p=next((x for x in pkgs if x["name"]=="tag1/scolta-php"),None)
@@ -29,16 +42,17 @@ jobs:
           dist=(p.get("dist") or {}).get("type")
           ver=p.get("version","")
           bad=[]
+          if "@dev" in constraint or constraint.startswith("dev-"): bad.append(f"development floor {constraint} — drop the @dev suffix once the stable scolta-php it waits for is tagged")
           if dist=="path": bad.append(f"dist.type=path ({(p.get('dist') or {}).get('url')})")
           if not re.fullmatch(r"\d+\.\d+\.\d+", ver): bad.append(f"non-stable version {ver}")
-          if bad: sys.exit("LOCK GUARD FAILED for tag1/scolta-php: "+"; ".join(bad))
-          print(f"Lock guard OK: tag1/scolta-php {ver} via {dist}")
+          if bad: sys.exit("RESOLVE GUARD FAILED for tag1/scolta-php: "+"; ".join(bad))
+          print(f"Resolve guard OK: tag1/scolta-php {ver} via {dist} against floor {constraint}")
           PY
 
   release:
     name: Build and publish release
     runs-on: ubuntu-latest
-    needs: lock-guard
+    needs: resolve-guard
     permissions:
       contents: write
     steps:

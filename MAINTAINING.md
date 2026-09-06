@@ -20,16 +20,17 @@ naming the same line.
 rather than assumed) and `test-highest` (newest PHP and Laravel, and the only cell that runs Pint) —
 plus `coverage`, `docs-check` (CHANGELOG when code changes),
 `analyse` (Larastan),
-`lock-guard` (`composer validate`, and the lock must not name `tag1/scolta-php` from a `dist.type=path`
-repo), `antipatterns` (which also refuses a duplicate `###` sub-header under `## [Unreleased]` in
+`composer-json-guard` (`composer validate`, and no `composer.lock` may be committed — the package resolves
+fresh), `antipatterns` (which also refuses a duplicate `###` sub-header under `## [Unreleased]` in
 CHANGELOG.md), `Validate Composer dist archive`, and `Version coherence`. The scolta-php floor is
 covered by `tests/ScoltaPhpFloorTest.php` inside phpunit, and by `test-lowest` resolving the
 constraint `composer.json` actually declares. Cell names carry no version numbers because branch
 protection matches required checks by literal job name; what each cell means is defined in the matrix.
 
 **On release day.** Release this after scolta-php. During a cycle the floor carries `@dev`; once
-scolta-php `X.Y.0` is tagged, drop the `@dev`, re-lock, then release. `lock-guard` in `release.yml`
-refuses to publish while the lock still names a development version of scolta-php.
+scolta-php `X.Y.0` is tagged, drop the `@dev`, then release. `resolve-guard` in `release.yml`
+resolves fresh from Packagist at tag time and refuses to publish while the constraint carries
+`@dev` or scolta-php resolves to a development version.
 
 **Watch out for.**
 
