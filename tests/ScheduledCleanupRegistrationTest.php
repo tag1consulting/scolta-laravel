@@ -48,8 +48,8 @@ class ScheduledCleanupRegistrationTest extends TestCase
         $entry = $this->cleanupEntry();
 
         $this->assertNotNull($entry, 'scolta:cleanup is not on the schedule.');
-        // --retired-only, because an unattended run must not touch the build
-        // state directory; see CleanupCommand::sweepStaleFiles().
+        // --retired-only, because an unattended run must not delete fragments
+        // a build in flight may own; see CleanupCommand::sweepStaleFiles().
         $this->assertStringContainsString('--retired-only', $entry);
         // The configured budget, from scolta.cleanup.cron_seconds.
         $this->assertStringContainsString('--max-seconds=180', $entry);
