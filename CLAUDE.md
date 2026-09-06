@@ -21,7 +21,7 @@ The `version` field in `composer.json` is always either a tagged release (`0.2.0
 
 ### Local cross-package development
 
-To test against un-released scolta-php locally, run `composer config minimum-stability dev && composer require tag1/scolta-php:@dev` (the path repo then supplies the dev build). Your local `composer.lock` is git-ignored; whatever it resolves — path repo included — stays on your machine.
+`composer.json` already commits everything local development needs: the `../scolta-php` path repo and a `preferred-install: source` for it. While the floor carries `@dev` — the usual state mid-cycle — a plain `composer update tag1/scolta-php` picks up the sibling checkout, no config changes required. Only when the floor is a bare release constraint does testing an un-released scolta-php need `composer config minimum-stability dev && composer require tag1/scolta-php:@dev`. Your local `composer.lock` is git-ignored either way; whatever it resolves — path repo included — stays on your machine.
 
 The release gate lives in `release.yml`: at tag time, `resolve-guard` resolves `composer.json` fresh from Packagist and refuses to publish while the `tag1/scolta-php` constraint carries `@dev` or resolves to a development version. That is the gate: scolta-laravel 1.2.0 cannot be released before scolta-php 1.2.0 exists. Drop the `@dev` suffix from the constraint when it does.
 
