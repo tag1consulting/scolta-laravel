@@ -78,6 +78,26 @@ class BuildCommand extends Command
 
     protected $description = 'Build or rebuild the Scolta search index';
 
+    protected $help = <<<'HELP'
+Always a full build. Content edits reach the index on their own: a model save
+queues an incremental update, so there is nothing to pass here to reflect a
+few edited records. Run this for the first index, on deploy, and as a slow
+scheduled backstop for changes that bypass Eloquent events.
+
+Synchronous and verified by default: the command blocks until the index is
+built and exits 0 only once a usable index is live on disk. Exit codes:
+
+  0  index built and published
+  1  build failed; the previous index is still serving
+  2  contradictory options (for example --reset-ledger with --resume)
+  3  deferred: the build or its finalize step is queued and the index is not
+     published until a worker (php artisan queue:work) drains it
+
+Deploy scripts that gate on this command must treat any non-zero exit as
+"not built". Do not pass --queue in a deploy step unless a worker finishes
+before traffic is served.
+HELP;
+
     /**
      * Exit code for a build that was dispatched to an asynchronous queue and
      * therefore is NOT yet built on disk.
