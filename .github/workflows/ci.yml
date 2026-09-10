@@ -1,14 +1,21 @@
 name: CI
 
+# Every job resolves the tag1/scolta-php constraint exactly as composer.json
+# ships it, from Packagist. No job rewrites the constraint. The only edit is
+# dropping the ../scolta-php path repository, because Composer aborts on a path
+# repo whose url does not exist and there is no sibling checkout here; it is
+# named in composer.json so one `composer config --unset` removes it. Nothing
+# pins Laravel either: an unflagged `composer update` resolves the newest
+# illuminate/* line the shipped constraint allows.
+
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
 
-# COMPOSER_AUTH on the dependency-install steps: Composer resolves the
-# tag1consulting/scolta-php VCS repo and every packagist dist through
-# api.github.com. Unauthenticated that is 60 req/hour/IP, and when it runs dry
+# COMPOSER_AUTH on the dependency-install steps: Composer downloads every
+# packagist dist hosted on GitHub through api.github.com. Unauthenticated that is 60 req/hour/IP, and when it runs dry
 # composer cannot prompt under no-interaction and dies with "Could not
 # authenticate against github.com" (AuthHelper.php:152, exit 100). The run's
 # own token raises it to 1,000 req/hour/repo. Read-only is enough: scolta-php
@@ -45,23 +52,20 @@ jobs:
 
           # The declared floors, resolved rather than assumed.
           # --prefer-stable alongside --prefer-lowest because "lowest" alone
-          # takes the lowest version of any stability. This cell pins no
-          # dependency version at all: the illuminate constraints are left as
-          # composer.json ships them (an empty matrix.laravel makes the step
-          # below skip the rewrite) and so is tag1/scolta-php, so raising
-          # either floor moves this cell with it instead of leaving a stale
-          # pin behind. The scolta-php floor carries @dev and no stable
-          # release satisfies it yet; --prefer-stable does not change that,
-          # composer still resolves the development branch, which is the
-          # lowest scolta-php that exists.
+          # takes the lowest version of any stability. Neither cell pins a
+          # dependency version: the illuminate and tag1/scolta-php constraints
+          # are resolved as composer.json ships them, so moving either
+          # constraint moves both cells with it instead of leaving a stale pin
+          # behind. The scolta-php floor carries @dev and no stable release
+          # satisfies it yet; --prefer-stable does not change that, composer
+          # still resolves the development branch, which is the lowest
+          # scolta-php that exists.
           - cell: lowest
             php: '8.2'
-            laravel: ''
             composer-flags: '--prefer-lowest --prefer-stable'
             lint: false
           - cell: highest
             php: '8.5'
-            laravel: '13'
             composer-flags: ''
             lint: true
     steps:
@@ -74,32 +78,16 @@ jobs:
           extensions: intl
           coverage: none
 
-      # The path repo is swapped for the public VCS one, and the constraint in
-      # composer.json is deliberately left alone. It used to be overwritten with
-      # dev-main@dev here, which meant this job never once resolved the
-      # constraint this package ships: composer.json required tag1/scolta-php as
-      # ^1.1.0 while src/AiProvider/Amazee/LaravelConfigStorage.php declared
-      # `implements ProvenanceAwareConfigStorageInterface`, a class 1.1.0 does
-      # not have, and every job in this file quietly replaced the constraint
-      # before asking composer anything. A guard that edits the thing it is
-      # guarding is not a guard. The shipped ^1.2@dev reaches the development
-      # branch on its own, so there is nothing left to overwrite.
-      - name: Replace path repo with GitHub VCS repo and pin Laravel version
-        run: |
-          php -r '
-            $j = json_decode(file_get_contents("composer.json"), true);
-            $j["repositories"] = [["type" => "vcs", "url" => "https://github.com/tag1consulting/scolta-php.git"]];
-            $v = "${{ matrix.laravel }}";
-            // An empty matrix.laravel leaves the shipped constraints alone.
-            // That is the lowest cell: it has to resolve what composer.json
-            // declares, not a Laravel version restated here.
-            if ($v !== "") {
-                foreach (["illuminate/support","illuminate/console","illuminate/database","illuminate/routing"] as $pkg) {
-                    $j["require"][$pkg] = "^{$v}.0";
-                }
-            }
-            file_put_contents("composer.json", json_encode($j, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
-          '
+      # The tag1/scolta-php constraint is deliberately left alone. It used to
+      # be overwritten with dev-main@dev here, which meant this job never once
+      # resolved the constraint this package ships: composer.json required
+      # tag1/scolta-php as ^1.1.0 while src/AiProvider/Amazee/LaravelConfigStorage.php
+      # declared `implements ProvenanceAwareConfigStorageInterface`, a class
+      # 1.1.0 does not have, and every job in this file quietly replaced the
+      # constraint before asking composer anything. A guard that edits the
+      # thing it is guarding is not a guard.
+      - name: Drop the local path repository
+        run: composer config --unset repositories.scolta-php-local
 
       - name: Install dependencies
         env:
@@ -130,14 +118,8 @@ jobs:
           extensions: intl
           coverage: xdebug
 
-      - name: Replace path repo with GitHub VCS repo
-        run: |
-          php -r '
-            $j = json_decode(file_get_contents("composer.json"), true);
-            $j["repositories"] = [["type" => "vcs", "url" => "https://github.com/tag1consulting/scolta-php.git"]];
-            $j["require"]["tag1/scolta-php"] = "dev-main@dev";
-            file_put_contents("composer.json", json_encode($j, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
-          '
+      - name: Drop the local path repository
+        run: composer config --unset repositories.scolta-php-local
 
       - name: Install dependencies
         env:
@@ -188,17 +170,8 @@ jobs:
           extensions: intl
           coverage: none
 
-      - name: Replace path repo with GitHub VCS repo and pin Laravel 13
-        run: |
-          php -r '
-            $j = json_decode(file_get_contents("composer.json"), true);
-            $j["repositories"] = [["type" => "vcs", "url" => "https://github.com/tag1consulting/scolta-php.git"]];
-            $j["require"]["tag1/scolta-php"] = "dev-main@dev";
-            foreach (["illuminate/support","illuminate/console","illuminate/database","illuminate/routing"] as $pkg) {
-                $j["require"][$pkg] = "^13.0";
-            }
-            file_put_contents("composer.json", json_encode($j, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
-          '
+      - name: Drop the local path repository
+        run: composer config --unset repositories.scolta-php-local
 
       - name: Install dependencies
         env:
