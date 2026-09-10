@@ -16,6 +16,7 @@ use Tag1\Scolta\Index\BuildIntentFactory;
 use Tag1\Scolta\Index\BuildState;
 use Tag1\Scolta\Index\IndexBuildOrchestrator;
 use Tag1\Scolta\Index\MemoryBudget;
+use Tag1\Scolta\Index\ResumeChainPolicy;
 use Tag1\ScoltaLaravel\Jobs\FinalizeIndex;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 use Tag1\ScoltaLaravel\Progress\ArtisanProgressReporter;
@@ -443,7 +444,7 @@ HELP;
      * the same false success as calling a queued build built.
      *
      * The bounds are unchanged: a segment that commits nothing gets no successor,
-     * and no build may use more than ResumeChain::MAX_SEGMENTS processes. Because
+     * and no build may use more than ResumeChainPolicy::DEFAULT_MAX_SEGMENTS processes. Because
      * the driver stays alive, the segment counter is a local variable here rather
      * than a flag on the successor's command line.
      *
@@ -463,7 +464,8 @@ HELP;
         // Resolved through the container so a test can substitute the boundary
         // that runs a child and drive the real loop against it.
         /** @var ResumeChain $chain */
-        $chain = $this->laravel->make(ResumeChain::class, ['memoryLimit' => ini_get('memory_limit') ?: null]);
+        $chain = $this->laravel->make(ResumeChain::class);
+        $policy = new ResumeChainPolicy(ini_get('memory_limit') ?: null);
 
         $force = (bool) $this->option('force');
         $segment = 0;
@@ -473,7 +475,7 @@ HELP;
         $outcome = null;
 
         while (true) {
-            $reason = $chain->failureReason($outcome, $pagesNow, $pagesBefore, $segment);
+            $reason = $policy->failureReason($outcome, $pagesNow, $pagesBefore, $segment);
             if ($reason !== null) {
                 $this->error($reason);
 
@@ -485,7 +487,7 @@ HELP;
                 $pagesNow,
                 $pagesNow - $pagesBefore,
                 $segment + 1,
-                ResumeChain::MAX_SEGMENTS,
+                ResumeChainPolicy::DEFAULT_MAX_SEGMENTS,
             ));
 
             $pagesBefore = $pagesNow;
