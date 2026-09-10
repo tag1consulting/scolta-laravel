@@ -12,6 +12,7 @@ use Orchestra\Testbench\TestCase;
 use ReflectionMethod;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
+use Tag1\Scolta\Index\ResumeChainPolicy;
 use Tag1\Scolta\Index\StatusReport;
 use Tag1\ScoltaLaravel\Commands\BuildCommand;
 use Tag1\ScoltaLaravel\ScoltaServiceProvider;
@@ -83,17 +84,11 @@ class ResumeChainBoundsTest extends TestCase
 
         $this->recorder = new ChainRecorder($this->stateDir);
 
-        // The child-run boundary, substituted. ScriptedResumeChain keeps the real
-        // failureReason() — the decision under test — and replaces only the one
-        // method that starts a process.
+        // The child-run boundary, substituted. The decision under test stays
+        // the real ResumeChainPolicy the command constructs; only the one
+        // method that starts a process is replaced.
         $recorder = $this->recorder;
-        $this->app->bind(
-            ResumeChain::class,
-            fn ($app, array $parameters) => new ScriptedResumeChain(
-                $parameters['memoryLimit'] ?? null,
-                $recorder,
-            ),
-        );
+        $this->app->bind(ResumeChain::class, fn () => new ScriptedResumeChain($recorder));
     }
 
     protected function tearDown(): void
@@ -135,7 +130,7 @@ class ResumeChainBoundsTest extends TestCase
         $this->assertStringContainsString('this build', $message);
         $this->assertStringContainsString('has not been republished', $message);
         $this->assertStringContainsString('memory_limit', $message);
-        $this->assertStringContainsString('--memory-budget', $message);
+        $this->assertStringContainsString('memory budget', $message);
         $this->assertStringContainsString('--restart', $message);
     }
 
@@ -154,7 +149,7 @@ class ResumeChainBoundsTest extends TestCase
 
         $this->assertSame(Command::FAILURE, $exit);
         $this->assertSame([1], $this->recorder->segments, 'Exactly one successor, and no successor for it');
-        $this->assertStringContainsString('resume segment 1', $this->consoleOutput());
+        $this->assertStringContainsString('segment 1', $this->consoleOutput());
         $this->assertStringContainsString('stalled at 100 pages', $this->consoleOutput());
     }
 
@@ -180,15 +175,15 @@ class ResumeChainBoundsTest extends TestCase
 
         $this->assertSame(Command::FAILURE, $exit, 'An exhausted chain has not built an index');
         $this->assertSame(
-            range(1, ResumeChain::MAX_SEGMENTS),
+            range(1, ResumeChainPolicy::DEFAULT_MAX_SEGMENTS),
             $this->recorder->segments,
             'A build must use at most MAX_SEGMENTS fresh processes, each once and consecutively',
         );
 
         $message = $this->consoleOutput();
-        $this->assertStringContainsString('did not complete within '.ResumeChain::MAX_SEGMENTS.' resume segments', $message);
+        $this->assertStringContainsString('did not complete within '.ResumeChainPolicy::DEFAULT_MAX_SEGMENTS.' resume segments', $message);
         $this->assertStringContainsString(
-            (100 + ResumeChain::MAX_SEGMENTS * 100).' pages committed',
+            (100 + ResumeChainPolicy::DEFAULT_MAX_SEGMENTS * 100).' pages committed',
             $message,
             'The operator has to be told how far the build actually got',
         );
@@ -218,7 +213,7 @@ class ResumeChainBoundsTest extends TestCase
         $this->assertSame([1], $this->recorder->segments, 'A broken build must not be resumed');
 
         $message = $this->consoleOutput();
-        $this->assertStringContainsString('failed in resume segment 1', $message);
+        $this->assertStringContainsString('failed in segment 1', $message);
         $this->assertStringContainsString('Duplicate page ordinal 41 across chunks', $message);
         $this->assertStringContainsString('has not been republished', $message);
     }
@@ -264,13 +259,13 @@ class ResumeChainBoundsTest extends TestCase
         $this->answerMemoryAbort(pagesBefore: 0);
 
         $this->assertSame(
-            range(1, ResumeChain::MAX_SEGMENTS),
+            range(1, ResumeChainPolicy::DEFAULT_MAX_SEGMENTS),
             $this->recorder->segments,
             'A stale outcome must not be mistaken for this segment\'s verdict',
         );
         $this->assertStringNotContainsString('Duplicate page ordinal', $this->consoleOutput());
         $this->assertSame(
-            array_fill(0, ResumeChain::MAX_SEGMENTS, null),
+            array_fill(0, ResumeChainPolicy::DEFAULT_MAX_SEGMENTS, null),
             $this->recorder->outcomeSeenAtStart,
             'Every segment must start with no outcome on disk',
         );
@@ -371,7 +366,7 @@ class ResumeChainBoundsTest extends TestCase
     {
         Process::fake();
 
-        $exit = (new ResumeChain('512M'))->runSegment('conservative', '25', force: false);
+        $exit = (new ResumeChain)->runSegment('conservative', '25', force: false);
 
         $this->assertNotNull($exit, 'setUp() guarantees an artisan binary, so the segment must run');
         $child = $this->childCommand();
@@ -388,7 +383,7 @@ class ResumeChainBoundsTest extends TestCase
     {
         Process::fake();
 
-        (new ResumeChain('512M'))->runSegment('conservative', null, force: false);
+        (new ResumeChain)->runSegment('conservative', null, force: false);
 
         $this->assertStringNotContainsString('--force', $this->childCommand(),
             'A build nobody forced must not gain --force by being segmented');
@@ -402,7 +397,7 @@ class ResumeChainBoundsTest extends TestCase
         // from the cache it was told to bypass.
         Process::fake();
 
-        (new ResumeChain('512M'))->runSegment('conservative', null, force: true);
+        (new ResumeChain)->runSegment('conservative', null, force: true);
 
         $this->assertStringContainsString('--force', $this->childCommand());
     }
@@ -541,7 +536,7 @@ class ChainRecorder
     public function runSegment(?string $memoryBudget, ?string $chunkSize, bool $force): ?int
     {
         $segment = count($this->segments) + 1;
-        if ($segment > ResumeChain::MAX_SEGMENTS + 10) {
+        if ($segment > ResumeChainPolicy::DEFAULT_MAX_SEGMENTS + 10) {
             // A driver with no working bound would otherwise hang the suite
             // instead of failing it.
             throw new \RuntimeException('The chain ran away: more segments than any bound allows.');
@@ -600,15 +595,10 @@ class ChainRecorder
 
 /**
  * A ResumeChain whose child process is scripted instead of started.
- *
- * failureReason() is inherited untouched: the decision is what is under test.
  */
 class ScriptedResumeChain extends ResumeChain
 {
-    public function __construct(?string $memoryLimit, private readonly ChainRecorder $recorder)
-    {
-        parent::__construct($memoryLimit ?? '128M');
-    }
+    public function __construct(private readonly ChainRecorder $recorder) {}
 
     public function runSegment(?string $memoryBudget, ?string $chunkSize, bool $force, ?callable $onOutput = null): ?int
     {
