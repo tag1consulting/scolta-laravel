@@ -4,9 +4,9 @@ name: CI
 # ships it, from Packagist. No job rewrites the constraint. The only edit is
 # dropping the ../scolta-php path repository, because Composer aborts on a path
 # repo whose url does not exist and there is no sibling checkout here; it is
-# named in composer.json so one `composer config --unset` removes it. Jobs
-# that need a specific Laravel line pin only the illuminate/* packages, with
-# `composer require --no-update`.
+# named in composer.json so one `composer config --unset` removes it. Nothing
+# pins Laravel either: an unflagged `composer update` resolves the newest
+# illuminate/* line the shipped constraint allows.
 
 on:
   push:
@@ -52,23 +52,20 @@ jobs:
 
           # The declared floors, resolved rather than assumed.
           # --prefer-stable alongside --prefer-lowest because "lowest" alone
-          # takes the lowest version of any stability. This cell pins no
-          # dependency version at all: the illuminate constraints are left as
-          # composer.json ships them (an empty matrix.laravel makes the step
-          # below skip the rewrite) and so is tag1/scolta-php, so raising
-          # either floor moves this cell with it instead of leaving a stale
-          # pin behind. The scolta-php floor carries @dev and no stable
-          # release satisfies it yet; --prefer-stable does not change that,
-          # composer still resolves the development branch, which is the
-          # lowest scolta-php that exists.
+          # takes the lowest version of any stability. Neither cell pins a
+          # dependency version: the illuminate and tag1/scolta-php constraints
+          # are resolved as composer.json ships them, so moving either
+          # constraint moves both cells with it instead of leaving a stale pin
+          # behind. The scolta-php floor carries @dev and no stable release
+          # satisfies it yet; --prefer-stable does not change that, composer
+          # still resolves the development branch, which is the lowest
+          # scolta-php that exists.
           - cell: lowest
             php: '8.2'
-            laravel: ''
             composer-flags: '--prefer-lowest --prefer-stable'
             lint: false
           - cell: highest
             php: '8.5'
-            laravel: '13'
             composer-flags: ''
             lint: true
     steps:
@@ -89,18 +86,8 @@ jobs:
       # 1.1.0 does not have, and every job in this file quietly replaced the
       # constraint before asking composer anything. A guard that edits the
       # thing it is guarding is not a guard.
-      #
       - name: Drop the local path repository
         run: composer config --unset repositories.scolta-php-local
-
-      # An empty matrix.laravel skips the pin. That is the lowest cell: it has
-      # to resolve what composer.json declares, not a Laravel version restated
-      # here.
-      - name: Pin Laravel version
-        if: matrix.laravel != ''
-        env:
-          LARAVEL: ${{ matrix.laravel }}
-        run: composer require --no-update --no-interaction "illuminate/support:^$LARAVEL.0" "illuminate/console:^$LARAVEL.0" "illuminate/database:^$LARAVEL.0" "illuminate/routing:^$LARAVEL.0"
 
       - name: Install dependencies
         env:
@@ -185,9 +172,6 @@ jobs:
 
       - name: Drop the local path repository
         run: composer config --unset repositories.scolta-php-local
-
-      - name: Pin Laravel 13
-        run: composer require --no-update --no-interaction "illuminate/support:^13.0" "illuminate/console:^13.0" "illuminate/database:^13.0" "illuminate/routing:^13.0"
 
       - name: Install dependencies
         env:
