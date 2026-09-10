@@ -66,14 +66,14 @@
     },
     "minimum-stability": "stable",
     "prefer-stable": true,
-    "repositories": [
-        {
-            "_comment": "Development only — local path to scolta-php for symlink installs. Consumers resolve from Packagist. The braces make the url a glob: Composer aborts on a plain path that does not exist, but silently skips a glob with no match, so CI (no sibling checkout) resolves from Packagist without editing this file.",
+    "repositories": {
+        "scolta-php-local": {
+            "_comment": "Development only — local path to scolta-php for symlink installs. Consumers resolve from Packagist. Named so CI can drop it with `composer config --unset repositories.scolta-php-local`; Composer aborts on a path repo whose url does not exist.",
             "type": "path",
-            "url": "../{scolta-php}",
+            "url": "../scolta-php",
             "canonical": false
         }
-    ],
+    },
     "config": {
         "sort-packages": true,
         "preferred-install": {

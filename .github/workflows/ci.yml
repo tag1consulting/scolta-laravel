@@ -1,10 +1,11 @@
 name: CI
 
 # Every job resolves the tag1/scolta-php constraint exactly as composer.json
-# ships it, from Packagist. No job rewrites the constraint or the repositories
-# list: the ../{scolta-php} path repo is a glob, which Composer skips when it
-# matches nothing, so the absent sibling checkout costs nothing here. Jobs that
-# need a specific Laravel line pin only the illuminate/* packages, with
+# ships it, from Packagist. No job rewrites the constraint. The only edit is
+# dropping the ../scolta-php path repository, because Composer aborts on a path
+# repo whose url does not exist and there is no sibling checkout here; it is
+# named in composer.json so one `composer config --unset` removes it. Jobs
+# that need a specific Laravel line pin only the illuminate/* packages, with
 # `composer require --no-update`.
 
 on:
@@ -89,6 +90,9 @@ jobs:
       # constraint before asking composer anything. A guard that edits the
       # thing it is guarding is not a guard.
       #
+      - name: Drop the local path repository
+        run: composer config --unset repositories.scolta-php-local
+
       # An empty matrix.laravel skips the pin. That is the lowest cell: it has
       # to resolve what composer.json declares, not a Laravel version restated
       # here.
@@ -126,6 +130,9 @@ jobs:
           php-version: '8.5'
           extensions: intl
           coverage: xdebug
+
+      - name: Drop the local path repository
+        run: composer config --unset repositories.scolta-php-local
 
       - name: Install dependencies
         env:
@@ -175,6 +182,9 @@ jobs:
           php-version: '8.5'
           extensions: intl
           coverage: none
+
+      - name: Drop the local path repository
+        run: composer config --unset repositories.scolta-php-local
 
       - name: Pin Laravel 13
         run: composer require --no-update --no-interaction "illuminate/support:^13.0" "illuminate/console:^13.0" "illuminate/database:^13.0" "illuminate/routing:^13.0"
