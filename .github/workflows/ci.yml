@@ -1,5 +1,15 @@
 name: CI
 
+# scolta-php `main` is 2.x; this package stays on scolta-php 1.x, whose
+# development branch is `1.x`. The `test` matrix resolves the shipped
+# `tag1/scolta-php` constraint and needs nothing said here — `^1.5@dev` reaches
+# that branch on its own — but the two jobs that do overwrite the constraint
+# pin `1.x-dev@dev` rather than `dev-main@dev` so they exercise the line this
+# package actually targets. The name is `1.x-dev`, not `dev-1.x`: Composer
+# derives a branch's version from its name, and a name that already looks like
+# a version becomes that version with a -dev suffix; only a name that does not,
+# such as main, takes the `dev-` prefix.
+
 on:
   push:
     branches: [main]
@@ -135,7 +145,7 @@ jobs:
           php -r '
             $j = json_decode(file_get_contents("composer.json"), true);
             $j["repositories"] = [["type" => "vcs", "url" => "https://github.com/tag1consulting/scolta-php.git"]];
-            $j["require"]["tag1/scolta-php"] = "dev-main@dev";
+            $j["require"]["tag1/scolta-php"] = "1.x-dev@dev";
             file_put_contents("composer.json", json_encode($j, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
           '
 
@@ -193,7 +203,7 @@ jobs:
           php -r '
             $j = json_decode(file_get_contents("composer.json"), true);
             $j["repositories"] = [["type" => "vcs", "url" => "https://github.com/tag1consulting/scolta-php.git"]];
-            $j["require"]["tag1/scolta-php"] = "dev-main@dev";
+            $j["require"]["tag1/scolta-php"] = "1.x-dev@dev";
             foreach (["illuminate/support","illuminate/console","illuminate/database","illuminate/routing"] as $pkg) {
                 $j["require"][$pkg] = "^13.0";
             }
