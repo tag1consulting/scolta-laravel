@@ -207,9 +207,11 @@ Composer runs `post-autoload-dump` on every `composer install` and `composer upd
 php artisan vendor:publish --tag=scolta-assets --force
 ```
 
-### Building the index on deploy
+### Indexing after a deploy
 
-Run `php artisan scolta:build` as part of your deploy (build pipeline, release step, or initContainer). It is **synchronous and verified**: it blocks until the index is built and exits 0 only when a usable index is live on disk, so a deploy that gates on its exit code can trust it. If the build cannot produce a valid index, the command exits non-zero — fail your deploy on that rather than serving dead search.
+Nothing has to run after a deploy. Ensure a queue worker runs in every environment that should index (see [Keeping the Index Fresh](#keeping-the-index-fresh)): the first request that finds no index queues a build, content changes queue their own updates, and a build a deploy interrupted is resumed by the next request rather than restarted. A release that changes the index format says so in its notes and tells you what to run.
+
+For a deploy that must have search live before it serves traffic, `php artisan scolta:build` is still the tool. It is **synchronous and verified**: it blocks until the index is built and exits 0 only when a usable index is live on disk, so a deploy that gates on its exit code can trust it. If the build cannot produce a valid index, the command exits non-zero — fail your deploy on that rather than serving dead search.
 
 > **Do not pass `--queue` in a deploy step unless you have a worker that finishes before traffic is served.** `--queue` defers the build to the queue: on an asynchronous connection it returns a distinct deferred exit code (`3`) **without** building the index — the index only appears once a worker (`php artisan queue:work`) drains the chain. It is intended for large-corpus background rebuilds, not for the deploy-time index your first requests depend on. An interrupted or never-drained rebuild degrades to the *previous* index (stale), never to an empty one.
 
@@ -659,6 +661,7 @@ php artisan scolta:build --memory-budget=balanced  # Use balanced memory profile
 php artisan scolta:build --resume           # Resume an interrupted PHP index build
 php artisan scolta:build --restart          # Discard interrupted state and rebuild from scratch (also discards the page-table ledger)
 php artisan scolta:build --reset-ledger     # Discard the page-table ledger under a plain build, inline or --queue (escape hatch for a duplicate page ordinal)
+php artisan scolta:request-build            # Queue one rebuild request for the worker; nothing is added when one is already waiting
 php artisan scolta:export                   # Export content to HTML only
 php artisan scolta:export --incremental     # Only export tracked changes (Pagefind CLI pipeline)
 php artisan scolta:rebuild-index            # Rebuild index from existing HTML files
@@ -713,7 +716,15 @@ debounced `TriggerRebuild`. That job applies the tracked changes to the index th
 published rather than rebuilding the corpus: on the PHP indexer (`indexer=auto`, the default) it
 rewrites only the fragments and index chunks the changed pages touch, reusing the page ordinals the
 existing index already assigned. Nothing has to be scheduled or typed for this to happen; it needs
-a queue worker, like every other part of auto-rebuild.
+a queue worker, like every other part of auto-rebuild. `php artisan scolta:request-build` queues the
+same job by hand.
+
+The job is only ever in the queue while a build is requested or in progress, and it decides from the
+build state directory what it is doing: an interrupted full build on disk — a worker killed
+mid-build, a segment that yielded on memory pressure — is continued from where it stopped before
+anything else, with further segments run as `scolta:build --resume` child processes so no segment
+runs in a heap the previous one fragmented. A build that fails for a reason resuming cannot fix
+fails the job, so it lands in Laravel's failed-jobs table.
 
 The queued rebuild falls back to a **full rebuild**, writing the reason to the application log,
 whenever the update cannot be applied exactly:
@@ -820,61 +831,45 @@ Set `SCOLTA_INDEXER=binary` in `.env` and rebuild. The PHP indexer continues to 
 
 ### Keeping the Index Fresh
 
-When **auto_rebuild** is enabled (`SCOLTA_AUTO_REBUILD=true` in `.env`), a `ScoltaObserver` watches the models listed in `config/scolta.php` and dispatches a debounced `TriggerRebuild` job whenever a model is saved or deleted (default delay: 5 minutes). This requires a queue worker running.
+When **auto_rebuild** is enabled (`SCOLTA_AUTO_REBUILD=true` in `.env`), a `ScoltaObserver` watches the models listed in `config/scolta.php` and dispatches a debounced `TriggerRebuild` job whenever a model is saved or deleted (default delay: 5 minutes). `php artisan scolta:request-build` dispatches the same job by hand. Everything below is about running a worker to drain it; run one in every environment that should index.
 
-Three paths are available, in order of reliability:
-
-#### Path A: Queue worker / Supervisor (recommended)
-
-Enable **auto_rebuild** and run a persistent queue worker:
+#### A persistent worker (recommended)
 
 ```bash
 php artisan queue:work --tries=3
 ```
 
-For production, use [Supervisor](https://laravel.com/docs/queues#supervisor-configuration) or [Laravel Forge](https://forge.laravel.com) to keep the worker running. Forge configures this automatically.
+For production, use [Supervisor](https://laravel.com/docs/queues#supervisor-configuration) or [Laravel Forge](https://forge.laravel.com) to keep the worker running. Forge configures this automatically. Give the connection's `retry_after` more than the build lock's 3600 seconds, or a worker killed mid-build has its job handed to a second worker while the first one's lock is still held.
 
-Content saves trigger `ScoltaObserver`, which dispatches a `TriggerRebuild` job after the configured delay. The queue worker processes that job in the background, applying just the tracked changes to the published index — see [Incremental builds](#incremental-builds).
+#### A worker from cron, for hosts without a daemon
 
-#### Path B: Laravel Scheduler
+Start a worker every minute and let it exit once the queue is empty:
 
-Add a scheduled rebuild to your app. One system cron entry handles all Laravel scheduled tasks:
+```
+* * * * * cd /var/www/html && php artisan queue:work --stop-when-empty 2>&1 | logger -t scolta
+```
+
+Or, if the Laravel scheduler already has its cron entry, schedule the same command from `routes/console.php`:
 
 ```
 * * * * * cd /var/www/html && php artisan schedule:run 2>&1 | logger -t scolta
 ```
 
-Then schedule the build in `routes/console.php` (Laravel 11+):
-
 ```php
 use Illuminate\Support\Facades\Schedule;
-use Tag1\ScoltaLaravel\Jobs\TriggerRebuild;
 
-Schedule::job(new TriggerRebuild)->everyFifteenMinutes();
-Schedule::command('scolta:build')->dailyAt('03:00');
+Schedule::command('queue:work --stop-when-empty')->everyMinute()->withoutOverlapping();
 ```
 
-Or in `app/Console/Kernel.php` (Laravel 10):
+A minute with nothing queued costs a process that exits at once. A build too large for one process yields, and the request stays queued, so the next minute continues it.
+
+> **Do not schedule the job itself.** `Schedule::job(new TriggerRebuild)->everyMinute()->withoutOverlapping()` enqueues a job every minute whether or not anything changed, and a queue nobody is draining piles them up. The job belongs in the queue only while a build is requested or in progress; the worker is what runs every minute.
+
+`scolta:build` is a full build: schedule it rarely, if at all, as the backstop for changes that bypass Eloquent events (query-builder mass updates) and to prune the token cache, which the queued path only ever adds to. It takes the same build lock as the queued job, so the two never run beside each other.
 
 ```php
-protected function schedule(Schedule $schedule): void
-{
-    $schedule->job(new TriggerRebuild)->everyFifteenMinutes();
-    $schedule->command('scolta:build')->dailyAt('03:00');
-}
+Schedule::command('scolta:build')->weeklyOn(0, '03:00');
 ```
-
-`TriggerRebuild` is the same job the observer dispatches, so the frequent task applies only the tracked changes and is fast when little or nothing has changed. `scolta:build` is a full build: schedule it rarely, as the backstop for changes that bypass Eloquent events (query-builder mass updates) and to prune the token cache, which the queued path only ever adds to. See [Incremental builds](#incremental-builds).
-
-#### Path C: System cron (direct)
-
-Call `scolta:build` directly from system cron, bypassing the Scheduler:
-
-```
-0 3 * * * cd /var/www/html && php artisan scolta:build 2>&1 | logger -t scolta
-```
-
-Simpler than the Scheduler but without Laravel's logging integration and overlap protection. `scolta:build` is always a full build, so run it on a slow cadence and leave the per-edit work to the queued rebuild the observer schedules.
 
 ## Requirements
 

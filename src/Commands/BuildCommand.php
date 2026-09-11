@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tag1\ScoltaLaravel\Commands;
 
+use Illuminate\Cache\Lock;
 use Illuminate\Console\Command;
 use Illuminate\Log\Logger;
 use Illuminate\Support\Facades\Artisan;
@@ -115,6 +116,12 @@ HELP;
      */
     public const DEFERRED = 3;
 
+    /**
+     * Owner token of the build lock this run holds or inherited; handed to
+     * resume segments so they run under it.
+     */
+    private ?string $lockOwner = null;
+
     public function handle(ContentSource $source): int
     {
         $config = ScoltaConfig::fromArray(ScoltaAiService::flattenConfig(config('scolta', [])));
@@ -216,6 +223,27 @@ HELP;
      */
     private function buildWithPhpIndexer(ContentSource $source, string $outputDir): int
     {
+        // A segment spawned by a resume chain runs under the lock its parent
+        // holds (the CLI chain or the queued TriggerRebuild) and must not take
+        // or release one of its own: it would find the lock held and exit
+        // deferred without building anything.
+        $inherited = getenv(ResumeChain::LOCK_OWNER_ENV);
+        if (is_string($inherited) && $inherited !== '') {
+            $lock = Cache::restoreLock(QueueRebuildDispatcher::BUILD_LOCK, $inherited);
+            if ($lock instanceof Lock && ! $lock->isOwnedByCurrentProcess()) {
+                $this->error(sprintf(
+                    'The build lock this segment was spawned under is no longer held (it expires after %d seconds). '
+                    .'The index has not been republished; re-run `php artisan scolta:build --resume`.',
+                    QueueRebuildDispatcher::BUILD_LOCK_TTL,
+                ));
+
+                return self::FAILURE;
+            }
+            $this->lockOwner = $inherited;
+
+            return $this->buildWithPhpIndexerLocked($source, $outputDir);
+        }
+
         // The lock the queued chain holds until FinalizeIndex: both paths
         // allocate from the shared ledger, and BuildState's flock is dropped
         // between chunk jobs.
@@ -230,6 +258,8 @@ HELP;
         }
 
         try {
+            $this->lockOwner = $lock->owner();
+
             return $this->buildWithPhpIndexerLocked($source, $outputDir);
         } finally {
             $lock->release();
@@ -465,6 +495,9 @@ HELP;
         // that runs a child and drive the real loop against it.
         /** @var ResumeChain $chain */
         $chain = $this->laravel->make(ResumeChain::class);
+        if ($this->lockOwner !== null) {
+            $chain->env = [ResumeChain::LOCK_OWNER_ENV => $this->lockOwner];
+        }
         $policy = new ResumeChainPolicy(ini_get('memory_limit') ?: null);
 
         $force = (bool) $this->option('force');

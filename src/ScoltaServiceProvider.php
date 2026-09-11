@@ -23,6 +23,7 @@ use Tag1\ScoltaLaravel\Commands\DownloadPagefindCommand;
 use Tag1\ScoltaLaravel\Commands\ExportCommand;
 use Tag1\ScoltaLaravel\Commands\MemoryBudgetCommand;
 use Tag1\ScoltaLaravel\Commands\RebuildIndexCommand;
+use Tag1\ScoltaLaravel\Commands\RequestBuildCommand;
 use Tag1\ScoltaLaravel\Commands\StatusCommand;
 use Tag1\ScoltaLaravel\Http\Middleware\HandleAmazeeBudgetExceeded;
 use Tag1\ScoltaLaravel\Jobs\TriggerRebuild;
@@ -451,6 +452,7 @@ class ScoltaServiceProvider extends ServiceProvider
             DownloadPagefindCommand::class,
             ExportCommand::class,
             RebuildIndexCommand::class,
+            RequestBuildCommand::class,
             StatusCommand::class,
         ]);
     }
