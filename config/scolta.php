@@ -203,8 +203,11 @@ return [
     | (in seconds) prevents excessive rebuilds when multiple items are
     | edited in quick succession.
     |
-    | Requires a queue worker to be running. Set to false to only rebuild
-    | manually via `artisan scolta:build`.
+    | Requires a queue worker to be running in every environment that should
+    | index. The queued job continues an interrupted build before doing anything
+    | else, so a worker killed mid-build costs nothing but time.
+    | `artisan scolta:request-build` queues the same job by hand. Set to false
+    | to only rebuild manually via `artisan scolta:build`.
     |
     */
 

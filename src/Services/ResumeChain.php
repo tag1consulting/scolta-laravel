@@ -27,6 +27,29 @@ use Illuminate\Support\Facades\Process;
 class ResumeChain
 {
     /**
+     * Environment variable carrying the parent's build-lock owner token.
+     *
+     * A segment that sees it runs under that lock instead of taking its own,
+     * which would fail against the parent's and exit deferred.
+     *
+     * @since 1.4.0
+     *
+     * @stability experimental
+     */
+    public const LOCK_OWNER_ENV = 'SCOLTA_BUILD_LOCK_OWNER';
+
+    /**
+     * Environment variables added to every child segment.
+     *
+     * @var array<string, string>
+     *
+     * @since 1.4.0
+     *
+     * @stability experimental
+     */
+    public array $env = [];
+
+    /**
      * Run one resume segment to completion in a fresh process.
      *
      * Foreground and streaming: the driver blocks here until the child exits, so
@@ -77,7 +100,7 @@ class ResumeChain
             $command[] = '--chunk-size='.$chunkSize;
         }
 
-        $result = Process::path(base_path())->forever()->run(
+        $result = Process::path(base_path())->env($this->env)->forever()->run(
             $command,
             function (string $type, string $buffer) use ($onOutput): void {
                 if ($onOutput !== null) {

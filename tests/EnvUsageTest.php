@@ -27,8 +27,9 @@ class EnvUsageTest extends TestCase
             }
             $lines = file($file->getPathname());
             foreach ($lines as $num => $line) {
-                // Match env() calls but not references in comments or docblocks
-                if (preg_match('/\benv\s*\(/', $line) && ! preg_match('/^\s*[\/*]/', $line)) {
+                // Match env() calls but not references in comments or docblocks,
+                // nor method calls such as Process::env() (->env(...)).
+                if (preg_match('/(?<![\w>:$])env\s*\(/', $line) && ! preg_match('/^\s*[\/*]/', $line)) {
                     $violations[] = basename($file->getPathname()).':'.($num + 1).' — '.trim($line);
                 }
             }
