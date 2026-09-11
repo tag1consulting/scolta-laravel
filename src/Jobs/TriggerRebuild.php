@@ -264,6 +264,9 @@ class TriggerRebuild implements ShouldQueue
      *
      * @return StatusReport|null The chain's final report, or null when no child could run here.
      */
+    // phpstan cannot see SegmentNotRun cross ResumeChainRunner::run(), which
+    // carries no @throws for what the host's callable raises.
+    // @phpstan-ignore return.unusedType
     private function chain(BuildState $buildState, StatusReport $yielded, string $lockOwner, LoggerInterface $logger): ?StatusReport
     {
         $chain = app(ResumeChain::class);
@@ -273,11 +276,11 @@ class TriggerRebuild implements ShouldQueue
             $chain->env = $env + [ResumeChain::LOCK_OWNER_ENV => $lockOwner];
             $exitCode = $chain->runSegment(null, null, $this->force);
             if ($exitCode === null) {
-                throw new \RuntimeException('artisan not found; the next run resumes the build instead.');
+                throw new SegmentNotRun(sprintf('No artisan binary at %s to spawn a resume segment; the next run resumes the build instead.', base_path('artisan')));
             }
             if ($exitCode === BuildCommand::DEFERRED) {
                 $this->deferred = true;
-                throw new \RuntimeException('finalize deferred to the queue');
+                throw new SegmentNotRun('A resume segment handed finalize to the queue.');
             }
 
             return $exitCode;
@@ -285,7 +288,7 @@ class TriggerRebuild implements ShouldQueue
 
         try {
             return $runner->run($yielded);
-        } catch (\Exception $e) {
+        } catch (SegmentNotRun $e) { // @phpstan-ignore catch.neverThrown
             $logger->warning('[scolta] '.$e->getMessage());
 
             return null;
