@@ -142,7 +142,14 @@ class StatusCommand extends Command
      */
     private function gatherBuild(): array
     {
-        $build = ['queued_items' => Queue::size(TriggerRebuild::QUEUE_NAME)];
+        $build = [
+            'queued_items' => Queue::size(TriggerRebuild::QUEUE_NAME),
+            // What the build is doing: idle, gathering, merging, publishing,
+            // or interrupted when the manifest says 'building' but no live
+            // process holds the lock (a segment that died, waiting for a
+            // resume).
+            'activity' => 'idle',
+        ];
 
         // is_dir() first: BuildState's constructor creates the directory, and
         // reading status must not bring a build directory into existence.
@@ -156,16 +163,20 @@ class StatusCommand extends Command
             return $build;
         }
 
+        $phase = $buildState->phase() ?? BuildState::PHASE_GATHERING;
+        $build['activity'] = $buildState->isRunning() ? $phase : 'interrupted';
         $build += [
-            // False here means the manifest says 'building' but no live
-            // process holds the lock: a segment died, and the build is
-            // waiting for a resume.
-            'running' => $buildState->isRunning(),
             'started' => $buildState->getStartTime(),
             'segment' => $buildState->segment(),
             'pages_processed' => $buildState->getPagesProcessed(),
-            'progress' => round($buildState->getProgress() * 100, 1).'%',
         ];
+        // Chunks committed over the chunk count the pre-gather record total
+        // implies. Records that produce no page make that total an
+        // over-estimate, so it describes only the gather and is left out once
+        // the build has moved on to merging.
+        if ($phase === BuildState::PHASE_GATHERING) {
+            $build['progress'] = round($buildState->getProgress() * 100, 1).'%';
+        }
 
         $lock = $buildState->lockDiagnostics();
         if ($lock !== null) {
@@ -333,7 +344,7 @@ class StatusCommand extends Command
     {
         $this->line("  Queued items:      {$build['queued_items']}");
 
-        if (! isset($build['running'])) {
+        if ($build['activity'] === 'idle') {
             $this->line('  In flight:         no');
             if ($build['queued_items'] > 0) {
                 // Jobs queued with no build in flight is the signature of the
@@ -348,11 +359,12 @@ class StatusCommand extends Command
         }
 
         $this->line('  Segment:           '.$build['segment']);
-        $this->line("  Pages processed:   {$build['pages_processed']} ({$build['progress']})");
+        $this->line('  Pages processed:   '.$build['pages_processed']
+            .(isset($build['progress']) ? " ({$build['progress']})" : ''));
         $this->line('  Started:           '.($build['started'] ?? 'unknown'));
 
-        if ($build['running']) {
-            $this->line('  In flight:         yes');
+        if ($build['activity'] !== 'interrupted') {
+            $this->line("  In flight:         yes ({$build['activity']})");
         } else {
             $this->warn('  In flight:         NO — the build is interrupted and waiting for a resume.');
             $this->line('  Run: php artisan scolta:build --resume');

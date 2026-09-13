@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase;
+use Tag1\Scolta\Index\BuildState;
 use Tag1\ScoltaLaravel\Jobs\TriggerRebuild;
 use Tag1\ScoltaLaravel\ScoltaServiceProvider;
 use Tag1\ScoltaLaravel\Tests\Support\SearchablePost;
@@ -243,7 +244,7 @@ class StatusCommandTest extends TestCase
         $this->assertSame(3, $build['segment']);
         $this->assertSame(400, $build['pages_processed']);
         $this->assertSame('40%', $build['progress']);
-        $this->assertFalse($build['running'],
+        $this->assertSame('interrupted', $build['activity'],
             'No process holds the lock, so the build is interrupted, not running.');
         $this->assertSame('2026-09-12T10:00:00+00:00', $build['started']);
         $this->assertSame('memory_abort', $build['last_segment']['error']);
@@ -258,14 +259,34 @@ class StatusCommandTest extends TestCase
         $this->assertStringContainsString('yielded on memory pressure', $human);
     }
 
+    public function test_a_live_merge_is_named_and_carries_no_progress(): void
+    {
+        // Holding the lock from this process is what a live build looks like
+        // to status: the heartbeat is fresh, so isRunning() is true.
+        File::ensureDirectoryExists($this->stateDir);
+        $state = new BuildState($this->stateDir);
+        $this->assertTrue($state->initiateBuild(['total_pages' => 1000, 'chunks_written' => 10, 'pages_processed' => 965]));
+        $state->enterPhase(BuildState::PHASE_MERGING);
+
+        $build = json_decode($this->runStatus(json: true), true)['build'];
+
+        $this->assertSame('merging', $build['activity']);
+        $this->assertArrayNotHasKey('progress', $build,
+            'The gather ratio over-estimates the chunk count, so it says nothing about the merge.');
+        $this->assertStringContainsString('In flight:         yes (merging)', $this->runStatus());
+
+        $state->releaseLock();
+    }
+
     public function test_status_does_not_create_the_state_directory(): void
     {
         // BuildState's constructor mkdirs; reading status must not.
         $build = json_decode($this->runStatus(json: true), true)['build'];
 
         $this->assertDirectoryDoesNotExist($this->stateDir);
-        $this->assertArrayNotHasKey('running', $build,
+        $this->assertSame('idle', $build['activity'],
             'With no manifest on disk there is no in-flight build to describe.');
+        $this->assertArrayNotHasKey('progress', $build);
         $this->assertStringContainsString('In flight:         no', $this->runStatus());
     }
 
