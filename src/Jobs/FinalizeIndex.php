@@ -64,7 +64,9 @@ class FinalizeIndex implements ShouldQueue
         public readonly string $memoryBudget = 'conservative',
         public readonly ?string $lockOwner = null,
         public readonly ?string $trackerWatermark = null,
-    ) {}
+    ) {
+        $this->onQueue(TriggerRebuild::QUEUE_NAME);
+    }
 
     public function handle(): void
     {

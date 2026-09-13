@@ -85,7 +85,9 @@ class ProcessIndexChunk implements ShouldQueue
         public readonly string $memoryBudget = 'conservative',
         public readonly ?int $chunkSize = null,
         public readonly ?string $lockOwner = null,
-    ) {}
+    ) {
+        $this->onQueue(TriggerRebuild::QUEUE_NAME);
+    }
 
     public function handle(): void
     {

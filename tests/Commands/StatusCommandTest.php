@@ -7,8 +7,10 @@ namespace Tag1\ScoltaLaravel\Tests\Commands;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase;
+use Tag1\ScoltaLaravel\Jobs\TriggerRebuild;
 use Tag1\ScoltaLaravel\ScoltaServiceProvider;
 use Tag1\ScoltaLaravel\Tests\Support\SearchablePost;
 
@@ -143,7 +145,7 @@ class StatusCommandTest extends TestCase
 
         $this->assertIsArray($status, "scolta:status --json must emit parseable JSON. Got:\n{$output}");
         $this->assertSame(JSON_ERROR_NONE, json_last_error());
-        foreach (['tracker', 'content', 'pagefind_index', 'ai_provider', 'assets'] as $section) {
+        foreach (['tracker', 'build', 'content', 'pagefind_index', 'ai_provider', 'assets'] as $section) {
             $this->assertArrayHasKey($section, $status, "The JSON report must carry the {$section} section.");
         }
         $this->assertStringStartsWith('{', trim($output),
@@ -196,6 +198,7 @@ class StatusCommandTest extends TestCase
 
         foreach ([
             '--- Tracker ---',
+            '--- Build ---',
             '--- Content ---',
             '--- Pagefind Index ---',
             '--- AI Provider ---',
@@ -209,7 +212,8 @@ class StatusCommandTest extends TestCase
     }
 
     // -------------------------------------------------------------------
-    // The build section: what an operator watching a long build can read.
+    // The build section: the rebuild queue, and what an operator watching a
+    // long build can read.
     // -------------------------------------------------------------------
 
     public function test_an_interrupted_build_is_reported(): void
@@ -260,10 +264,51 @@ class StatusCommandTest extends TestCase
         $build = json_decode($this->runStatus(json: true), true)['build'];
 
         $this->assertDirectoryDoesNotExist($this->stateDir);
-        $this->assertFalse($build['rebuild_requested']);
         $this->assertArrayNotHasKey('running', $build,
             'With no manifest on disk there is no in-flight build to describe.');
         $this->assertStringContainsString('In flight:         no', $this->runStatus());
+    }
+
+    public function test_queued_items_counts_the_scolta_queue(): void
+    {
+        config(['queue.default' => 'database']);
+        Schema::create('jobs', function (Blueprint $table) {
+            $table->id();
+            $table->string('queue')->index();
+            $table->longText('payload');
+            $table->unsignedTinyInteger('attempts');
+            $table->unsignedInteger('reserved_at')->nullable();
+            $table->unsignedInteger('available_at');
+            $table->unsignedInteger('created_at');
+        });
+
+        try {
+            TriggerRebuild::dispatch();
+            TriggerRebuild::dispatch();
+
+            $status = json_decode($this->runStatus(json: true), true);
+
+            $this->assertSame(2, $status['build']['queued_items'],
+                'Both jobs must land on the scolta queue, where status counts them.');
+            $this->assertSame(0, Queue::size('default'),
+                'Nothing may reach the application default queue.');
+            $this->assertStringContainsString('Queued items:      2', $this->runStatus());
+            // Queued jobs with nothing building is what a worker still
+            // listening only to `default` looks like after the 2.0.0 upgrade.
+            $this->assertStringContainsString('Is a worker listening', $this->runStatus());
+            $this->assertStringContainsString('--queue=scolta', $this->runStatus());
+        } finally {
+            Schema::dropIfExists('jobs');
+        }
+    }
+
+    public function test_the_sync_driver_reports_an_empty_queue_rather_than_failing(): void
+    {
+        config(['queue.default' => 'sync']);
+
+        $status = json_decode($this->runStatus(json: true), true);
+
+        $this->assertSame(0, $status['build']['queued_items']);
     }
 
     public function test_json_option_is_declared_on_the_command(): void

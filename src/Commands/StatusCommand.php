@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Tag1\Scolta\AiProvider\Amazee\KeyExpiryRecovery;
 use Tag1\Scolta\Index\BuildState;
@@ -76,8 +76,8 @@ class StatusCommand extends Command
 
         return [
             'tracker' => $this->gatherTracker(),
-            'content' => $this->gatherContent($source),
             'build' => $this->gatherBuild(),
+            'content' => $this->gatherContent($source),
             'pagefind_index' => $this->gatherIndex($outputDir),
             'ai_provider' => $this->gatherAiProvider($ai),
             'assets' => $this->gatherAssets(),
@@ -126,18 +126,13 @@ class StatusCommand extends Command
     }
 
     /**
-     * Anything in flight: a standing rebuild request, and the manifest a
+     * Anything in flight: the depth of the rebuild queue, and the manifest a
      * running or half-finished build left in the state directory.
      *
-     * A few small file reads plus one cache read, so status can afford it.
+     * One queue count plus a few small file reads, so status can afford it.
      * Deliberately not here: per-model resume cursors, which would mean
      * walking the whole page-table ledger for something `pages_processed`
      * already summarizes.
-     *
-     * Where scolta-drupal counts its dedicated rebuild queue, this package
-     * dispatches TriggerRebuild onto the application's own queue, whose depth
-     * says nothing about Scolta. The debounce marker is the honest analogue:
-     * it is set while a rebuild request is queued and not yet running.
      *
      * @return array<string, mixed>
      *
@@ -147,7 +142,7 @@ class StatusCommand extends Command
      */
     private function gatherBuild(): array
     {
-        $build = ['rebuild_requested' => Cache::has(TriggerRebuild::DEBOUNCE_KEY)];
+        $build = ['queued_items' => Queue::size(TriggerRebuild::QUEUE_NAME)];
 
         // is_dir() first: BuildState's constructor creates the directory, and
         // reading status must not bring a build directory into existence.
@@ -301,6 +296,9 @@ class StatusCommand extends Command
             $this->line("  Pending delete: {$status['tracker']['pending_delete']}");
         }
 
+        $this->info('--- Build ---');
+        $this->renderBuild($status['build']);
+
         $this->info('--- Content ---');
         if ($status['content']['models'] === []) {
             $this->warn('  No models configured. Add model classes to config/scolta.php');
@@ -311,9 +309,6 @@ class StatusCommand extends Command
                 $this->warn("  Warning: {$modelClass} does not use the Searchable trait.");
             }
         }
-
-        $this->info('--- Build ---');
-        $this->renderBuild($status['build']);
 
         $this->info('--- Pagefind Index ---');
         if ($status['pagefind_index']['built']) {
@@ -336,10 +331,18 @@ class StatusCommand extends Command
      */
     private function renderBuild(array $build): void
     {
-        $this->line('  Rebuild requested: '.($build['rebuild_requested'] ? 'yes' : 'no'));
+        $this->line("  Queued items:      {$build['queued_items']}");
 
         if (! isset($build['running'])) {
             $this->line('  In flight:         no');
+            if ($build['queued_items'] > 0) {
+                // Jobs queued with no build in flight is the signature of the
+                // 2.0.0 upgrade nobody read: a worker still listening only to
+                // `default` never picks these up, and nothing else says so.
+                $this->warn('  Jobs are queued and nothing is building. Is a worker listening to the `'
+                    .TriggerRebuild::QUEUE_NAME.'` queue?');
+                $this->line('  Run: php artisan queue:work --queue='.TriggerRebuild::QUEUE_NAME);
+            }
 
             return;
         }
