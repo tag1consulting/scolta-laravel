@@ -124,7 +124,7 @@ Add `--json` to get the same report as one JSON document on stdout, with the dec
 php artisan scolta:status --json | jq '.pagefind_index'
 ```
 
-The `build` section describes whatever is in flight: how many jobs are waiting on the `scolta` queue, and — when an unfinished build left a manifest in the state directory — its segment, pages processed, progress, lock holder, and why its last segment stopped. Jobs queued with nothing building means no worker is listening to the `scolta` queue, and the report says so. A `running: false` there means the manifest says `building` but no live process holds the lock: a segment died, and the build is waiting for `php artisan scolta:build --resume` or the next queued `TriggerRebuild`.
+The `build` section describes whatever is in flight: how many jobs are waiting on the `scolta` queue, and — when an unfinished build left a manifest in the state directory — its `activity` (`gathering`, `merging`, or `publishing`), segment, pages processed, lock holder, and why its last segment stopped. `progress` appears only while gathering, since the ratio describes the gather and says nothing about the merge. Jobs queued with nothing building means no worker is listening to the `scolta` queue, and the report says so. `activity: interrupted` means the manifest says `building` but no live process holds the lock: a segment died, and the build is waiting for `php artisan scolta:build --resume` or the next queued `TriggerRebuild`.
 
 Sections and fields match `drush scolta:status` wherever both adapters report the same thing, so one script can read either. Drush emits YAML; JSON is valid YAML, so a YAML parser handles both.
 
@@ -747,7 +747,7 @@ and `/api/scolta/v1/health` reporting a truthful `pending_index`.
 | POST | `/api/scolta/v1/summarize` | api, throttle:scolta | Summarize search results |
 | POST | `/api/scolta/v1/followup` | api, throttle:scolta | Continue a conversation |
 | GET | `/api/scolta/v1/health` | api | Health check (status only when anonymous) |
-| GET | `/api/scolta/v1/build-progress` | api, auth:sanctum | Build progress status |
+| GET | `/api/scolta/v1/build-progress` | api, auth:sanctum | Build status: `idle`, or `building` with its `phase` (`progress` only while gathering) |
 | POST | `/api/scolta/v1/rebuild-now` | api, auth:sanctum | Dispatch a rebuild job |
 
 Route prefix and middleware are configurable via `route_prefix` and `middleware` in `config/scolta.php`.

@@ -13,7 +13,10 @@ use Tag1\Scolta\Index\BuildState;
  *
  * Returns the current index build status for monitoring tools and
  * admin dashboards. Responds with a JSON object whose 'status' field
- * is either 'idle' or 'building'.
+ * is either 'idle' or 'building'. A building response names the 'phase'
+ * (gathering, merging, publishing) and carries 'progress' only while
+ * gathering: the ratio describes chunks committed against the pre-gather
+ * record total, which says nothing about the merge.
  *
  * This endpoint requires auth:sanctum — it is admin-only.
  *
@@ -40,11 +43,17 @@ class ProgressController extends Controller
             ]);
         }
 
-        return response()->json([
+        $phase = $state->phase() ?? BuildState::PHASE_GATHERING;
+        $response = [
             'status' => 'building',
-            'progress' => $state->getProgress(),
+            'phase' => $phase,
             'started_at' => $state->getStartTime(),
             'pages_processed' => $state->getPagesProcessed(),
-        ]);
+        ];
+        if ($phase === BuildState::PHASE_GATHERING) {
+            $response['progress'] = $state->getProgress();
+        }
+
+        return response()->json($response);
     }
 }
