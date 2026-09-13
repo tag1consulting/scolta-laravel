@@ -792,20 +792,22 @@ adapter does not add one.
 
 When **auto_rebuild** is enabled (`SCOLTA_AUTO_REBUILD=true` in `.env`), a `ScoltaObserver` watches the models listed in `config/scolta.php` and dispatches a debounced `TriggerRebuild` job whenever a model is saved or deleted (default delay: 5 minutes). `php artisan scolta:request-build` dispatches the same job by hand. Everything below is about running a worker to drain it; run one in every environment that should index.
 
+Every Scolta job runs on its own queue, named `scolta`. **A worker that does not listen to `scolta` will never index** — there is no error to read, the jobs simply sit there. Pass `--queue=scolta` to every command below.
+
 #### A persistent worker (recommended)
 
 ```bash
-php artisan queue:work --tries=3
+php artisan queue:work --queue=scolta --tries=3
 ```
 
-For production, use [Supervisor](https://laravel.com/docs/queues#supervisor-configuration) or [Laravel Forge](https://forge.laravel.com) to keep the worker running. Forge configures this automatically. Give the connection's `retry_after` more than the build lock's 3600 seconds, or a worker killed mid-build has its job handed to a second worker while the first one's lock is still held.
+For production, use [Supervisor](https://laravel.com/docs/queues#supervisor-configuration) or [Laravel Forge](https://forge.laravel.com) to keep the worker running. Forge configures this automatically.
 
 #### A worker from cron, for hosts without a daemon
 
 Start a worker every minute and let it exit once the queue is empty:
 
 ```
-* * * * * cd /var/www/html && php artisan queue:work --stop-when-empty 2>&1 | logger -t scolta
+* * * * * cd /var/www/html && php artisan queue:work --queue=scolta --stop-when-empty 2>&1 | logger -t scolta
 ```
 
 Or, if the Laravel scheduler already has its cron entry, schedule the same command from `routes/console.php`:
@@ -817,12 +819,16 @@ Or, if the Laravel scheduler already has its cron entry, schedule the same comma
 ```php
 use Illuminate\Support\Facades\Schedule;
 
-Schedule::command('queue:work --stop-when-empty')->everyMinute()->withoutOverlapping();
+Schedule::command('queue:work --queue=scolta --stop-when-empty')->everyMinute()->withoutOverlapping();
 ```
 
 A minute with nothing queued costs a process that exits at once. A build too large for one process yields, and the request stays queued, so the next minute continues it.
 
 > **Do not schedule the job itself.** `Schedule::job(new TriggerRebuild)->everyMinute()->withoutOverlapping()` enqueues a job every minute whether or not anything changed, and a queue nobody is draining piles them up. The job belongs in the queue only while a build is requested or in progress; the worker is what runs every minute.
+
+#### `retry_after` and the connection Scolta's worker uses
+
+A build segment may hold its worker for the build lock's 3600 seconds, so the connection that worker reads must have a `retry_after` greater than that — otherwise a worker killed mid-build has its job handed to a second worker while the first one's lock is still held. `retry_after` is a property of the *connection*, not of the queue, so raising it on `redis`/`database` raises it for every other job in the application too: an hour before a killed worker's mail job is retried. If that is not acceptable, give Scolta its own connection in `config/queue.php` (a second entry pointing at the same backend, with the long `retry_after`) and start its worker with `--connection=scolta-connection --queue=scolta`. Your application's default connection then keeps whatever `retry_after` it had.
 
 `scolta:build` is a full build: schedule it rarely, if at all, as the backstop for changes that bypass Eloquent events (query-builder mass updates) and to prune the token cache, which the queued path only ever adds to. It takes the same build lock as the queued job, so the two never run beside each other.
 
