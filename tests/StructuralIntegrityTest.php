@@ -52,7 +52,6 @@ class StructuralIntegrityTest extends TestCase
             'HealthController' => ['src/Http/Controllers/HealthController.php'],
             'BuildCommand' => ['src/Commands/BuildCommand.php'],
             'StatusCommand' => ['src/Commands/StatusCommand.php'],
-            'DownloadPagefindCommand' => ['src/Commands/DownloadPagefindCommand.php'],
         ];
     }
 
@@ -214,37 +213,11 @@ class StructuralIntegrityTest extends TestCase
         return $hits;
     }
 
-    // -------------------------------------------------------------------
-    // Pagefind output subdirectory path consistency
-    //
-    // The PHP indexer (IndexBuildOrchestrator::atomicSwap) writes the index
-    // into $outputDir/pagefind/.  Binary invocations must use the same
-    // structure (--output-path $outputDir/pagefind) so every code path that
-    // reads the index looks in one place.
-    // -------------------------------------------------------------------
-
-    public function test_pagefind_runner_output_path_uses_pagefind_subdir(): void
-    {
-        // Binary invocation lives in the shared PagefindRunner since the
-        // BuildCommand/RebuildIndexCommand dedup.
-        $src = file_get_contents($this->root.'/src/Services/PagefindRunner.php');
-        $this->assertStringContainsString(
-            "'/pagefind'",
-            $src,
-            'PagefindRunner must append /pagefind to outputDir when invoking the binary.'
-        );
-        $this->assertStringNotContainsString(
-            "--output-path '.escapeshellarg(\$outputDir)",
-            $src,
-            'PagefindRunner must not pass $outputDir directly to --output-path.'
-        );
-    }
-
     /**
      * The nested-first lookup lives in one place, and both readers use it.
      *
      * StatusCommand and HealthController used to spell the nested path out
-     * themselves, which is why neither could see an index the binary/Cloud
+     * themselves, which is why neither could see an index a binary build or the Cloud
      * pipeline had written flat into $outputDir — a layout the Blade
      * component and scolta-php's HealthChecker both already handle. The
      * order (pagefind/ first, then the flat directory) is asserted on the

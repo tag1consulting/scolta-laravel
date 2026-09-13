@@ -15,8 +15,7 @@ use Tag1\ScoltaLaravel\Searchable;
  * The trait's default toSearchableContent() spells the item id
  * "{table}-{key}", which contains the primary key and so hides the
  * id-space defect this model exists to expose: a bare tracker `content_id`
- * fed to ContentExporter::deleteById() can never match "article:{slug}",
- * in the export manifest or in the flat fallback path.
+ * handed to the incremental updater can never match "article:{slug}".
  *
  * Overriding the id like this is documented and supported — the trait's own
  * usage example does it — so nothing here is exotic.

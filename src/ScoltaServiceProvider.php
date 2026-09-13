@@ -19,10 +19,7 @@ use Tag1\ScoltaLaravel\Commands\CheckSetupCommand;
 use Tag1\ScoltaLaravel\Commands\CleanupCommand;
 use Tag1\ScoltaLaravel\Commands\ClearCacheCommand;
 use Tag1\ScoltaLaravel\Commands\DiscoverCommand;
-use Tag1\ScoltaLaravel\Commands\DownloadPagefindCommand;
-use Tag1\ScoltaLaravel\Commands\ExportCommand;
 use Tag1\ScoltaLaravel\Commands\MemoryBudgetCommand;
-use Tag1\ScoltaLaravel\Commands\RebuildIndexCommand;
 use Tag1\ScoltaLaravel\Commands\RequestBuildCommand;
 use Tag1\ScoltaLaravel\Commands\StatusCommand;
 use Tag1\ScoltaLaravel\Http\Middleware\HandleAmazeeBudgetExceeded;
@@ -449,9 +446,6 @@ class ScoltaServiceProvider extends ServiceProvider
             ClearCacheCommand::class,
             CleanupCommand::class,
             DiscoverCommand::class,
-            DownloadPagefindCommand::class,
-            ExportCommand::class,
-            RebuildIndexCommand::class,
             RequestBuildCommand::class,
             StatusCommand::class,
         ]);
@@ -471,9 +465,7 @@ class ScoltaServiceProvider extends ServiceProvider
      * gap the backstop covers is not small. `IndexBuildOrchestrator` sweeps
      * only on the success path, after the swap; a build that fails anywhere in
      * the merge leaves the staging directory it retired into trash sitting
-     * there, and every retry adds another index-sized directory. Two publishing
-     * paths here — `scolta:build --indexer=binary` and `scolta:rebuild-index` —
-     * never reach the orchestrator and so never sweep at all.
+     * there, and every retry adds another index-sized directory.
      *
      * `callAfterResolving()` is the framework's own hook for this, so nothing
      * is constructed unless the scheduler is actually resolved, and the entry

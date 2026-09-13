@@ -189,8 +189,6 @@ class KeyExpiryRecoveryWiringTest extends TestCase
         $checker = new HealthChecker(
             config: $config,
             indexOutputDir: sys_get_temp_dir(),
-            pagefindBinaryPath: null,
-            projectDir: null,
             cache: $cache,
         );
 

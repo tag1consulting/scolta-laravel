@@ -112,7 +112,7 @@ With an API key configured, search queries are automatically expanded with relat
 php artisan scolta:check-setup
 ```
 
-This verifies PHP version, index directories, indexer selection, AI provider configuration, and binary availability.
+This verifies the PHP version, AI provider configuration, and browser WASM assets.
 
 ```bash
 php artisan scolta:status
@@ -132,7 +132,7 @@ The health endpoint also reports current state: `GET /api/scolta/v1/health`
 
 Scolta is designed for content search on Laravel applications: articles, documentation, product catalogs, knowledge bases, and other Eloquent model content indexed at build time. Laravel powers SaaS products, enterprise applications, API platforms, and content-driven sites — and Scolta is tuned for the content search needs of these applications.
 
-The static-index architecture means no Elasticsearch or Solr server to provision. Scolta replaces hosted search SaaS (Algolia, Coveo, SearchStax) and Solr/Elasticsearch backends for Laravel applications where the search use case is full-text relevance, recency, and phrase matching. It runs on managed hosting where binary execution is restricted, using the PHP indexer automatically.
+The static-index architecture means no Elasticsearch or Solr server to provision. Scolta replaces hosted search SaaS (Algolia, Coveo, SearchStax) and Solr/Elasticsearch backends for Laravel applications where the search use case is full-text relevance, recency, and phrase matching. The index is built in PHP, so it runs on managed hosting where binary execution is restricted.
 
 ### Migrating from Laravel Scout
 
@@ -396,9 +396,8 @@ For the evidence behind each preset — the scoring sweeps and per-parameter dat
 
 | Setting | `.env` key | `config/scolta.php` key | Default | Description |
 | ------- | ---------- | ----------------------- | ------- | ----------- |
-| Indexer backend | `SCOLTA_INDEXER` | `indexer` | `auto` | `auto` (always PHP), `php`, or `binary` |
 | Memory budget | `SCOLTA_MEMORY_BUDGET` | `memory_budget.profile` | `conservative` | `conservative`, `balanced`, or `aggressive` |
-| Chunk size | `SCOLTA_CHUNK_SIZE` | `memory_budget.chunk_size` | profile default | Pages per chunk during PHP indexer build |
+| Chunk size | `SCOLTA_CHUNK_SIZE` | `memory_budget.chunk_size` | profile default | Pages per chunk during a build |
 | Incremental updates | `SCOLTA_INCREMENTAL_ENABLED` | `incremental.enabled` | `true` | Whether a queued rebuild updates the published index in place before falling back to a full build. Same key and default as scolta-drupal |
 | Incremental ceiling | `SCOLTA_INCREMENTAL_MAX_ITEMS` | `incremental.max_changed_items` | `100` | Tracked changes above which a queued rebuild runs a full build instead; `0` disables the ceiling. Same key and default as scolta-drupal |
 
@@ -406,8 +405,6 @@ For the evidence behind each preset — the scoring sweeps and per-parameter dat
 
 | Setting | `.env` key | `config/scolta.php` path | Default | Description |
 | ------- | ---------- | ------------------------ | ------- | ----------- |
-| Binary path | `SCOLTA_PAGEFIND_BINARY` | `pagefind.binary` | `pagefind` | Path to Pagefind CLI binary |
-| Build dir | `SCOLTA_BUILD_DIR` | `pagefind.build_dir` | `storage/scolta/build` | HTML export directory for binary pipeline |
 | Output dir | `SCOLTA_OUTPUT_DIR` | `pagefind.output_dir` | `public/scolta-pagefind` | Pagefind index output directory |
 
 ### Caching and Rate Limiting
@@ -527,8 +524,7 @@ Re-run both commands after upgrading the package: migrations are added over
 time, and 1.4.0 adds `scolta_tracker.item_id`.
 
 `item_id` holds the value your model's `toSearchableContent()` returned as
-`ContentItem::$id` — the id the exported HTML, the export manifest and the index
-are keyed by. `content_id` is the Eloquent primary key, which is a different
+`ContentItem::$id` — the id the index is keyed by. `content_id` is the Eloquent primary key, which is a different
 thing and cannot locate any of them once the record is gone. The observer
 captures `item_id` when it records a deletion, so a hard-deleted record can
 still have its page removed by an incremental update. Until the migration runs
@@ -537,24 +533,6 @@ cannot resolve says so and falls back to a full rebuild, which derives deletions
 from the index itself and does not need the mapping.
 
 ## Debugging
-
-### "Pagefind binary not found"
-
-On managed hosting where `exec()` is disabled, the package falls back to the PHP indexer automatically. The PHP indexer works on WP Engine, Kinsta, Flywheel, Pantheon, and any host where `exec()` is unavailable. It supports 14 languages via Snowball stemming. The search experience is identical to using the binary.
-
-```bash
-php artisan scolta:check-setup
-php artisan scolta:status
-```
-
-To install the binary on a host that supports it:
-
-```bash
-php artisan scolta:download-pagefind
-# or: npm install -g pagefind
-```
-
-Set `SCOLTA_INDEXER=binary` in `.env` and rebuild.
 
 ### "AI features not working"
 
@@ -656,15 +634,11 @@ Register the model in `config/scolta.php`:
 php artisan scolta:build                    # Full build: synchronous and verified (exit 0 = index built and live)
 php artisan scolta:build --queue            # Defer the build to the queue (index is NOT built until a worker drains the chain)
 php artisan scolta:build --incremental      # Deprecated no-op: this command is always a full build
-php artisan scolta:build --skip-pagefind    # Export HTML without rebuilding index
 php artisan scolta:build --memory-budget=balanced  # Use balanced memory profile
 php artisan scolta:build --resume           # Resume an interrupted PHP index build
 php artisan scolta:build --restart          # Discard interrupted state and rebuild from scratch (also discards the page-table ledger)
 php artisan scolta:build --reset-ledger     # Discard the page-table ledger under a plain build, inline or --queue (escape hatch for a duplicate page ordinal)
 php artisan scolta:request-build            # Queue one rebuild request for the worker; nothing is added when one is already waiting
-php artisan scolta:export                   # Export content to HTML only
-php artisan scolta:export --incremental     # Only export tracked changes (Pagefind CLI pipeline)
-php artisan scolta:rebuild-index            # Rebuild index from existing HTML files
 php artisan scolta:status                   # Show tracker, content, index, and AI status
 php artisan scolta:status --json            # Same report as one JSON document on stdout (pipe to jq)
 php artisan scolta:discover                 # Find Searchable models not yet in config
@@ -675,8 +649,7 @@ php artisan scolta:cleanup --retired-only    # Sweep retired indexes only; skip 
 php artisan scolta:cleanup --max-seconds=60 # Stop sweeping retired indexes after 60 seconds
 php artisan scolta:memory-budget            # Show the current memory budget profile
 php artisan scolta:memory-budget --set=balanced  # Set profile: conservative, balanced, or aggressive
-php artisan scolta:download-pagefind        # Download Pagefind binary for your platform
-php artisan scolta:check-setup              # Verify PHP, indexer, and configuration
+php artisan scolta:check-setup              # Verify PHP, AI provider, and browser assets
 php artisan scolta:amazee:provision {email}  # Enable Amazee.ai with a free trial
 php artisan scolta:amazee:provision {email} --force  # Provision even if a provider is already configured
 ```
@@ -685,7 +658,7 @@ php artisan scolta:amazee:provision {email} --force  # Provision even if a provi
 
 Publishing a new index renames the outgoing one to a `.scolta-trash-*` directory beside `pagefind/` and deletes it after the swap, rather than unlinking it file by file inside the swap. On NFS-backed storage that inline deletion ran at single-digit files per second, so a finished build looked hung for hours while the new index was already live. A rename is O(1), and the deletion afterwards is parallelized (16 concurrent `rm` workers) under a CLI process; environments without process spawning fall back to serial deletion automatically.
 
-A successful build sweeps its own trash: `scolta:build` and the queued `FinalizeIndex` job both go through the orchestrator, which sweeps right after the swap. Two things are left over for a backstop — a build that failed or was killed during the merge (each retry retires the previous attempt's staging directory into trash), and the `--indexer=binary` paths (`scolta:build --indexer=binary`, `scolta:rebuild-index`), which never reach the orchestrator.
+A successful build sweeps its own trash: `scolta:build` and the queued `FinalizeIndex` job both go through the orchestrator, which sweeps right after the swap. What is left over for a backstop is a build that failed or was killed during the merge: each retry retires the previous attempt's staging directory into trash.
 
 **Scolta schedules that backstop for you.** The service provider registers a daily `scolta:cleanup --retired-only` on your application's scheduler, so nothing needs wiring beyond the `schedule:run` cron entry Laravel already asks for. It shows up under its own name in `php artisan schedule:list`. Each run spends at most `cleanup.cron_seconds` (default 180, `SCOLTA_CLEANUP_CRON_SECONDS`) deleting trash and then stops; the next run resumes on whatever is left. Set it to `0` to register no task at all, and schedule your own if you want different timing:
 
@@ -713,8 +686,7 @@ operation where the frequent one is.
 
 Saving or deleting a model writes a `scolta_tracker` row and — with `auto_rebuild` on — queues a
 debounced `TriggerRebuild`. That job applies the tracked changes to the index that is already
-published rather than rebuilding the corpus: on the PHP indexer (`indexer=auto`, the default) it
-rewrites only the fragments and index chunks the changed pages touch, reusing the page ordinals the
+published rather than rebuilding the corpus: it rewrites only the fragments and index chunks the changed pages touch, reusing the page ordinals the
 existing index already assigned. Nothing has to be scheduled or typed for this to happen; it needs
 a queue worker, like every other part of auto-rebuild. `php artisan scolta:request-build` queues the
 same job by hand.
@@ -759,9 +731,7 @@ A fallback is correct but slow, never wrong: the index is rebuilt and published 
 > occasionally (see below) keeps it swept.
 
 `--incremental` remains accepted on `scolta:build` and does nothing but print a deprecation warning,
-so a deploy script that still passes it keeps working. `scolta:export --incremental` is **not**
-deprecated: it exports only the changed HTML for the Pagefind CLI pipeline, which no automatic path
-covers.
+so a deploy script that still passes it keeps working.
 
 A rebuild of either kind clears the tracker rows it covered — those recorded before it gathered its
 content, so an edit made while it ran survives for the next run. That is what keeps `scolta:status`
@@ -818,17 +788,6 @@ adapter does not add one.
 
 ## Optional Upgrades
 
-### Upgrade to the Pagefind binary indexer
-
-On hosts with Node.js ≥ 18 or binary execution support, the Pagefind binary is 5–10× faster than the PHP indexer:
-
-```bash
-php artisan scolta:download-pagefind
-# or: npm install -g pagefind
-```
-
-Set `SCOLTA_INDEXER=binary` in `.env` and rebuild. The PHP indexer continues to work on managed hosts (WP Engine, Kinsta, Pantheon, etc.) where binary execution is disabled.
-
 ### Keeping the Index Fresh
 
 When **auto_rebuild** is enabled (`SCOLTA_AUTO_REBUILD=true` in `.env`), a `ScoltaObserver` watches the models listed in `config/scolta.php` and dispatches a debounced `TriggerRebuild` job whenever a model is saved or deleted (default delay: 5 minutes). `php artisan scolta:request-build` dispatches the same job by hand. Everything below is about running a worker to drain it; run one in every environment that should index.
@@ -875,8 +834,6 @@ Schedule::command('scolta:build')->weeklyOn(0, '03:00');
 
 - Laravel 11, 12, or 13
 - PHP 8.1+
-
-The Pagefind binary is optional — the PHP indexer works without it.
 
 ### Laravel 11 and end-of-life versions
 
@@ -934,11 +891,11 @@ Notes:
 
 ```text
 scolta-laravel (this package)      scolta-php              scolta-core (browser WASM)
-  Artisan commands ──────────> ContentExporter ──────> cleanHtml()
-  ScoltaAiService ───────────> AiClient                buildPagefindHtml()
+  Artisan commands ──────────> IndexBuildOrchestrator    cleanHtml()
+  ScoltaAiService ───────────> AiClient
   ScoltaServiceProvider ─────> ScoltaConfig
   Searchable trait ──────────> DefaultPrompts            (runs in browser)
-  ScoltaObserver ────────────> PagefindBinary            scoreResults()
+  ScoltaObserver ────────────> PhpIndexer                scoreResults()
   LaravelCacheDriver ────────> CacheDriverInterface      mergeResults()
 ```
 
@@ -951,7 +908,6 @@ src/
   Commands/BuildCommand.php              artisan scolta:build
   Commands/StatusCommand.php             artisan scolta:status
   Commands/DiscoverCommand.php           artisan scolta:discover
-  Commands/DownloadPagefindCommand.php   artisan scolta:download-pagefind
   Http/Controllers/ExpandQueryController.php
   Http/Controllers/SummarizeController.php
   Http/Controllers/FollowUpController.php
@@ -970,23 +926,6 @@ resources/views/components/search.blade.php  <x-scolta::search /> component
 ## External Services
 
 Scolta connects to external services under specific conditions. No data is sent automatically — all connections are triggered by developer action or explicit configuration.
-
-### GitHub API (api.github.com)
-
-**When:** A developer runs `php artisan scolta:download-pagefind` to download the Pagefind binary.
-**What is sent:** A standard HTTPS GET request to `https://api.github.com/repos/CloudCannon/pagefind/releases/latest`. No personally identifiable information is transmitted beyond standard HTTP request headers (IP address, user agent).
-**Service:** GitHub, operated by GitHub, Inc. (a subsidiary of Microsoft Corporation).
-**Terms of Service:** https://docs.github.com/en/site-policy/github-terms/github-terms-of-service
-**Privacy Statement:** https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement
-
-### Pagefind Binary (GitHub Releases / Pagefind)
-
-**When:** `php artisan scolta:download-pagefind` downloads the Pagefind binary from GitHub Releases after querying the GitHub API above.
-**What is sent:** A standard HTTPS GET request to download the release archive. No personally identifiable information is transmitted beyond standard HTTP request headers.
-**Service:** Pagefind is an open-source project (MIT license) maintained by the Pagefind project.
-**Pagefind:** https://pagefind.app/
-**CloudCannon:** https://cloudcannon.com/
-**Pagefind License:** https://github.com/Pagefind/pagefind/blob/main/LICENSE
 
 ### AI Provider APIs
 

@@ -20,7 +20,7 @@ class MemoryBudgetCommand extends Command
     protected $signature = 'scolta:memory-budget
         {--set= : Set the memory budget profile (conservative, balanced, aggressive)}';
 
-    protected $description = 'Show or set the Scolta PHP indexer memory budget profile';
+    protected $description = 'Show or set the Scolta indexer memory budget profile';
 
     public function handle(): int
     {

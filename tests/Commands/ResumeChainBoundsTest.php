@@ -374,7 +374,6 @@ class ResumeChainBoundsTest extends TestCase
         $this->assertStringContainsString(PHP_BINARY, $child, 'The segment needs its own process and a clean heap');
         $this->assertStringContainsString('scolta:build', $child);
         $this->assertStringContainsString('--resume', $child);
-        $this->assertStringContainsString('--indexer=php', $child);
         $this->assertStringContainsString('--memory-budget=conservative', $child);
         $this->assertStringContainsString('--chunk-size=25', $child);
     }

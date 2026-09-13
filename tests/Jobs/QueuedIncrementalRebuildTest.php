@@ -711,7 +711,7 @@ class QueuedIncrementalRebuildTest extends TestCase
     private function writeFingerprintState(): void
     {
         $entries = [];
-        foreach ((new ContentExporter($this->outputDir))->filterItems(app(ContentSource::class)->getPublishedContent()) as $item) {
+        foreach ((new ContentExporter)->filterItems(app(ContentSource::class)->getPublishedContent()) as $item) {
             $entries[] = QueueRebuildDispatcher::fingerprintEntry($item);
         }
 

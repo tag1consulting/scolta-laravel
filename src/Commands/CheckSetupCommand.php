@@ -10,8 +10,8 @@ use Tag1\Scolta\SetupCheck;
 /**
  * Verify Scolta dependencies and configuration.
  *
- * Checks PHP, Pagefind, AI key, and browser WASM assets in
- * one pass so developers can see exactly what's missing.
+ * Checks PHP, AI key, and browser WASM assets in one pass so
+ * developers can see exactly what's missing.
  */
 class CheckSetupCommand extends Command
 {
@@ -22,8 +22,6 @@ class CheckSetupCommand extends Command
     public function handle(): int
     {
         $results = SetupCheck::run(
-            configuredBinaryPath: config('scolta.pagefind.binary'),
-            projectDir: base_path(),
             aiApiKey: config('scolta.ai_api_key'),
         );
 

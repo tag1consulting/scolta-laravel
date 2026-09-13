@@ -300,7 +300,7 @@ class TriggerRebuild implements ShouldQueue
      */
     protected function runSegment(IndexBuildOrchestrator $orchestrator, BuildIntent $intent, ContentSource $source, string $outputDir, LoggerInterface $logger): StatusReport
     {
-        $items = (new ContentExporter($outputDir))->filterItems($source->getPublishedContent());
+        $items = (new ContentExporter)->filterItems($source->getPublishedContent());
 
         return $orchestrator->build($intent, $items, $logger, null, $this->force);
     }

@@ -4,6 +4,47 @@ Breaking changes and the action each one requires, newest first. A release that
 needs nothing from you is not listed here; see `CHANGELOG.md` for the full
 record.
 
+## 2.0.0
+
+### The Pagefind binary indexer is gone
+
+**Action required: remove three `.env` keys and any deploy step that ran a
+removed command.**
+
+The PHP indexer is the only pipeline, as it already was by default (`indexer`
+was `auto`, which always selected it). The change follows scolta-php 2.0.0,
+which removed `Tag1\Scolta\Binary\PagefindBinary` and the HTML export, and
+scolta-drupal 2.0.0, which made the same cut.
+
+- **Removed commands:** `scolta:download-pagefind`, `scolta:export`,
+  `scolta:rebuild-index`. A deploy script that ran any of them runs
+  `php artisan scolta:build` instead, or nothing: the queue worker builds on
+  first request and on every content change.
+- **Removed `scolta:build` options:** `--indexer` and `--skip-pagefind`. The
+  command exits with "option does not exist" if a script still passes them.
+- **Removed config keys:** `indexer`, `pagefind.binary`, `pagefind.build_dir`
+  and their env vars `SCOLTA_INDEXER`, `SCOLTA_PAGEFIND_BINARY`,
+  `SCOLTA_BUILD_DIR`. Laravel ignores unknown env vars and config keys, so a
+  stale `.env` does not break; re-publish `config/scolta.php` if you have
+  published it, so the comments match.
+- **Removed classes:** `Tag1\ScoltaLaravel\Services\PagefindRunner`,
+  `Tag1\ScoltaLaravel\Services\ExportDeletions`,
+  `Tag1\ScoltaLaravel\Support\IndexerResolver`, and the three command
+  classes above. `StatusCommand::BINARY_INSTALL_HINT` is gone too.
+- **`scolta:status`** no longer has `build_directory` or `indexer` sections, in
+  either the human or the `--json` report. A script reading
+  `.indexer.active` should stop: the answer is always `php`.
+- **`/api/scolta/v1/health`** no longer carries `pagefind`,
+  `pagefind_available`, `indexer_upgrade_available` or
+  `indexer_upgrade_message`. `indexer_active` is still present and always
+  `php`.
+- **The HTML build directory** (`storage/scolta/build` by default) is no longer
+  written or read. Delete it by hand if you want the disk back.
+
+An index a 1.x binary build wrote flat into `pagefind.output_dir` is still
+found and served; the next `scolta:build` publishes the nested
+`{output_dir}/pagefind/` layout over it. Run one full build after upgrading.
+
 ## 1.4.0
 
 ### The rebuild a content save queues is now incremental
