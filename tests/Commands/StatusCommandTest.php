@@ -7,8 +7,10 @@ namespace Tag1\ScoltaLaravel\Tests\Commands;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase;
+use Tag1\ScoltaLaravel\Jobs\TriggerRebuild;
 use Tag1\ScoltaLaravel\ScoltaServiceProvider;
 use Tag1\ScoltaLaravel\Tests\Support\SearchablePost;
 
@@ -137,7 +139,7 @@ class StatusCommandTest extends TestCase
 
         $this->assertIsArray($status, "scolta:status --json must emit parseable JSON. Got:\n{$output}");
         $this->assertSame(JSON_ERROR_NONE, json_last_error());
-        foreach (['tracker', 'content', 'pagefind_index', 'ai_provider', 'assets'] as $section) {
+        foreach (['tracker', 'build', 'content', 'pagefind_index', 'ai_provider', 'assets'] as $section) {
             $this->assertArrayHasKey($section, $status, "The JSON report must carry the {$section} section.");
         }
         $this->assertStringStartsWith('{', trim($output),
@@ -190,6 +192,7 @@ class StatusCommandTest extends TestCase
 
         foreach ([
             '--- Tracker ---',
+            '--- Build ---',
             '--- Content ---',
             '--- Pagefind Index ---',
             '--- AI Provider ---',
@@ -200,6 +203,49 @@ class StatusCommandTest extends TestCase
         $this->assertStringContainsString('Pages:      7', $output);
         $this->assertStringNotContainsString('--- Indexer ---', $output,
             'The indexer section went with the binary pipeline in 2.0.0; there is nothing to choose.');
+    }
+
+    // -------------------------------------------------------------------
+    // The build section counts Scolta's own queue, not the default one.
+    // -------------------------------------------------------------------
+
+    public function test_queued_items_counts_the_scolta_queue(): void
+    {
+        config(['queue.default' => 'database']);
+        Schema::create('jobs', function (Blueprint $table) {
+            $table->id();
+            $table->string('queue')->index();
+            $table->longText('payload');
+            $table->unsignedTinyInteger('attempts');
+            $table->unsignedInteger('reserved_at')->nullable();
+            $table->unsignedInteger('available_at');
+            $table->unsignedInteger('created_at');
+        });
+
+        try {
+            TriggerRebuild::dispatch();
+            TriggerRebuild::dispatch();
+
+            $status = json_decode($this->runStatus(json: true), true);
+
+            $this->assertSame(2, $status['build']['queued_items'],
+                'Both jobs must land on the scolta queue, where status counts them.');
+            $this->assertSame(0, Queue::size('default'),
+                'Nothing may reach the application default queue.');
+            $this->assertStringContainsString('Queued items: 2', $this->runStatus());
+            $this->assertStringContainsString('--queue=scolta', $this->runStatus());
+        } finally {
+            Schema::dropIfExists('jobs');
+        }
+    }
+
+    public function test_the_sync_driver_reports_an_empty_queue_rather_than_failing(): void
+    {
+        config(['queue.default' => 'sync']);
+
+        $status = json_decode($this->runStatus(json: true), true);
+
+        $this->assertSame(0, $status['build']['queued_items']);
     }
 
     public function test_json_option_is_declared_on_the_command(): void

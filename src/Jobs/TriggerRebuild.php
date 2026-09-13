@@ -71,6 +71,20 @@ class TriggerRebuild implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable;
 
     /**
+     * The dedicated queue every Scolta job runs on.
+     *
+     * Hardcoded, as scolta-drupal's `ScoltaRebuildWorker::QUEUE_NAME` is. A
+     * build segment may hold a worker for `BUILD_LOCK_TTL` seconds and wants a
+     * `retry_after` longer than that; neither belongs on the queue an
+     * application's mail and notifications share.
+     *
+     * @since 2.0.0
+     *
+     * @stability experimental
+     */
+    public const QUEUE_NAME = 'scolta';
+
+    /**
      * Cache key ScoltaObserver and scolta:request-build debounce requests under.
      *
      * Present while a request is queued and not yet running; the job forgets
@@ -156,6 +170,10 @@ class TriggerRebuild implements ShouldQueue
     {
         $this->force = $force;
         $this->resumeOnly = $resumeOnly;
+        // In the constructor, not as a `$queue` property: Queueable's own
+        // property is untyped on Laravel 11/12 and typed on 13, and a
+        // redeclaration cannot match both.
+        $this->onQueue(self::QUEUE_NAME);
     }
 
     /**

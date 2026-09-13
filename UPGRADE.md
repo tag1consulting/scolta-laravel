@@ -6,6 +6,49 @@ record.
 
 ## 2.0.0
 
+### Scolta's queue jobs moved to a dedicated `scolta` queue
+
+**Action required: add `--queue=scolta` to your queue worker, or indexing stops
+silently.**
+
+`TriggerRebuild`, `ProcessIndexChunk` and `FinalizeIndex` are now dispatched to
+a queue named `scolta` instead of the application's default queue. The name is
+hardcoded (`TriggerRebuild::QUEUE_NAME`), as it is in scolta-drupal.
+
+An existing `php artisan queue:work` with no `--queue` listens to `default`
+only. After upgrading it will never pick up a Scolta job: the index stops
+updating, `scolta:build` from the CLI still works, and **there is no error
+anywhere** — the jobs simply accumulate. `php artisan scolta:status` now
+reports `build.queued_items` so you can see them sitting there.
+
+Change every worker that should index:
+
+```diff
+-php artisan queue:work --tries=3
++php artisan queue:work --queue=scolta --tries=3
+```
+
+```diff
+-* * * * * cd /var/www/html && php artisan queue:work --stop-when-empty
++* * * * * cd /var/www/html && php artisan queue:work --queue=scolta --stop-when-empty
+```
+
+```diff
+-Schedule::command('queue:work --stop-when-empty')->everyMinute()->withoutOverlapping();
++Schedule::command('queue:work --queue=scolta --stop-when-empty')->everyMinute()->withoutOverlapping();
+```
+
+A worker may serve both: `--queue=scolta,default`. To keep Scolta's jobs off
+the worker your ordinary jobs use — the point of the change, since a build
+segment can hold a worker for an hour — run a second worker for `scolta`
+alone, and update your Supervisor or Forge configuration for it.
+
+This also lets the `retry_after` Scolta needs (greater than the build lock's
+3600 seconds) be scoped to Scolta's own worker: give it its own connection in
+`config/queue.php` and your default connection's `retry_after` can go back to
+whatever suits the rest of the application. See "Keeping the Index Fresh" in
+`README.md`.
+
 ### The Pagefind binary indexer is gone
 
 **Action required: remove three `.env` keys and any deploy step that ran a

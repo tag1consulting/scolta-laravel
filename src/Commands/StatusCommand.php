@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Tag1\Scolta\AiProvider\Amazee\KeyExpiryRecovery;
 use Tag1\ScoltaLaravel\AiProvider\Amazee\LaravelConfigStorage;
 use Tag1\ScoltaLaravel\Cache\LaravelCacheDriver;
+use Tag1\ScoltaLaravel\Jobs\TriggerRebuild;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 use Tag1\ScoltaLaravel\Searchable;
 use Tag1\ScoltaLaravel\Services\AssetStatus;
@@ -73,6 +75,7 @@ class StatusCommand extends Command
 
         return [
             'tracker' => $this->gatherTracker(),
+            'build' => ['queued_items' => Queue::size(TriggerRebuild::QUEUE_NAME)],
             'content' => $this->gatherContent($source),
             'pagefind_index' => $this->gatherIndex($outputDir),
             'ai_provider' => $this->gatherAiProvider($ai),
@@ -214,6 +217,12 @@ class StatusCommand extends Command
         } else {
             $this->line("  Pending index:  {$status['tracker']['pending_index']}");
             $this->line("  Pending delete: {$status['tracker']['pending_delete']}");
+        }
+
+        $this->info('--- Build ---');
+        $this->line("  Queued items: {$status['build']['queued_items']}");
+        if ($status['build']['queued_items'] > 0) {
+            $this->line('  A worker must listen to the `'.TriggerRebuild::QUEUE_NAME.'` queue: php artisan queue:work --queue='.TriggerRebuild::QUEUE_NAME);
         }
 
         $this->info('--- Content ---');
