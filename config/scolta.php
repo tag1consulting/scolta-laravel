@@ -142,35 +142,19 @@ return [
     |--------------------------------------------------------------------------
     |
     | Pagefind is the client-side search engine that powers the actual
-    | search. Content is exported as HTML, Pagefind builds a WASM-powered
-    | index, and the browser does the searching. No server involved.
+    | search. scolta-php's PHP indexer builds a Pagefind-compatible index
+    | from your Eloquent models, and the browser does the searching. No
+    | server, binary or Node.js involved. The `indexer` and
+    | `pagefind.binary` keys from 1.x are gone; see UPGRADE.md.
     |
     */
-
-    /*
-    |--------------------------------------------------------------------------
-    | Indexer
-    |--------------------------------------------------------------------------
-    |
-    | Controls which indexing backend is used when running `scolta:build`.
-    |
-    | - 'auto'   (default) Use the pure-PHP indexer. Works on all hosting
-    |             environments, no binary or Node.js required.
-    | - 'php'    Explicitly select the pure-PHP indexer.
-    | - 'binary' Always use the Pagefind CLI binary (fails if not found).
-    |
-    | Can be overridden per-invocation with `--indexer=php|binary|auto`.
-    |
-    */
-
-    'indexer' => env('SCOLTA_INDEXER', 'auto'),
 
     /*
     |--------------------------------------------------------------------------
     | Memory Budget
     |--------------------------------------------------------------------------
     |
-    | Controls peak RAM used by the PHP indexer pipeline.
+    | Controls peak RAM used by the indexer.
     |
     | - 'conservative' (default): peak ≤ 96 MB — safe for shared hosting.
     | - 'balanced':  ~384 MB — recommended for dedicated VMs.
@@ -259,7 +243,7 @@ return [
     | State Directory
     |--------------------------------------------------------------------------
     |
-    | Directory where the PHP indexer stores build state (lock files, chunk
+    | Directory where the indexer stores build state (lock files, chunk
     | manifests, partial index data). Must be writable by the web server.
     |
     */
@@ -267,8 +251,8 @@ return [
     'state_dir' => storage_path('app/scolta'),
 
     'pagefind' => [
-        'binary' => env('SCOLTA_PAGEFIND_BINARY', 'pagefind'),
-        'build_dir' => env('SCOLTA_BUILD_DIR', storage_path('scolta/build')),
+        // Where the built index is published, under a `pagefind/` subdirectory.
+        // Must be web-accessible: the browser loads the index from here.
         'output_dir' => env('SCOLTA_OUTPUT_DIR', public_path('scolta-pagefind')),
     ],
 

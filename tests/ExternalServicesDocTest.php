@@ -36,77 +36,6 @@ class ExternalServicesDocTest extends TestCase
     }
 
     // -------------------------------------------------------------------------
-    // GitHub API subsection
-    // -------------------------------------------------------------------------
-
-    public function test_github_api_subsection_exists(): void
-    {
-        $this->assertStringContainsString(
-            '### GitHub API',
-            $this->readme,
-            'README.md must document the GitHub API service used for Pagefind downloads'
-        );
-    }
-
-    public function test_github_api_endpoint_documented(): void
-    {
-        $this->assertStringContainsString(
-            'api.github.com',
-            $this->readme,
-            'README.md must include the api.github.com endpoint URL'
-        );
-    }
-
-    public function test_github_tos_url_present(): void
-    {
-        $this->assertStringContainsString(
-            'https://docs.github.com/en/site-policy/github-terms/github-terms-of-service',
-            $this->readme,
-            'README.md must include the GitHub Terms of Service URL'
-        );
-    }
-
-    public function test_github_privacy_url_present(): void
-    {
-        $this->assertStringContainsString(
-            'https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement',
-            $this->readme,
-            'README.md must include the GitHub Privacy Statement URL'
-        );
-    }
-
-    // -------------------------------------------------------------------------
-    // Pagefind binary subsection
-    // -------------------------------------------------------------------------
-
-    public function test_pagefind_subsection_exists(): void
-    {
-        $this->assertStringContainsString(
-            '### Pagefind',
-            $this->readme,
-            'README.md must document the Pagefind binary download service'
-        );
-    }
-
-    public function test_pagefind_url_present(): void
-    {
-        $this->assertStringContainsString(
-            'https://pagefind.app/',
-            $this->readme,
-            'README.md must include the Pagefind homepage URL'
-        );
-    }
-
-    public function test_pagefind_license_url_present(): void
-    {
-        $this->assertStringContainsString(
-            'https://github.com/Pagefind/pagefind/blob/main/LICENSE',
-            $this->readme,
-            'README.md must include the Pagefind license URL (Pagefind org, not CloudCannon)'
-        );
-    }
-
-    // -------------------------------------------------------------------------
     // AI provider subsection
     // -------------------------------------------------------------------------
 
@@ -174,11 +103,8 @@ class ExternalServicesDocTest extends TestCase
         }
 
         $urls = [
-            'https://docs.github.com/en/site-policy/github-terms/github-terms-of-service',
-            'https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement',
             'https://pagefind.app/',
             'https://cloudcannon.com/',
-            'https://github.com/Pagefind/pagefind/blob/main/LICENSE',
             'https://www.anthropic.com/legal/consumer-terms',
             'https://www.anthropic.com/legal/privacy',
             'https://openai.com/policies/terms-of-use',

@@ -9,9 +9,7 @@ use Illuminate\Console\Command;
 use Illuminate\Log\Logger;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
-use Tag1\Scolta\Binary\PagefindBinary;
 use Tag1\Scolta\Config\MemoryBudgetConfig;
-use Tag1\Scolta\Config\ScoltaConfig;
 use Tag1\Scolta\Export\ContentExporter;
 use Tag1\Scolta\Index\BuildIntentFactory;
 use Tag1\Scolta\Index\BuildState;
@@ -19,30 +17,21 @@ use Tag1\Scolta\Index\IndexBuildOrchestrator;
 use Tag1\Scolta\Index\MemoryBudget;
 use Tag1\Scolta\Index\ResumeChainPolicy;
 use Tag1\ScoltaLaravel\Jobs\FinalizeIndex;
-use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 use Tag1\ScoltaLaravel\Progress\ArtisanProgressReporter;
 use Tag1\ScoltaLaravel\Services\AssetStatus;
 use Tag1\ScoltaLaravel\Services\ContentSource;
-use Tag1\ScoltaLaravel\Services\PagefindRunner;
 use Tag1\ScoltaLaravel\Services\QueueRebuildDispatcher;
 use Tag1\ScoltaLaravel\Services\ResumeChain;
-use Tag1\ScoltaLaravel\Services\ScoltaAiService;
 use Tag1\ScoltaLaravel\Support\HmacSecret;
-use Tag1\ScoltaLaravel\Support\IndexerResolver;
 
 /**
  * Build or rebuild the Scolta search index.
  *
  * This is the Artisan equivalent of `wp scolta build` (WordPress) and
- * `drush scolta:index` (Drupal). Same three-step pipeline:
- *   1. Mark content for indexing
- *   2. Export as HTML with Pagefind attributes
- *   3. Run Pagefind CLI to build the static index
- *
- * When the indexer is set to 'php' (or 'auto' without a binary), the
- * command bypasses the HTML export / Pagefind CLI pipeline and instead
- * gathers content directly from Eloquent models, feeds it through the
- * pure-PHP PhpIndexer, and writes a Pagefind-compatible index.
+ * `drush scolta:build` (Drupal). It gathers content directly from Eloquent
+ * models, feeds it through scolta-php's PHP indexer, and writes a
+ * Pagefind-compatible index. There is no other pipeline: the Pagefind binary
+ * indexer and its HTML export were removed in 2.0.0.
  *
  * This command is always a **full** build, matching `drush scolta:build`.
  * Incremental updates are not something an operator asks for here: a content
@@ -56,9 +45,6 @@ use Tag1\ScoltaLaravel\Support\IndexerResolver;
  * handles parsing, validation, and help text generation. Compare this
  * to WordPress's WP-CLI where you manually extract flags from $assoc_args.
  *
- * The Process facade (built on Symfony Process) provides a clean API
- * for running the Pagefind binary. Much cleaner than shell_exec().
- *
  * @since 0.2.0
  *
  * @stability experimental
@@ -67,8 +53,6 @@ class BuildCommand extends Command
 {
     protected $signature = 'scolta:build
         {--incremental : Deprecated no-op: content edits now update the index incrementally on their own, and this command is always a full build. Accepted for backward compatibility}
-        {--skip-pagefind : Export HTML files but don\'t run the Pagefind CLI}
-        {--indexer=  : Indexer backend: php, binary, or auto (overrides config)}
         {--force : Skip fingerprint check and force a full rebuild}
         {--queue : Dispatch the build to the queue instead of building inline (the index is not built until a worker drains the chain)}
         {--sync : Deprecated no-op: synchronous building is now the default. Accepted for backward compatibility}
@@ -124,19 +108,9 @@ HELP;
 
     public function handle(ContentSource $source): int
     {
-        $config = ScoltaConfig::fromArray(ScoltaAiService::flattenConfig(config('scolta', [])));
         $outputDir = config('scolta.pagefind.output_dir', public_path('scolta-pagefind'));
 
-        // Determine which indexer to use: CLI option overrides config.
-        $indexer = $this->resolveIndexer($config);
-
-        if (! in_array($indexer, ['php', 'binary'], true)) {
-            $this->error(sprintf('Invalid indexer "%s". Must be one of: auto, php, binary.', $indexer));
-
-            return self::FAILURE;
-        }
-
-        // Announced before anything else runs, and on both indexers: the option
+        // Announced before anything else runs: the option
         // used to change what this command did, so a script still passing it is
         // getting a different build than it asked for and has to be told once,
         // out loud, rather than by reading the changelog. Same treatment as
@@ -149,50 +123,31 @@ HELP;
             );
         }
 
-        if ($indexer === 'php') {
-            // Deploy-safe default: build inline and verify before reporting
-            // success, so `scolta:build` exiting 0 always means "the index is
-            // built and live". Asynchronous indexing is now opt-in via --queue
-            // (the content-edit observer keeps using the queue independently).
-            //
-            // --sync is the former opt-in for this synchronous path; it is now
-            // the default, so it is accepted as a no-op alias. The two options
-            // are contradictory, so reject the combination rather than guess.
-            if ($this->option('queue') && $this->option('sync')) {
-                $this->error('--queue and --sync are mutually exclusive. Synchronous building is the default; pass --queue only to defer to the queue.');
+        // Deploy-safe default: build inline and verify before reporting
+        // success, so `scolta:build` exiting 0 always means "the index is
+        // built and live". Asynchronous indexing is now opt-in via --queue
+        // (the content-edit observer keeps using the queue independently).
+        //
+        // --sync is the former opt-in for this synchronous path; it is now
+        // the default, so it is accepted as a no-op alias. The two options
+        // are contradictory, so reject the combination rather than guess.
+        if ($this->option('queue') && $this->option('sync')) {
+            $this->error('--queue and --sync are mutually exclusive. Synchronous building is the default; pass --queue only to defer to the queue.');
 
-                return self::INVALID;
-            }
-
-            if ($this->option('queue')) {
-                return $this->dispatchToQueue($source, $outputDir);
-            }
-
-            return $this->buildWithPhpIndexer($source, $outputDir);
+            return self::INVALID;
         }
 
-        return $this->buildWithBinary($source, $outputDir);
-    }
+        if ($this->option('queue')) {
+            return $this->dispatchToQueue($source, $outputDir);
+        }
 
-    /**
-     * Resolve the effective indexer backend.
-     *
-     * The rule lives in {@see IndexerResolver} so `scolta:status` can apply it
-     * without restating it.
-     *
-     * @since 0.2.0 (extracted to IndexerResolver in 1.4.0)
-     *
-     * @stability experimental
-     */
-    private function resolveIndexer(ScoltaConfig $config): string
-    {
-        return IndexerResolver::resolve($this->option('indexer'), $config->indexer);
+        return $this->buildWithPhpIndexer($source, $outputDir);
     }
 
     /**
      * The memory budget for this run, from --memory-budget/--chunk-size or config.
      *
-     * One reader for both PHP paths, inline and queued, so a build and the queued
+     * One reader for both paths, inline and queued, so a build and the queued
      * rebuild of the same corpus compress their artifacts alike.
      */
     private function memoryBudget(): MemoryBudget
@@ -212,7 +167,7 @@ HELP;
      *
      * Content is streamed through ContentSource::getPublishedContent() so the
      * documented publish filters (scopeSearchable + shouldBeSearchable) apply,
-     * exactly as on the binary and queue paths.
+     * exactly as on the queue path.
      *
      * Returns INVALID when the resume/restart/reset-ledger flags contradict
      * each other; BuildIntentFactory owns that rule and its message.
@@ -319,8 +274,7 @@ HELP;
         $watermark = $source->pendingWatermark();
 
         // Stream content one record at a time — no full pre-load into RAM.
-        $exporter = new ContentExporter($outputDir);
-        $items = $exporter->filterItems($source->getPublishedContent());
+        $items = (new ContentExporter)->filterItems($source->getPublishedContent());
 
         // Floor for the progress check on a memory abort below. A fresh build
         // (including --restart) has prepare() reset the manifest, so reading the
@@ -405,7 +359,7 @@ HELP;
         // A full build covers every tracked change recorded before it gathered.
         // Leaving the rows behind is what made scolta:status and
         // /api/scolta/v1/health report a pending_index backlog no build could
-        // drain, since only the binary indexer cleared it.
+        // drain.
         $source->clearTracker($watermark);
 
         Cache::increment('scolta_expand_generation');
@@ -745,117 +699,6 @@ HELP;
         $this->publishAssets();
 
         return self::DEFERRED;
-    }
-
-    /**
-     * Build the search index using the Pagefind binary (original pipeline).
-     *
-     * Three-step pipeline: mark content, export HTML, run Pagefind CLI.
-     *
-     * @since 0.1.0
-     *
-     * @stability experimental
-     */
-    private function buildWithBinary(ContentSource $source, string $outputDir): int
-    {
-        $buildDir = config('scolta.pagefind.build_dir', storage_path('scolta/build'));
-        $resolver = new PagefindBinary(
-            configuredPath: config('scolta.pagefind.binary'),
-            projectDir: base_path(),
-        );
-
-        $exporter = new ContentExporter($buildDir);
-
-        // Step 1: mark everything. This command has one mode — a full build —
-        // so a deleted item is removed by prepareOutputDir() emptying the
-        // directory and nothing re-exporting it, and no deletion sweep is
-        // needed. `scolta:export --incremental` is the command that sweeps.
-        $this->info('Step 1: Marking all published content for reindex...');
-        $count = ScoltaTracker::markAllForReindex();
-        $this->info("  Marked {$count} items.");
-
-        $exporter->prepareOutputDir();
-
-        // Step 2: Export content to HTML.
-        $this->info('Step 2: Exporting content to HTML...');
-
-        $items = $source->getPublishedContent();
-
-        $exported = 0;
-        $skipped = 0;
-
-        // Laravel's command output helpers make progress reporting clean.
-        $total = $source->getTotalCount();
-        $bar = $this->output->createProgressBar($total);
-        $bar->start();
-
-        foreach ($items as $item) {
-            if ($exporter->export($item)) {
-                $exported++;
-            } else {
-                $skipped++;
-            }
-            $bar->advance();
-        }
-
-        $bar->finish();
-        $this->newLine();
-
-        // The manifest maps ContentItem::$id -> export-relative path and is the
-        // only thing that finds the file for a later deletion. It serialises what
-        // this process exported, which on a full run is the whole site.
-        $exporter->writeManifest();
-
-        $this->info("  Exported: {$exported}, Skipped (insufficient content): {$skipped}");
-
-        // Clear the tracker after successful export. Drains the whole table
-        // rather than through a watermark: markAllForReindex() above wrote a row
-        // per published record, so the two are the same set here except for edits
-        // that landed during the export — the pre-existing race on this path, not
-        // widened, not fixed.
-        $source->clearTracker();
-
-        // Step 3: Build Pagefind index.
-        if ($this->option('skip-pagefind')) {
-            $this->info('Export complete. Skipped Pagefind build (--skip-pagefind).');
-
-            return self::SUCCESS;
-        }
-
-        $this->info('Step 3: Building Pagefind index...');
-        $binary = $resolver->resolve();
-        if ($binary === null) {
-            $status = $resolver->status();
-            $this->error($status['message']);
-
-            return self::FAILURE;
-        }
-        $this->info("Using Pagefind: {$binary} (resolved via {$resolver->resolvedVia()})");
-
-        return $this->runPagefind($binary, $buildDir, $outputDir);
-    }
-
-    /**
-     * Run the Pagefind CLI via the shared PagefindRunner.
-     */
-    private function runPagefind(string $binary, string $buildDir, string $outputDir): int
-    {
-        $result = (new PagefindRunner)->run($binary, $buildDir, $outputDir, fn (string $line) => $this->line($line));
-
-        if ($result['success']) {
-            $this->info("Pagefind index built: {$result['htmlCount']} files, {$result['fragmentCount']} fragments.");
-
-            $this->publishAssets();
-
-            return self::SUCCESS;
-        }
-
-        $this->error($result['error']);
-        if (! empty($result['output'])) {
-            $this->line($result['output']);
-        }
-
-        return self::FAILURE;
     }
 
     private function publishAssets(): void

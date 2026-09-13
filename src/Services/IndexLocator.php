@@ -12,8 +12,9 @@ use Throwable;
  * Locates a built Pagefind index and answers "how many pages are in it?".
  *
  * Handles both layouts — the PHP indexer's nested `{output_dir}/pagefind/` and
- * the binary/Cloud pipeline's flat `{output_dir}/`; callers that assumed nested
- * reported a flat index as not built. The page count comes from
+ * the flat `{output_dir}/` a pre-2.0 binary build or the Cloud flatten step
+ * writes; callers that assumed nested reported a flat index as not built. The
+ * page count comes from
  * `pagefind-entry.json` rather than a listing of the fragment directory, which
  * holds one file per indexed page and is minutes-slow on a large corpus.
  *

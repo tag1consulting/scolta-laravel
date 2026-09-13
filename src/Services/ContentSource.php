@@ -44,9 +44,9 @@ class ContentSource implements ContentSourceInterface
      * each to a ContentItem via the trait method.
      *
      * This is the single content-gathering path for ALL index builds —
-     * the binary pipeline, the synchronous PHP indexer, and the queue
-     * dispatch path all consume this generator, so the documented publish
-     * filters (scopeSearchable + shouldBeSearchable) apply everywhere.
+     * the synchronous `scolta:build` and the queue dispatch path both
+     * consume this generator, so the documented publish filters
+     * (scopeSearchable + shouldBeSearchable) apply everywhere.
      *
      * @param  array<string, mixed>  $options
      * @return Generator<ContentItem>
@@ -316,7 +316,7 @@ class ContentSource implements ContentSourceInterface
      *    predating the item_id migration and unpublish transitions.
      *  - nothing: the record is gone and no id was recorded. Reported in
      *    `unresolved` as "Class:key", never guessed at — a bare primary key
-     *    handed to deleteById() or stageDelete() matches nothing and is answered
+     *    handed to stageDelete() matches nothing and is answered
      *    by doing nothing, which is how this stayed invisible.
      *
      * An unresolved row is a one-shot warning, not a retry: the run that reports
@@ -356,7 +356,7 @@ class ContentSource implements ContentSourceInterface
      *
      * The single implementation of the tracker-key → item-id mapping for
      * deletions. getDeletedItemIds() and getTrackedChanges() both go through it,
-     * so the binary export path and the PHP incremental path cannot disagree.
+     * so no two callers can disagree.
      *
      * @param  iterable<ScoltaTracker>  $rows
      * @return array{ids: list<string>, unresolved: list<string>}
@@ -473,13 +473,9 @@ class ContentSource implements ContentSourceInterface
      *
      * @param  string|null  $through  Drain only rows stamped at or before this
      *                                {@see pendingWatermark()}. Null drains the
-     *                                whole table, which is what the binary build
-     *                                and `scolta:export` still do: a record edited
-     *                                while one of those runs has its row cleared
-     *                                without the edit having been indexed. Those
-     *                                paths are unchanged here, not fixed; every
-     *                                path that gained a drain in 1.4.0 passes a
-     *                                watermark.
+     *                                whole table. Every build path passes a
+     *                                watermark; null is kept for callers that
+     *                                mean "everything", such as a reset.
      */
     public function clearTracker(?string $through = null): void
     {

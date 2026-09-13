@@ -60,8 +60,7 @@ class AiServiceTest extends TestCase
                 'content_match_boost' => 0.8,
             ],
             'pagefind' => [
-                'binary' => 'pagefind',
-                'build_dir' => '/tmp/build',
+                'output_dir' => '/tmp/out',
             ],
         ];
 
@@ -70,8 +69,7 @@ class AiServiceTest extends TestCase
         $this->assertEquals('anthropic', $flat['ai_provider']);
         $this->assertEquals(2.0, $flat['title_match_boost']);
         $this->assertEquals(0.8, $flat['content_match_boost']);
-        $this->assertEquals('pagefind', $flat['binary']);
-        $this->assertEquals('/tmp/build', $flat['build_dir']);
+        $this->assertEquals('/tmp/out', $flat['output_dir']);
         $this->assertArrayNotHasKey('scoring', $flat);
         $this->assertArrayNotHasKey('pagefind', $flat);
     }

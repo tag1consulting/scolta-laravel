@@ -32,7 +32,7 @@ class InstallPathTest extends TestCase
         $this->assertStringContainsString(
             'storage_path(',
             $config,
-            'build_dir must default to storage_path()'
+            'state_dir must default to storage_path()'
         );
         $this->assertStringContainsString(
             'public_path(',
@@ -78,9 +78,6 @@ class InstallPathTest extends TestCase
             'BuildCommand',
             'CheckSetupCommand',
             'ClearCacheCommand',
-            'DownloadPagefindCommand',
-            'ExportCommand',
-            'RebuildIndexCommand',
             'StatusCommand',
         ];
 
@@ -107,11 +104,7 @@ class InstallPathTest extends TestCase
             'API key must come from SCOLTA_API_KEY env var'
         );
 
-        // Build dir and output dir must be configurable via env.
-        $this->assertStringContainsString(
-            "env('SCOLTA_BUILD_DIR'",
-            $config
-        );
+        // The output dir must be configurable via env.
         $this->assertStringContainsString(
             "env('SCOLTA_OUTPUT_DIR'",
             $config

@@ -47,9 +47,6 @@ class CommandValidationTest extends TestCase
             'scolta:cleanup',
             'scolta:clear-cache',
             'scolta:discover',
-            'scolta:download-pagefind',
-            'scolta:export',
-            'scolta:rebuild-index',
             'scolta:status',
         ];
 

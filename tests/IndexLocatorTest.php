@@ -13,7 +13,7 @@ use Tag1\ScoltaLaravel\Services\IndexLocator;
  * The one place that finds a built index and counts what is in it.
  *
  * Pins both layouts — the PHP indexer's nested `{output_dir}/pagefind/` and the
- * binary/Cloud pipeline's flat `{output_dir}/`, nested winning when both exist
+ * flat `{output_dir}/` a pre-2.0 binary build or the Cloud flatten step writes, nested winning when both exist
  * — and that the page count comes from `pagefind-entry.json`, not a listing.
  */
 class IndexLocatorTest extends TestCase
@@ -66,7 +66,7 @@ class IndexLocatorTest extends TestCase
 
         $this->assertNotNull($location);
         $this->assertSame($this->dir, $location['indexDir'],
-            'A flat index — what the binary pipeline and the Cloud flatten step write — must be found.');
+            'A flat index — what a pre-2.0 binary build or the Cloud flatten step writes — must be found.');
     }
 
     public function test_locate_prefers_the_nested_layout(): void

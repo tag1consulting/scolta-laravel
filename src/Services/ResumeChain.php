@@ -63,7 +63,7 @@ class ResumeChain
      * @param  bool  $force  Whether the operator asked for a forced build.
      * @param  (callable(string): void)|null  $onOutput  Receives the child's output as it arrives.
      * @return int|null The child's exit code, or null when there is no artisan
-     *                  binary to run and the operator has to resume by hand.
+     *                  script to run and the operator has to resume by hand.
      *
      * @since 1.4.0
      *
@@ -78,10 +78,8 @@ class ResumeChain
 
         // --resume is also how the child knows not to start a chain of its own:
         // it runs one segment, reports how it ended, and leaves this process to
-        // decide what happens next. --indexer=php because the chain exists only
-        // on the PHP indexer path, and an --indexer option on the parent must not
-        // let config send the child down the Pagefind-binary pipeline instead.
-        $command = [PHP_BINARY, $artisan, 'scolta:build', '--indexer=php', '--resume'];
+        // decide what happens next.
+        $command = [PHP_BINARY, $artisan, 'scolta:build', '--resume'];
 
         // --force must survive segmentation or a forced build is forced for its
         // first segment only, serving its tail out of the very token cache it was

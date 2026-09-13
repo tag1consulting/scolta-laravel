@@ -207,7 +207,7 @@ class QueueRebuildDispatcher
             File::deleteDirectory($payloadDir);
             File::ensureDirectoryExists($payloadDir);
 
-            $exporter = new ContentExporter($outputDir);
+            $exporter = new ContentExporter;
             $chunkSize = $budget->chunkSize();
 
             $chunkFiles = [];

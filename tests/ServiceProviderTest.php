@@ -81,16 +81,6 @@ class ServiceProviderTest extends TestCase
         $this->assertStringContainsString('BuildCommand::class', $this->providerSource);
     }
 
-    public function test_registers_export_command(): void
-    {
-        $this->assertStringContainsString('ExportCommand::class', $this->providerSource);
-    }
-
-    public function test_registers_rebuild_index_command(): void
-    {
-        $this->assertStringContainsString('RebuildIndexCommand::class', $this->providerSource);
-    }
-
     public function test_registers_status_command(): void
     {
         $this->assertStringContainsString('StatusCommand::class', $this->providerSource);
@@ -99,11 +89,6 @@ class ServiceProviderTest extends TestCase
     public function test_registers_clear_cache_command(): void
     {
         $this->assertStringContainsString('ClearCacheCommand::class', $this->providerSource);
-    }
-
-    public function test_registers_download_pagefind_command(): void
-    {
-        $this->assertStringContainsString('DownloadPagefindCommand::class', $this->providerSource);
     }
 
     public function test_registers_check_setup_command(): void

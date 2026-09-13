@@ -5,10 +5,8 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use Tag1\Scolta\AiProvider\Amazee\KeyExpiryRecovery;
-use Tag1\Scolta\Binary\PagefindBinary;
 use Tag1\ScoltaLaravel\AiProvider\Amazee\LaravelConfigStorage;
 use Tag1\ScoltaLaravel\Cache\LaravelCacheDriver;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
@@ -17,7 +15,6 @@ use Tag1\ScoltaLaravel\Services\AssetStatus;
 use Tag1\ScoltaLaravel\Services\ContentSource;
 use Tag1\ScoltaLaravel\Services\IndexLocator;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
-use Tag1\ScoltaLaravel\Support\IndexerResolver;
 
 /**
  * Show Scolta index status.
@@ -30,8 +27,8 @@ use Tag1\ScoltaLaravel\Support\IndexerResolver;
  * human sections or, with --json, as one JSON document on stdout.
  *
  * The section names and their fields match `drush scolta:status` wherever both
- * adapters report the same thing (`indexer`, `build_directory`,
- * `pagefind_index`, `ai_provider`), so one script can read either. The
+ * adapters report the same thing (`pagefind_index`, `ai_provider`), so one
+ * script can read either. The
  * serialization deliberately differs: scolta-drupal hardcodes `Yaml::dump()`
  * with no `--format` option of its own, and JSON is valid YAML, so a consumer
  * of both parses this document with the same YAML parser it already needs for
@@ -44,18 +41,6 @@ class StatusCommand extends Command
         {--json : Emit the report as one JSON document on stdout instead of the human sections}';
 
     protected $description = 'Show Scolta index status, tracker state, and configuration';
-
-    /**
-     * How to get a Pagefind binary, for a report that finds none.
-     *
-     * The wording scolta-drupal emits as `indexer.binary.hint`, with the
-     * Artisan command in place of the Drush one.
-     *
-     * @since 1.4.0
-     *
-     * @stability experimental
-     */
-    public const BINARY_INSTALL_HINT = 'To install: npm install -g pagefind  OR  php artisan scolta:download-pagefind';
 
     public function handle(ScoltaAiService $ai, ContentSource $source): int
     {
@@ -84,15 +69,12 @@ class StatusCommand extends Command
      */
     private function gather(ScoltaAiService $ai, ContentSource $source): array
     {
-        $buildDir = config('scolta.pagefind.build_dir', storage_path('scolta/build'));
         $outputDir = config('scolta.pagefind.output_dir', public_path('scolta-pagefind'));
 
         return [
             'tracker' => $this->gatherTracker(),
             'content' => $this->gatherContent($source),
-            'build_directory' => $this->gatherBuildDirectory($buildDir),
             'pagefind_index' => $this->gatherIndex($outputDir),
-            'indexer' => $this->gatherIndexer(),
             'ai_provider' => $this->gatherAiProvider($ai),
             'assets' => $this->gatherAssets(),
         ];
@@ -142,24 +124,6 @@ class StatusCommand extends Command
     /**
      * @return array<string, mixed>
      */
-    private function gatherBuildDirectory(string $buildDir): array
-    {
-        if (! is_dir($buildDir)) {
-            return ['path' => $buildDir, 'exists' => false, 'html_files' => null];
-        }
-
-        // Exported HTML files, not indexed pages: nothing writes a manifest of
-        // the staging directory, so the listing is the only answer available.
-        return [
-            'path' => $buildDir,
-            'exists' => true,
-            'html_files' => count(File::glob($buildDir.'/*.html') ?: []),
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
     private function gatherIndex(string $outputDir): array
     {
         $locator = new IndexLocator;
@@ -180,44 +144,6 @@ class StatusCommand extends Command
             'pages' => $locator->indexedPageCount($location),
             'last_built' => $mtime ? date('Y-m-d H:i:s', $mtime) : null,
         ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function gatherIndexer(): array
-    {
-        $configured = (string) (config('scolta.indexer') ?: 'auto');
-        $active = IndexerResolver::resolve();
-
-        $indexer = ['configured' => $configured, 'active' => $active];
-
-        if ($active !== 'binary') {
-            // Probe the binary only when it is the indexer in use: under the
-            // PHP indexer the result is never displayed, and
-            // PagefindBinary::status() runs up to five blocking exec() calls
-            // with no timeout, one of which can hang on a restricted network.
-            return $indexer;
-        }
-
-        $binaryStatus = (new PagefindBinary(
-            configuredPath: config('scolta.pagefind.binary'),
-            projectDir: base_path(),
-        ))->status();
-
-        $indexer['binary'] = [
-            'available' => $binaryStatus['available'],
-            'message' => $binaryStatus['message'],
-        ];
-
-        if (! $binaryStatus['available']) {
-            // The remediation travels in the payload, as it does in
-            // `drush scolta:status`, so a script that finds the binary missing
-            // does not have to carry the fix itself.
-            $indexer['binary']['hint'] = self::BINARY_INSTALL_HINT;
-        }
-
-        return $indexer;
     }
 
     /**
@@ -301,14 +227,6 @@ class StatusCommand extends Command
             }
         }
 
-        $this->info('--- Build Directory ---');
-        if ($status['build_directory']['exists']) {
-            $this->line("  Path:       {$status['build_directory']['path']}");
-            $this->line("  HTML files: {$status['build_directory']['html_files']}");
-        } else {
-            $this->line("  Path: {$status['build_directory']['path']} (does not exist)");
-        }
-
         $this->info('--- Pagefind Index ---');
         if ($status['pagefind_index']['built']) {
             $this->line("  Path:       {$status['pagefind_index']['path']}");
@@ -318,42 +236,11 @@ class StatusCommand extends Command
             $this->line("  Path: {$status['pagefind_index']['path']} (no index built yet)");
         }
 
-        $this->info('--- Indexer ---');
-        $this->renderIndexer($status['indexer']);
-
         $this->info('--- AI Provider ---');
         $this->renderAiProvider($status['ai_provider']);
 
         $this->info('--- Assets ---');
         $this->renderAssets($status['assets']);
-    }
-
-    /**
-     * @param  array<string, mixed>  $indexer
-     */
-    private function renderIndexer(array $indexer): void
-    {
-        if ($indexer['configured'] === 'php') {
-            $activeIndexer = 'php (forced)';
-        } elseif (isset($indexer['binary'])) {
-            $activeIndexer = $indexer['binary']['available'] ? 'binary' : 'binary (not found — check path)';
-        } else {
-            // auto: always PHP regardless of binary availability.
-            $activeIndexer = 'php (recommended)';
-        }
-        $this->line("  Active indexer: {$activeIndexer}");
-
-        if (! isset($indexer['binary'])) {
-            return;
-        }
-
-        if ($indexer['binary']['available']) {
-            $this->line("  Binary:         {$indexer['binary']['message']}");
-        } else {
-            $this->warn('  Binary:         NOT AVAILABLE');
-            $this->line("  {$indexer['binary']['message']}");
-            $this->warn('  '.$indexer['binary']['hint']);
-        }
     }
 
     /**

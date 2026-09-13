@@ -15,15 +15,12 @@ use Tag1\ScoltaLaravel\Tests\Support\SearchablePost;
 /**
  * `scolta:status`: what it reports, where the numbers come from, and --json.
  *
- * Three defects are pinned here: the page count read from a fragment-directory
- * listing, the Pagefind binary probed even under the PHP indexer, and the
- * report being human prose only.
+ * Two defects are pinned here: the page count read from a fragment-directory
+ * listing, and the report being human prose only.
  */
 class StatusCommandTest extends TestCase
 {
     private string $outputDir;
-
-    private string $buildDir;
 
     protected function getPackageProviders($app): array
     {
@@ -35,22 +32,17 @@ class StatusCommandTest extends TestCase
         parent::setUp();
 
         $this->outputDir = storage_path('framework/testing/scolta-status-output');
-        $this->buildDir = storage_path('framework/testing/scolta-status-build');
         File::deleteDirectory($this->outputDir);
-        File::deleteDirectory($this->buildDir);
 
         config([
             'scolta.pagefind.output_dir' => $this->outputDir,
-            'scolta.pagefind.build_dir' => $this->buildDir,
             'scolta.models' => [],
-            'scolta.indexer' => 'php',
         ]);
     }
 
     protected function tearDown(): void
     {
         File::deleteDirectory($this->outputDir);
-        File::deleteDirectory($this->buildDir);
 
         parent::tearDown();
     }
@@ -118,7 +110,7 @@ class StatusCommandTest extends TestCase
 
     public function test_a_flat_index_is_found(): void
     {
-        // The flat layout the binary pipeline and Cloud flatten step write.
+        // The flat layout a pre-2.0 binary build or the Cloud flatten step writes.
         // Status used to call it "no index built yet".
         File::ensureDirectoryExists($this->outputDir);
         File::put($this->outputDir.'/pagefind.js', '// pagefind');
@@ -130,49 +122,6 @@ class StatusCommandTest extends TestCase
 
         $this->assertTrue($status['pagefind_index']['built']);
         $this->assertSame(5, $status['pagefind_index']['pages']);
-    }
-
-    // -------------------------------------------------------------------
-    // The binary is probed only when it is the active indexer. A hang or a
-    // binary section in the report is the failure these tests catch; the
-    // indexer=binary path is left unexercised because it would shell out in CI.
-    // -------------------------------------------------------------------
-
-    /**
-     * @param  array<string, mixed>  $indexer  The `indexer` section of the JSON report.
-     * @param  string  $output  The human report for the same configuration.
-     */
-    private function assertReportsNoBinary(array $indexer, string $output): void
-    {
-        $this->assertSame('php', $indexer['active']);
-        $this->assertArrayNotHasKey('binary', $indexer,
-            'Nothing may probe the Pagefind binary when the PHP indexer is active.');
-        foreach (['Binary:', 'NOT AVAILABLE', 'npm install -g pagefind'] as $line) {
-            $this->assertStringNotContainsString($line, $output,
-                'The human report must carry no binary section under the PHP indexer.');
-        }
-    }
-
-    public function test_no_binary_probe_under_the_php_indexer(): void
-    {
-        config(['scolta.indexer' => 'php']);
-
-        $this->assertReportsNoBinary(
-            json_decode($this->runStatus(json: true), true)['indexer'],
-            $this->runStatus(),
-        );
-    }
-
-    public function test_no_binary_probe_under_the_auto_indexer(): void
-    {
-        // Unset, as a site that never chose an indexer has it: auto, which
-        // resolves to php exactly as scolta:build resolves it.
-        config(['scolta.indexer' => null]);
-
-        $status = json_decode($this->runStatus(json: true), true);
-
-        $this->assertSame('auto', $status['indexer']['configured']);
-        $this->assertReportsNoBinary($status['indexer'], $this->runStatus());
     }
 
     // -------------------------------------------------------------------
@@ -188,7 +137,7 @@ class StatusCommandTest extends TestCase
 
         $this->assertIsArray($status, "scolta:status --json must emit parseable JSON. Got:\n{$output}");
         $this->assertSame(JSON_ERROR_NONE, json_last_error());
-        foreach (['tracker', 'content', 'build_directory', 'pagefind_index', 'indexer', 'ai_provider', 'assets'] as $section) {
+        foreach (['tracker', 'content', 'pagefind_index', 'ai_provider', 'assets'] as $section) {
             $this->assertArrayHasKey($section, $status, "The JSON report must carry the {$section} section.");
         }
         $this->assertStringStartsWith('{', trim($output),
@@ -242,16 +191,15 @@ class StatusCommandTest extends TestCase
         foreach ([
             '--- Tracker ---',
             '--- Content ---',
-            '--- Build Directory ---',
             '--- Pagefind Index ---',
-            '--- Indexer ---',
             '--- AI Provider ---',
             '--- Assets ---',
         ] as $heading) {
             $this->assertStringContainsString($heading, $output);
         }
         $this->assertStringContainsString('Pages:      7', $output);
-        $this->assertStringContainsString('Active indexer: php (forced)', $output);
+        $this->assertStringNotContainsString('--- Indexer ---', $output,
+            'The indexer section went with the binary pipeline in 2.0.0; there is nothing to choose.');
     }
 
     public function test_json_option_is_declared_on_the_command(): void

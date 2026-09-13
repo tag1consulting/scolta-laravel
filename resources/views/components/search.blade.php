@@ -20,7 +20,7 @@
     $outputDir = config('scolta.pagefind.output_dir', public_path('scolta-pagefind'));
 
     // The PHP indexer writes to {output_dir}/pagefind/ (nested layout).
-    // The binary pipeline / Cloud flatten step writes directly to {output_dir}/ (flat layout).
+    // A pre-2.0 binary build or the Cloud flatten step writes directly to {output_dir}/ (flat layout).
     // Detect which layout exists so URLs point to the right location.
     if (file_exists($outputDir . '/pagefind/pagefind-entry.json')) {
         $indexDir = $outputDir . '/pagefind';

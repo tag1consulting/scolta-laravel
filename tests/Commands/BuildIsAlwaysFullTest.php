@@ -36,8 +36,6 @@ class BuildIsAlwaysFullTest extends TestCase
 
     private string $outputDir;
 
-    private string $buildDir;
-
     /** @var array<string, int> */
     private array $postIds = [];
 
@@ -57,15 +55,12 @@ class BuildIsAlwaysFullTest extends TestCase
 
         $this->stateDir = storage_path('framework/testing/scolta-full-build-state');
         $this->outputDir = storage_path('framework/testing/scolta-full-build-output');
-        $this->buildDir = storage_path('framework/testing/scolta-full-build-html');
         File::deleteDirectory($this->stateDir);
         File::deleteDirectory($this->outputDir);
-        File::deleteDirectory($this->buildDir);
 
         config([
             'scolta.state_dir' => $this->stateDir,
             'scolta.pagefind.output_dir' => $this->outputDir,
-            'scolta.pagefind.build_dir' => $this->buildDir,
         ]);
 
         $this->loadMigrationsFrom(dirname(__DIR__, 2).'/database/migrations');
@@ -100,7 +95,6 @@ class BuildIsAlwaysFullTest extends TestCase
         Schema::dropIfExists('searchable_posts');
         File::deleteDirectory($this->stateDir);
         File::deleteDirectory($this->outputDir);
-        File::deleteDirectory($this->buildDir);
         File::deleteDirectory(public_path('vendor/scolta'));
 
         parent::tearDown();
@@ -204,20 +198,6 @@ class BuildIsAlwaysFullTest extends TestCase
             ->assertExitCode(Command::SUCCESS);
 
         $this->assertSame(3, $this->ledgerLiveCount());
-    }
-
-    public function test_the_deprecated_flag_runs_a_full_export_on_the_binary_indexer(): void
-    {
-        $this->artisan('scolta:build', [
-            '--indexer' => 'binary',
-            '--skip-pagefind' => true,
-            '--incremental' => true,
-        ])
-            ->expectsOutputToContain('--incremental is deprecated and does nothing')
-            ->expectsOutputToContain('Marking all published content for reindex')
-            ->assertExitCode(Command::SUCCESS);
-
-        $this->assertCount(3, File::allFiles($this->buildDir));
     }
 
     public function test_the_index_is_unchanged_without_the_flag_on_the_tracker_table_being_absent(): void

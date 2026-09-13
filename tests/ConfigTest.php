@@ -134,9 +134,9 @@ class ConfigTest extends TestCase
     {
         $this->assertArrayHasKey('pagefind', $this->config);
         $pf = $this->config['pagefind'];
-        $this->assertArrayHasKey('binary', $pf);
-        $this->assertArrayHasKey('build_dir', $pf);
         $this->assertArrayHasKey('output_dir', $pf);
+        $this->assertArrayNotHasKey('binary', $pf, 'The Pagefind binary went away in 2.0.0.');
+        $this->assertArrayNotHasKey('build_dir', $pf, 'There is no HTML export to give a build directory to.');
         // auto_rebuild is a top-level key, not nested under pagefind
         $this->assertArrayNotHasKey('auto_rebuild', $pf);
     }

@@ -63,8 +63,6 @@ class HealthController extends Controller
         $checker = new HealthChecker(
             config: $config,
             indexOutputDir: $outputDir,
-            pagefindBinaryPath: config('scolta.pagefind.binary'),
-            projectDir: base_path(),
             // Same cache ScoltaAiService records recovery markers in, so
             // `ai_usable` reflects whether the stored key still authenticates
             // (a cached marker, never a live API call per health request).
