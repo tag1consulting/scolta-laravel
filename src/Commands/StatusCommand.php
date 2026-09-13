@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 use Tag1\Scolta\AiProvider\Amazee\KeyExpiryRecovery;
+use Tag1\Scolta\Index\BuildState;
 use Tag1\ScoltaLaravel\AiProvider\Amazee\LaravelConfigStorage;
 use Tag1\ScoltaLaravel\Cache\LaravelCacheDriver;
+use Tag1\ScoltaLaravel\Jobs\TriggerRebuild;
 use Tag1\ScoltaLaravel\Models\ScoltaTracker;
 use Tag1\ScoltaLaravel\Searchable;
 use Tag1\ScoltaLaravel\Services\AssetStatus;
@@ -74,6 +77,7 @@ class StatusCommand extends Command
         return [
             'tracker' => $this->gatherTracker(),
             'content' => $this->gatherContent($source),
+            'build' => $this->gatherBuild(),
             'pagefind_index' => $this->gatherIndex($outputDir),
             'ai_provider' => $this->gatherAiProvider($ai),
             'assets' => $this->gatherAssets(),
@@ -119,6 +123,87 @@ class StatusCommand extends Command
             'published_count' => $source->getTotalCount(),
             'models_without_trait' => $withoutTrait,
         ];
+    }
+
+    /**
+     * Anything in flight: a standing rebuild request, and the manifest a
+     * running or half-finished build left in the state directory.
+     *
+     * A few small file reads plus one cache read, so status can afford it.
+     * Deliberately not here: per-model resume cursors, which would mean
+     * walking the whole page-table ledger for something `pages_processed`
+     * already summarizes.
+     *
+     * Where scolta-drupal counts its dedicated rebuild queue, this package
+     * dispatches TriggerRebuild onto the application's own queue, whose depth
+     * says nothing about Scolta. The debounce marker is the honest analogue:
+     * it is set while a rebuild request is queued and not yet running.
+     *
+     * @return array<string, mixed>
+     *
+     * @since 2.0.0
+     *
+     * @stability experimental
+     */
+    private function gatherBuild(): array
+    {
+        $build = ['rebuild_requested' => Cache::has(TriggerRebuild::DEBOUNCE_KEY)];
+
+        // is_dir() first: BuildState's constructor creates the directory, and
+        // reading status must not bring a build directory into existence.
+        $stateDir = config('scolta.state_dir', storage_path('app/scolta'));
+        if (! is_dir($stateDir)) {
+            return $build;
+        }
+
+        $buildState = new BuildState($stateDir);
+        if ($buildState->shouldResume() === null) {
+            return $build;
+        }
+
+        $build += [
+            // False here means the manifest says 'building' but no live
+            // process holds the lock: a segment died, and the build is
+            // waiting for a resume.
+            'running' => $buildState->isRunning(),
+            'started' => $buildState->getStartTime(),
+            'segment' => $buildState->segment(),
+            'pages_processed' => $buildState->getPagesProcessed(),
+            'progress' => round($buildState->getProgress() * 100, 1).'%',
+        ];
+
+        $lock = $buildState->lockDiagnostics();
+        if ($lock !== null) {
+            $build['lock'] = [
+                'pid' => $lock['pid'],
+                'host' => $lock['host'],
+                // A live build rewrites its lock record every heartbeat
+                // interval; once the last one is stale_after_seconds old the
+                // holder is presumed dead. The limit is reported so the age
+                // is interpretable without reading library source.
+                'heartbeat_age_seconds' => $lock['age_seconds'],
+                'stale_after_seconds' => BuildState::STALE_LOCK_SECONDS,
+                'stale' => $lock['stale'],
+            ];
+        }
+
+        // Why the last run that reported stopped. 'memory_abort' means it
+        // yielded on purpose and wants another segment; any other error means
+        // the chain stopped and nothing will resume the build on its own. A
+        // segment killed outright (OOM killer) records nothing, so this can
+        // describe an earlier segment — hence recorded_at, to compare against
+        // the build's own start time.
+        $outcome = $buildState->readOutcome();
+        if ($outcome !== null) {
+            $build['last_segment'] = [
+                'success' => $outcome['success'],
+                'error' => $outcome['error'],
+                'pages_processed' => $outcome['pages_processed'],
+                'recorded_at' => $outcome['recorded_at'],
+            ];
+        }
+
+        return $build;
     }
 
     /**
@@ -227,6 +312,9 @@ class StatusCommand extends Command
             }
         }
 
+        $this->info('--- Build ---');
+        $this->renderBuild($status['build']);
+
         $this->info('--- Pagefind Index ---');
         if ($status['pagefind_index']['built']) {
             $this->line("  Path:       {$status['pagefind_index']['path']}");
@@ -241,6 +329,53 @@ class StatusCommand extends Command
 
         $this->info('--- Assets ---');
         $this->renderAssets($status['assets']);
+    }
+
+    /**
+     * @param  array<string, mixed>  $build
+     */
+    private function renderBuild(array $build): void
+    {
+        $this->line('  Rebuild requested: '.($build['rebuild_requested'] ? 'yes' : 'no'));
+
+        if (! isset($build['running'])) {
+            $this->line('  In flight:         no');
+
+            return;
+        }
+
+        $this->line('  Segment:           '.$build['segment']);
+        $this->line("  Pages processed:   {$build['pages_processed']} ({$build['progress']})");
+        $this->line('  Started:           '.($build['started'] ?? 'unknown'));
+
+        if ($build['running']) {
+            $this->line('  In flight:         yes');
+        } else {
+            $this->warn('  In flight:         NO — the build is interrupted and waiting for a resume.');
+            $this->line('  Run: php artisan scolta:build --resume');
+        }
+
+        if (isset($build['lock'])) {
+            $lock = $build['lock'];
+            $this->line(sprintf(
+                '  Lock:              pid %s on %s, heartbeat %ss old (stale after %ss)%s',
+                $lock['pid'] ?? '?',
+                $lock['host'] ?? '?',
+                $lock['heartbeat_age_seconds'] ?? '?',
+                $lock['stale_after_seconds'],
+                $lock['stale'] ? ' — STALE' : '',
+            ));
+        }
+
+        if (isset($build['last_segment'])) {
+            $last = $build['last_segment'];
+            $verdict = $last['success']
+                ? 'succeeded'
+                // A memory yield is the segment asking for another, not a failure.
+                : ($last['error'] === 'memory_abort' ? 'yielded on memory pressure' : "failed: {$last['error']}");
+            $this->line("  Last segment:      {$verdict} after {$last['pages_processed']} pages"
+                .($last['recorded_at'] !== null ? " (recorded {$last['recorded_at']})" : ''));
+        }
     }
 
     /**

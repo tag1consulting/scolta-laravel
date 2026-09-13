@@ -124,6 +124,8 @@ Add `--json` to get the same report as one JSON document on stdout, with the dec
 php artisan scolta:status --json | jq '.pagefind_index'
 ```
 
+The `build` section describes whatever is in flight: whether a rebuild request is queued, and — when an unfinished build left a manifest in the state directory — its segment, pages processed, progress, lock holder, and why its last segment stopped. A `running: false` there means the manifest says `building` but no live process holds the lock: a segment died, and the build is waiting for `php artisan scolta:build --resume` or the next queued `TriggerRebuild`.
+
 Sections and fields match `drush scolta:status` wherever both adapters report the same thing, so one script can read either. Drush emits YAML; JSON is valid YAML, so a YAML parser handles both.
 
 The health endpoint also reports current state: `GET /api/scolta/v1/health`

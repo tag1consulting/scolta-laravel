@@ -22,6 +22,8 @@ class StatusCommandTest extends TestCase
 {
     private string $outputDir;
 
+    private string $stateDir;
+
     protected function getPackageProviders($app): array
     {
         return [ScoltaServiceProvider::class];
@@ -32,10 +34,13 @@ class StatusCommandTest extends TestCase
         parent::setUp();
 
         $this->outputDir = storage_path('framework/testing/scolta-status-output');
+        $this->stateDir = storage_path('framework/testing/scolta-status-state');
         File::deleteDirectory($this->outputDir);
+        File::deleteDirectory($this->stateDir);
 
         config([
             'scolta.pagefind.output_dir' => $this->outputDir,
+            'scolta.state_dir' => $this->stateDir,
             'scolta.models' => [],
         ]);
     }
@@ -43,6 +48,7 @@ class StatusCommandTest extends TestCase
     protected function tearDown(): void
     {
         File::deleteDirectory($this->outputDir);
+        File::deleteDirectory($this->stateDir);
 
         parent::tearDown();
     }
@@ -200,6 +206,64 @@ class StatusCommandTest extends TestCase
         $this->assertStringContainsString('Pages:      7', $output);
         $this->assertStringNotContainsString('--- Indexer ---', $output,
             'The indexer section went with the binary pipeline in 2.0.0; there is nothing to choose.');
+    }
+
+    // -------------------------------------------------------------------
+    // The build section: what an operator watching a long build can read.
+    // -------------------------------------------------------------------
+
+    public function test_an_interrupted_build_is_reported(): void
+    {
+        // A manifest an interrupted build left behind, and the outcome its
+        // last segment recorded before yielding on memory pressure.
+        File::ensureDirectoryExists($this->stateDir);
+        File::put($this->stateDir.'/manifest.json', (string) json_encode([
+            'status' => 'building',
+            'segment' => 3,
+            'total_pages' => 1000,
+            'chunk_size' => 100,
+            'chunks_written' => 4,
+            'pages_processed' => 400,
+            'started_at' => '2026-09-12T10:00:00+00:00',
+        ]));
+        File::put($this->stateDir.'/segment-outcome.json', (string) json_encode([
+            'success' => false,
+            'error' => 'memory_abort',
+            'pages_processed' => 400,
+            'pid' => 4242,
+            'recorded_at' => '2026-09-12T10:05:00+00:00',
+        ]));
+
+        $build = json_decode($this->runStatus(json: true), true)['build'];
+
+        $this->assertSame(3, $build['segment']);
+        $this->assertSame(400, $build['pages_processed']);
+        $this->assertSame('40%', $build['progress']);
+        $this->assertFalse($build['running'],
+            'No process holds the lock, so the build is interrupted, not running.');
+        $this->assertSame('2026-09-12T10:00:00+00:00', $build['started']);
+        $this->assertSame('memory_abort', $build['last_segment']['error']);
+        $this->assertFalse($build['last_segment']['success']);
+        $this->assertSame(400, $build['last_segment']['pages_processed']);
+        $this->assertSame('2026-09-12T10:05:00+00:00', $build['last_segment']['recorded_at']);
+
+        $human = $this->runStatus();
+        $this->assertStringContainsString('--- Build ---', $human);
+        $this->assertStringContainsString('Segment:           3', $human);
+        $this->assertStringContainsString('400 (40%)', $human);
+        $this->assertStringContainsString('yielded on memory pressure', $human);
+    }
+
+    public function test_status_does_not_create_the_state_directory(): void
+    {
+        // BuildState's constructor mkdirs; reading status must not.
+        $build = json_decode($this->runStatus(json: true), true)['build'];
+
+        $this->assertDirectoryDoesNotExist($this->stateDir);
+        $this->assertFalse($build['rebuild_requested']);
+        $this->assertArrayNotHasKey('running', $build,
+            'With no manifest on disk there is no in-flight build to describe.');
+        $this->assertStringContainsString('In flight:         no', $this->runStatus());
     }
 
     public function test_json_option_is_declared_on_the_command(): void
