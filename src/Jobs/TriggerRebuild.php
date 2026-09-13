@@ -21,6 +21,7 @@ use Tag1\Scolta\Index\ResumeChainPolicy;
 use Tag1\Scolta\Index\ResumeChainRunner;
 use Tag1\Scolta\Index\StatusReport;
 use Tag1\ScoltaLaravel\Commands\BuildCommand;
+use Tag1\ScoltaLaravel\Progress\LoggingProgressReporter;
 use Tag1\ScoltaLaravel\Services\ContentSource;
 use Tag1\ScoltaLaravel\Services\QueueRebuildDispatcher;
 use Tag1\ScoltaLaravel\Services\ResumeChain;
@@ -320,7 +321,7 @@ class TriggerRebuild implements ShouldQueue
     {
         $items = (new ContentExporter)->filterItems($source->getPublishedContent());
 
-        return $orchestrator->build($intent, $items, $logger, null, $this->force);
+        return $orchestrator->build($intent, $items, $logger, new LoggingProgressReporter($logger), $this->force);
     }
 
     /**
