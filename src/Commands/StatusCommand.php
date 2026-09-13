@@ -8,6 +8,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Tag1\Scolta\AiProvider\Amazee\KeyExpiryRecovery;
+use Tag1\Scolta\Index\BuildState;
 use Tag1\ScoltaLaravel\AiProvider\Amazee\LaravelConfigStorage;
 use Tag1\ScoltaLaravel\Cache\LaravelCacheDriver;
 use Tag1\ScoltaLaravel\Jobs\TriggerRebuild;
@@ -75,7 +76,7 @@ class StatusCommand extends Command
 
         return [
             'tracker' => $this->gatherTracker(),
-            'build' => ['queued_items' => Queue::size(TriggerRebuild::QUEUE_NAME)],
+            'build' => $this->gatherBuild(),
             'content' => $this->gatherContent($source),
             'pagefind_index' => $this->gatherIndex($outputDir),
             'ai_provider' => $this->gatherAiProvider($ai),
@@ -122,6 +123,82 @@ class StatusCommand extends Command
             'published_count' => $source->getTotalCount(),
             'models_without_trait' => $withoutTrait,
         ];
+    }
+
+    /**
+     * Anything in flight: the depth of the rebuild queue, and the manifest a
+     * running or half-finished build left in the state directory.
+     *
+     * One queue count plus a few small file reads, so status can afford it.
+     * Deliberately not here: per-model resume cursors, which would mean
+     * walking the whole page-table ledger for something `pages_processed`
+     * already summarizes.
+     *
+     * @return array<string, mixed>
+     *
+     * @since 2.0.0
+     *
+     * @stability experimental
+     */
+    private function gatherBuild(): array
+    {
+        $build = ['queued_items' => Queue::size(TriggerRebuild::QUEUE_NAME)];
+
+        // is_dir() first: BuildState's constructor creates the directory, and
+        // reading status must not bring a build directory into existence.
+        $stateDir = config('scolta.state_dir', storage_path('app/scolta'));
+        if (! is_dir($stateDir)) {
+            return $build;
+        }
+
+        $buildState = new BuildState($stateDir);
+        if ($buildState->shouldResume() === null) {
+            return $build;
+        }
+
+        $build += [
+            // False here means the manifest says 'building' but no live
+            // process holds the lock: a segment died, and the build is
+            // waiting for a resume.
+            'running' => $buildState->isRunning(),
+            'started' => $buildState->getStartTime(),
+            'segment' => $buildState->segment(),
+            'pages_processed' => $buildState->getPagesProcessed(),
+            'progress' => round($buildState->getProgress() * 100, 1).'%',
+        ];
+
+        $lock = $buildState->lockDiagnostics();
+        if ($lock !== null) {
+            $build['lock'] = [
+                'pid' => $lock['pid'],
+                'host' => $lock['host'],
+                // A live build rewrites its lock record every heartbeat
+                // interval; once the last one is stale_after_seconds old the
+                // holder is presumed dead. The limit is reported so the age
+                // is interpretable without reading library source.
+                'heartbeat_age_seconds' => $lock['age_seconds'],
+                'stale_after_seconds' => BuildState::STALE_LOCK_SECONDS,
+                'stale' => $lock['stale'],
+            ];
+        }
+
+        // Why the last run that reported stopped. 'memory_abort' means it
+        // yielded on purpose and wants another segment; any other error means
+        // the chain stopped and nothing will resume the build on its own. A
+        // segment killed outright (OOM killer) records nothing, so this can
+        // describe an earlier segment — hence recorded_at, to compare against
+        // the build's own start time.
+        $outcome = $buildState->readOutcome();
+        if ($outcome !== null) {
+            $build['last_segment'] = [
+                'success' => $outcome['success'],
+                'error' => $outcome['error'],
+                'pages_processed' => $outcome['pages_processed'],
+                'recorded_at' => $outcome['recorded_at'],
+            ];
+        }
+
+        return $build;
     }
 
     /**
@@ -220,10 +297,7 @@ class StatusCommand extends Command
         }
 
         $this->info('--- Build ---');
-        $this->line("  Queued items: {$status['build']['queued_items']}");
-        if ($status['build']['queued_items'] > 0) {
-            $this->line('  A worker must listen to the `'.TriggerRebuild::QUEUE_NAME.'` queue: php artisan queue:work --queue='.TriggerRebuild::QUEUE_NAME);
-        }
+        $this->renderBuild($status['build']);
 
         $this->info('--- Content ---');
         if ($status['content']['models'] === []) {
@@ -250,6 +324,61 @@ class StatusCommand extends Command
 
         $this->info('--- Assets ---');
         $this->renderAssets($status['assets']);
+    }
+
+    /**
+     * @param  array<string, mixed>  $build
+     */
+    private function renderBuild(array $build): void
+    {
+        $this->line("  Queued items:      {$build['queued_items']}");
+
+        if (! isset($build['running'])) {
+            $this->line('  In flight:         no');
+            if ($build['queued_items'] > 0) {
+                // Jobs queued with no build in flight is the signature of the
+                // 2.0.0 upgrade nobody read: a worker still listening only to
+                // `default` never picks these up, and nothing else says so.
+                $this->warn('  Jobs are queued and nothing is building. Is a worker listening to the `'
+                    .TriggerRebuild::QUEUE_NAME.'` queue?');
+                $this->line('  Run: php artisan queue:work --queue='.TriggerRebuild::QUEUE_NAME);
+            }
+
+            return;
+        }
+
+        $this->line('  Segment:           '.$build['segment']);
+        $this->line("  Pages processed:   {$build['pages_processed']} ({$build['progress']})");
+        $this->line('  Started:           '.($build['started'] ?? 'unknown'));
+
+        if ($build['running']) {
+            $this->line('  In flight:         yes');
+        } else {
+            $this->warn('  In flight:         NO — the build is interrupted and waiting for a resume.');
+            $this->line('  Run: php artisan scolta:build --resume');
+        }
+
+        if (isset($build['lock'])) {
+            $lock = $build['lock'];
+            $this->line(sprintf(
+                '  Lock:              pid %s on %s, heartbeat %ss old (stale after %ss)%s',
+                $lock['pid'] ?? '?',
+                $lock['host'] ?? '?',
+                $lock['heartbeat_age_seconds'] ?? '?',
+                $lock['stale_after_seconds'],
+                $lock['stale'] ? ' — STALE' : '',
+            ));
+        }
+
+        if (isset($build['last_segment'])) {
+            $last = $build['last_segment'];
+            $verdict = $last['success']
+                ? 'succeeded'
+                // A memory yield is the segment asking for another, not a failure.
+                : ($last['error'] === 'memory_abort' ? 'yielded on memory pressure' : "failed: {$last['error']}");
+            $this->line("  Last segment:      {$verdict} after {$last['pages_processed']} pages"
+                .($last['recorded_at'] !== null ? " (recorded {$last['recorded_at']})" : ''));
+        }
     }
 
     /**
