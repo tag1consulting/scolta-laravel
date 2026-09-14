@@ -80,6 +80,13 @@
                 fn ($value, $key) => is_string($key) && is_string($value) && $value !== '',
                 ARRAY_FILTER_USE_BOTH
             ),
+            // Local-read for the same reason as labels: ScoltaConfig::$valueLabels
+            // landed in scolta-php 2.0.0 and the behaviour lives in the bundle.
+            'valueLabels' => array_filter(
+                (array) config('scolta.value_labels', []),
+                fn ($value, $key) => is_string($key) && is_string($value) && $value !== '',
+                ARRAY_FILTER_USE_BOTH
+            ),
             'filterFieldDescriptions' => $config->filterFieldDescriptions,
             // Search as you type. Ten top-level keys, not scoring keys. The
             // suggestion action goes through the normalizer so an unrecognized

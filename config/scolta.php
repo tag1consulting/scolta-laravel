@@ -686,6 +686,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Filter Value Labels
+    |--------------------------------------------------------------------------
+    |
+    | Indexed filter value => the text the widget shows for it, as one flat
+    | value => string map across dimensions. Read wherever the bundle prints
+    | a filter value — the facet panel and the results header ("... in
+    | Blog / TNTL" rather than "... in node-blog_post"). A value with no
+    | entry renders as indexed. Non-string keys and non-string or empty
+    | values are dropped. No env() default, for the same reason as 'labels'.
+    |
+    | e.g. 'value_labels' => ['node-blog_post' => 'Blog / TNTL'],
+    |
+    */
+
+    'value_labels' => [],
+
+    /*
+    |--------------------------------------------------------------------------
     | Search As You Type
     |--------------------------------------------------------------------------
     |
