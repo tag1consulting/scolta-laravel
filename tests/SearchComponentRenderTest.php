@@ -208,6 +208,22 @@ class SearchComponentRenderTest extends TestCase
         $this->assertSame([], $config['labels']);
     }
 
+    public function test_value_labels_are_emitted_and_filtered(): void
+    {
+        $this->writeFile($this->outputDir.'/pagefind/pagefind-entry.json', '{}');
+        $this->assertSame([], $this->renderAndParseConfig()['valueLabels']);
+
+        $this->setScoltaConfig(['scolta.value_labels' => [
+            'node-blog_post' => 'Blog / TNTL',
+            'node-lesson' => '',
+        ]]);
+
+        $this->assertSame(
+            ['node-blog_post' => 'Blog / TNTL'],
+            $this->renderAndParseConfig()['valueLabels']
+        );
+    }
+
     public function test_configured_labels_are_emitted(): void
     {
         $this->writeFile($this->outputDir.'/pagefind/pagefind-entry.json', '{}');
@@ -481,6 +497,9 @@ class SearchComponentRenderTest extends TestCase
             // Same pattern, and likewise now covered by the floor:
             // ScoltaConfig::$labels landed in scolta-php 1.5.0.
             'labels',
+            // Same pattern: ScoltaConfig::$valueLabels landed in scolta-php
+            // 2.0.0 (tag1consulting/scolta-php#357), past the locked version.
+            'valueLabels',
         ];
 
         $fromPhp = array_keys((new ScoltaConfig)->toBrowserConfig());
