@@ -73,6 +73,12 @@ class BrowserConfigParityTest extends TestCase
         // Read only by autoInit() off the global window.scolta, never off the
         // instance config, so it is correctly absent from the extracted set.
         'container',
+        // Read by the bundle from tag1consulting/scolta-php#357 on; the locked
+        // scolta-php predates it, and the scolta-php CI job that installs this
+        // package checks out main, so each side would otherwise wait on the
+        // other. Emitted on purpose so the key is live the moment the bundle
+        // reads it. Drop this entry once the lock carries that bundle.
+        'valueLabels',
     ];
 
     /**
