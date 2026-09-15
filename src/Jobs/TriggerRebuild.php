@@ -61,7 +61,10 @@ use Tag1\ScoltaLaravel\Support\HmacSecret;
  * or a chunk chain starts, one `resumeOnly` copy is queued to fire after the
  * build lock would have expired, so a build whose worker died with nothing
  * else in the queue still has a request standing to finish it; when the build
- * completed in time that copy finds nothing to resume and exits.
+ * completed in time that copy finds nothing to resume and exits. A segment
+ * that dies the same way every time would have that copy re-queue itself
+ * forever, so consecutive resume attempts are bounded by
+ * MAX_SEGMENT_FAILURES.
  *
  * @since 0.2.0
  *
@@ -105,6 +108,35 @@ class TriggerRebuild implements ShouldQueue
      * @stability experimental
      */
     public const RETRY_DELAY = 60;
+
+    /**
+     * Cache key holding the consecutive resume attempts on the build on disk.
+     *
+     * @since 2.0.0
+     *
+     * @stability experimental
+     */
+    public const FAILURE_COUNT_KEY = 'scolta_rebuild_segment_failures';
+
+    /**
+     * Consecutive failed segments tolerated before a build is given up on.
+     *
+     * The standing `resumeOnly` copy is queued before a segment runs, so a
+     * segment that dies without recording an outcome — a worker the OOM killer
+     * took, a fault thrown before the orchestrator could record — leaves the
+     * build resumable and a request standing to try it again. That is the
+     * point: a killed worker must not park the build. But nothing distinguishes
+     * a transient fault from one that will recur, so the attempts are counted
+     * and the build is given up on at this many, instead of retrying every
+     * BUILD_LOCK_TTL + RETRY_DELAY seconds forever. Same name and value as
+     * scolta-drupal's ScoltaRebuildWorker::MAX_SEGMENT_FAILURES, which bounds
+     * the same loop around its resume marker.
+     *
+     * @since 2.0.0
+     *
+     * @stability experimental
+     */
+    public const MAX_SEGMENT_FAILURES = 3;
 
     /**
      * Re-deliveries a killed worker may cause before the job is failed.
@@ -190,6 +222,12 @@ class TriggerRebuild implements ShouldQueue
     {
         // Clear debounce flag so future changes can schedule new rebuilds.
         Cache::forget(self::DEBOUNCE_KEY);
+        // A new request starts the retry budget over; the standing copy does
+        // not — it is this build's own request, and a build retrying a failed
+        // segment arrives here looking exactly like a new one.
+        if (! $this->resumeOnly) {
+            Cache::forget(self::FAILURE_COUNT_KEY);
+        }
 
         $budget = self::budget();
         $stateDir = config('scolta.state_dir', storage_path('app/scolta'));
@@ -198,6 +236,9 @@ class TriggerRebuild implements ShouldQueue
         $buildState = $orchestrator->coordinator()->buildState();
 
         if (! ResumeChainPolicy::resumable($buildState)) {
+            // Nothing is being retried, so whatever an earlier build spent of
+            // the budget is no longer owed by this one.
+            Cache::forget(self::FAILURE_COUNT_KEY);
             if ($this->resumeOnly) {
                 return;
             }
@@ -214,6 +255,22 @@ class TriggerRebuild implements ShouldQueue
             return;
         }
 
+        $attempts = (int) Cache::get(self::FAILURE_COUNT_KEY, 0);
+        if ($attempts >= self::MAX_SEGMENT_FAILURES) {
+            // Every attempt that threw is in the failed-jobs table with its
+            // error; one that was killed outright left nothing to report.
+            // Stopping here is what ends the loop: no standing copy is queued,
+            // so the build waits on disk until a request that is not the
+            // standing copy — a content edit, `scolta:request-build` — clears
+            // the count above and starts it over.
+            logger()->error(sprintf(
+                '[scolta] Giving up on the interrupted index build after %d consecutive failed segments. See the failed-jobs table for the error, and `php artisan scolta:request-build` to try again.',
+                self::MAX_SEGMENT_FAILURES,
+            ));
+
+            return;
+        }
+
         $lock = Cache::lock(QueueRebuildDispatcher::BUILD_LOCK, QueueRebuildDispatcher::BUILD_LOCK_TTL);
         if (! $lock->get()) {
             $this->later(new self($this->force), self::RETRY_DELAY);
@@ -222,6 +279,10 @@ class TriggerRebuild implements ShouldQueue
         }
 
         try {
+            // Counted before the segment, not after it fails: the failure this
+            // bounds is the one that takes the worker with it and records
+            // nothing. A completed build clears the count in resume().
+            Cache::forever(self::FAILURE_COUNT_KEY, $attempts + 1);
             $this->standBy();
             $this->resume($orchestrator, $buildState, $budget, $outputDir, $lock->owner());
         } finally {
@@ -268,6 +329,7 @@ class TriggerRebuild implements ShouldQueue
             throw new \RuntimeException('Scolta index rebuild failed: '.($report->error ?? 'unknown error'));
         }
 
+        Cache::forget(self::FAILURE_COUNT_KEY);
         $source->clearTracker($watermark);
         Cache::increment('scolta_expand_generation');
         $logger->info(sprintf(

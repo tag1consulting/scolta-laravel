@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase;
+use Psr\Log\LoggerInterface;
 use Tag1\Scolta\Config\MemoryBudgetConfig;
 use Tag1\Scolta\Index\BuildCoordinator;
 use Tag1\Scolta\Index\BuildIntent;
@@ -18,6 +19,7 @@ use Tag1\Scolta\Index\IndexBuildOrchestrator;
 use Tag1\Scolta\Index\MemoryBudget;
 use Tag1\Scolta\Index\PageTableLedger;
 use Tag1\Scolta\Index\ResumeChainPolicy;
+use Tag1\Scolta\Index\StatusReport;
 use Tag1\Scolta\Storage\FilesystemDriver;
 use Tag1\ScoltaLaravel\Jobs\ProcessIndexChunk;
 use Tag1\ScoltaLaravel\Jobs\TriggerRebuild;
@@ -74,6 +76,7 @@ class TriggerRebuildResumeTest extends TestCase
 
         Cache::lock(QueueRebuildDispatcher::BUILD_LOCK)->forceRelease();
         Cache::forget(TriggerRebuild::DEBOUNCE_KEY);
+        Cache::forget(TriggerRebuild::FAILURE_COUNT_KEY);
 
         $this->loadMigrationsFrom(dirname(__DIR__, 2).'/database/migrations');
         ScoltaTracker::flushSchemaCache();
@@ -174,6 +177,59 @@ class TriggerRebuildResumeTest extends TestCase
         $this->assertTrue(Cache::lock(QueueRebuildDispatcher::BUILD_LOCK)->get(), 'A failed segment releases the lock.');
     }
 
+    public function test_a_segment_that_dies_without_recording_is_retried_a_bounded_number_of_times(): void
+    {
+        Bus::fake();
+        $this->leaveInterruptedBuild();
+
+        // A worker the OOM killer took, or a fault before the orchestrator
+        // could record one: the build stays resumable and the copy queued
+        // before the segment comes back to try it again.
+        for ($attempt = 1; $attempt <= TriggerRebuild::MAX_SEGMENT_FAILURES; $attempt++) {
+            Bus::fake();
+            try {
+                (new KilledTriggerRebuild(resumeOnly: true))->handle(app(QueueRebuildDispatcher::class));
+                $this->fail("Attempt {$attempt} must fail the job.");
+            } catch (\RuntimeException $e) {
+                $this->assertSame('the worker died mid-segment', $e->getMessage());
+            }
+
+            $this->assertTrue(ResumeChainPolicy::resumable($this->buildState()), 'The build is still there to retry.');
+            $this->assertSame($attempt, Cache::get(TriggerRebuild::FAILURE_COUNT_KEY));
+            // A request stands to retry the segment.
+            Bus::assertDispatched(TriggerRebuild::class, fn (TriggerRebuild $job) => $job->resumeOnly);
+        }
+
+        // The copy queued before the last segment finds the budget spent: it
+        // runs nothing and leaves nothing behind, which is what stops the loop.
+        Bus::fake();
+        (new KilledTriggerRebuild(resumeOnly: true))->handle(app(QueueRebuildDispatcher::class));
+
+        Bus::assertNothingDispatched();
+        $this->assertTrue(Cache::lock(QueueRebuildDispatcher::BUILD_LOCK)->get(), 'The exhausted build never took the lock.');
+        Cache::lock(QueueRebuildDispatcher::BUILD_LOCK)->forceRelease();
+
+        // A request that is not the standing copy starts the budget over.
+        try {
+            (new KilledTriggerRebuild)->handle(app(QueueRebuildDispatcher::class));
+            $this->fail('The new request runs a segment, which dies as before.');
+        } catch (\RuntimeException) {
+        }
+        $this->assertSame(1, Cache::get(TriggerRebuild::FAILURE_COUNT_KEY), 'The spent budget did not carry into a new request.');
+    }
+
+    public function test_a_completed_build_clears_the_retry_budget(): void
+    {
+        Bus::fake();
+        $this->leaveInterruptedBuild();
+        Cache::forever(TriggerRebuild::FAILURE_COUNT_KEY, TriggerRebuild::MAX_SEGMENT_FAILURES - 1);
+
+        (new TriggerRebuild(resumeOnly: true))->handle(app(QueueRebuildDispatcher::class));
+
+        $this->assertFileExists($this->outputDir.'/pagefind/pagefind-entry.json');
+        $this->assertNull(Cache::get(TriggerRebuild::FAILURE_COUNT_KEY));
+    }
+
     public function test_the_standing_copy_does_nothing_when_there_is_nothing_to_resume(): void
     {
         Bus::fake();
@@ -255,6 +311,17 @@ class YieldingTriggerRebuild extends TriggerRebuild
     protected function orchestrator(string $stateDir, string $outputDir): IndexBuildOrchestrator
     {
         return new IndexBuildOrchestrator($stateDir, $outputDir, null, 'en', null, $this->probe);
+    }
+}
+
+/**
+ * A segment that takes the process with it: nothing recorded, build resumable.
+ */
+class KilledTriggerRebuild extends TriggerRebuild
+{
+    protected function runSegment(IndexBuildOrchestrator $orchestrator, BuildIntent $intent, ContentSource $source, string $outputDir, LoggerInterface $logger): StatusReport
+    {
+        throw new \RuntimeException('the worker died mid-segment');
     }
 }
 
