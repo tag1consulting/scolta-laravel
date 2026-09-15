@@ -19,6 +19,7 @@ use Tag1\ScoltaLaravel\Commands\CheckSetupCommand;
 use Tag1\ScoltaLaravel\Commands\CleanupCommand;
 use Tag1\ScoltaLaravel\Commands\ClearCacheCommand;
 use Tag1\ScoltaLaravel\Commands\DiscoverCommand;
+use Tag1\ScoltaLaravel\Commands\InspectCommand;
 use Tag1\ScoltaLaravel\Commands\MemoryBudgetCommand;
 use Tag1\ScoltaLaravel\Commands\RequestBuildCommand;
 use Tag1\ScoltaLaravel\Commands\StatusCommand;
@@ -446,6 +447,7 @@ class ScoltaServiceProvider extends ServiceProvider
             ClearCacheCommand::class,
             CleanupCommand::class,
             DiscoverCommand::class,
+            InspectCommand::class,
             RequestBuildCommand::class,
             StatusCommand::class,
         ]);
