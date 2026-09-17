@@ -50,7 +50,7 @@ class ScoltaConfigIntegrationTest extends TestCase
     }
 
     // -------------------------------------------------------------------
-    // Scoring — 8 core fields + language + recency_strategy + recency_curve
+    // Scoring — 8 core fields + language + recency_strategy + recency_curve + metadata_boosts
     // -------------------------------------------------------------------
 
     public function test_scoring_defaults_reach_js_output(): void
@@ -68,6 +68,14 @@ class ScoltaConfigIntegrationTest extends TestCase
         $this->assertEquals('en', $js['LANGUAGE']);
         $this->assertEquals('exponential', $js['RECENCY_STRATEGY']);
         $this->assertIsArray($js['RECENCY_CURVE']);
+    }
+
+    public function test_metadata_boosts_reach_js_output(): void
+    {
+        $boosts = ['type' => ['post' => 1.4]];
+
+        $this->assertSame($boosts, $this->makeConfig(['metadata_boosts' => $boosts])->toJsScoringConfig()['METADATA_BOOSTS']);
+        $this->assertSame([], $this->makeConfig()->toJsScoringConfig()['METADATA_BOOSTS']);
     }
 
     public function test_scoring_overrides_propagate_to_js_output(): void

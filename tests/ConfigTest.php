@@ -156,6 +156,7 @@ class ConfigTest extends TestCase
             'recency_half_life_days', 'recency_penalty_after_days',
             'recency_max_penalty', 'expand_primary_weight',
             'language', 'recency_strategy', 'recency_curve',
+            'metadata_boosts',
             'expand_subword_deny_list',
             'expansion_combine_mode',
         ];
@@ -233,6 +234,7 @@ class ConfigTest extends TestCase
         $this->assertEquals(0.05, $scoring['cross_list_bonus']);
         $this->assertEquals('en', $scoring['language']);
         $this->assertIsArray($scoring['recency_curve']);
+        $this->assertSame([], $scoring['metadata_boosts']);
 
         // With no preset (preset='none'), the nulled fields resolve to the
         // scolta-php base defaults.

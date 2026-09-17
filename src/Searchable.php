@@ -21,6 +21,13 @@ use Tag1\Scolta\Export\ContentItem;
  * a trait on the model that defines how it maps to the search engine.
  * We follow the same convention because it's what Laravel developers expect.
  *
+ * The default toSearchableContent() writes the model's morph class
+ * ($this->getMorphClass(): the FQCN, or its Relation::morphMap() alias)
+ * into the item's metadata as `type`, so a per-model ranking boost has a
+ * key that never collides across models: `scoring.metadata_boosts` =>
+ * ['type' => ['post' => 1.4]]. An override that wants type boosts carries
+ * the key forward, as the examples below do.
+ *
  * Usage (minimal — defaults apply):
  *
  *     class Post extends Model
@@ -43,6 +50,7 @@ use Tag1\Scolta\Export\ContentItem;
  *                 url: route('posts.show', $this),
  *                 date: $this->updated_at->format('Y-m-d'),
  *                 siteName: config('scolta.site_name'),
+ *                 metadata: ['type' => $this->getMorphClass()],
  *             );
  *         }
  *     }
@@ -66,6 +74,8 @@ trait Searchable
      *   url      → /models/{primary-key}  (always override this)
      *   date     → updated_at, created_at, published_at (first non-null date column)
      *   siteName → config('scolta.site_name') or config('app.name')
+     *   metadata → ['type' => $this->getMorphClass()], the key
+     *              scoring.metadata_boosts boosts on
      *
      * Override this in any model where the defaults do not apply:
      *
@@ -78,6 +88,7 @@ trait Searchable
      *             url: route('posts.show', $this),
      *             date: $this->updated_at->format('Y-m-d'),
      *             siteName: config('scolta.site_name', config('app.name')),
+     *             metadata: ['type' => $this->getMorphClass()],
      *         );
      *     }
      *
@@ -108,6 +119,7 @@ trait Searchable
             url: $url,
             date: $date,
             siteName: (string) $siteName,
+            metadata: ['type' => $this->getMorphClass()],
         );
     }
 
@@ -135,12 +147,17 @@ trait Searchable
     /**
      * Get the content type identifier for the tracker.
      *
-     * Uses the fully-qualified class name by default. Override if you
-     * want shorter identifiers (e.g., 'post' instead of 'App\Models\Post').
+     * The morph class by default — the same string Laravel stores in a
+     * polymorphic type column: the FQCN, or the Relation::morphMap() alias
+     * when one is registered — and so the same value the default
+     * toSearchableContent() writes as the `type` meta. ContentSource resolves
+     * it back to the class through the morph map, so an override may return
+     * either form; any other string cannot be resolved, and rows tracked
+     * under it are reported as unresolved.
      */
     public function getSearchableType(): string
     {
-        return static::class;
+        return $this->getMorphClass();
     }
 
     /**
