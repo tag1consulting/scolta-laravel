@@ -50,6 +50,7 @@ class Recipe extends Model
             url:      "/recipes/{$this->slug}",
             date:     $this->updated_at->format('Y-m-d'),
             siteName: config('scolta.site_name', config('app.name')),
+            metadata: ['type' => $this->getMorphClass()],
         );
     }
 
@@ -289,6 +290,7 @@ Scoring settings live under the `scoring` key in `config/scolta.php`.
 | Co-occurrence bonus | `SCOLTA_SPECIFICITY_COOCCURRENCE` | `scoring.specificity_cooccurrence` | Multiplier on the bonus a result earns for agreeing with several query and expansion terms at once rather than matching one strongly (`0`-`5`, default `0.9`). Set to `0` to score each result purely by its single best-matching sub-query |
 | Co-occurrence gate | `SCOLTA_SPECIFICITY_AGREEMENT_GATE` | `scoring.specificity_agreement_gate` | Specificity a term must clear to count toward the agreement bonus (`0`-`1`, default `0.45`), so a near-ubiquitous word earns none |
 | Co-occurrence decay | `SCOLTA_SPECIFICITY_AGREEMENT_DECAY` | `scoring.specificity_agreement_decay` | Geometric factor applied to each successive agreeing term (`0`-`5`, default `1.0`). Below `1` the bonus saturates, so a long enumerative page cannot out-accumulate a focused one through breadth alone |
+| Metadata boosts | `SCOLTA_METADATA_BOOSTS` | `scoring.metadata_boosts` | Score multipliers by fragment meta key, then exact meta value: `['type' => ['post' => 1.4]]`. The default `toSearchableContent()` writes the model's morph class as `type`; an override carries the key forward with `metadata: ['type' => $this->getMorphClass()]`. Different keys multiply; exact match only. Default `[]` |
 | Expansion combine mode | `SCOLTA_EXPANSION_COMBINE_MODE` | `scoring.expansion_combine_mode` | How multi-term expansion sub-query results are combined for the AI summary: `relevance_union` or `round_robin`. Preset-defaulted in scolta-php (`round_robin` on the content_catalog/blog/ecommerce presets, `relevance_union` otherwise); an explicit value overrides the preset |
 
 Defaults and the full reference: [scolta-php `docs/CONFIG_REFERENCE.md`](https://github.com/tag1consulting/scolta-php/blob/main/docs/CONFIG_REFERENCE.md).
@@ -610,6 +612,7 @@ class Article extends Model
             url:      "/articles/{$this->slug}",
             date:     $this->updated_at->format('Y-m-d'),
             siteName: config('scolta.site_name', config('app.name')),
+            metadata: ['type' => $this->getMorphClass()],
         );
     }
 
@@ -787,7 +790,7 @@ adapter does not add one.
 | ------ | ------- | ----------- |
 | `toSearchableContent()` | column heuristic | Return a `ContentItem` for indexing |
 | `scopeSearchable($query)` | all records | Filter which records to index |
-| `getSearchableType()` | class name | Content type identifier for tracking |
+| `getSearchableType()` | morph class | Content type identifier for tracking: the class name, or its `Relation::morphMap()` alias. An override may return either; anything else cannot be resolved back to a model |
 | `shouldBeSearchable()` | `true` | Whether this instance should be indexed |
 
 ## Optional Upgrades

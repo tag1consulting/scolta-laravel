@@ -6,6 +6,7 @@ namespace Tag1\ScoltaLaravel\Services;
 
 use Generator;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Schema;
@@ -118,8 +119,13 @@ class ContentSource implements ContentSourceInterface
         // Group by content type for efficient querying.
         $grouped = $pending->groupBy('content_type');
 
+        // The same record tracked under two type strings (class name, then
+        // morph alias) is yielded once.
+        $yielded = [];
+
         foreach ($grouped as $contentType => $records) {
-            if (! class_exists($contentType)) {
+            $modelClass = $this->modelClass((string) $contentType);
+            if (! class_exists($modelClass)) {
                 continue;
             }
 
@@ -128,7 +134,7 @@ class ContentSource implements ContentSourceInterface
             // Use lazy() for memory-efficient iteration with generators.
             // Can't yield from within a closure (->each()), so we iterate
             // with foreach instead — same efficiency, proper generator support.
-            foreach ($contentType::whereIn((new $contentType)->getKeyName(), $ids)->lazy(100) as $record) {
+            foreach ($modelClass::whereIn((new $modelClass)->getKeyName(), $ids)->lazy(100) as $record) {
                 if (! method_exists($record, 'toSearchableContent')) {
                     continue;
                 }
@@ -138,7 +144,8 @@ class ContentSource implements ContentSourceInterface
                 }
 
                 $item = $record->toSearchableContent();
-                if ($item instanceof ContentItem) {
+                if ($item instanceof ContentItem && ! isset($yielded[$item->id])) {
+                    $yielded[$item->id] = true;
                     yield $item;
                 }
             }
@@ -198,7 +205,8 @@ class ContentSource implements ContentSourceInterface
             $contentType = (string) $contentType;
             $ids = array_map(strval(...), $rows->pluck('content_id')->all());
 
-            if (! $this->isIndexableModel($contentType)) {
+            $modelClass = $this->modelClass($contentType);
+            if (! $this->isIndexableModel($modelClass)) {
                 // Nothing can map these to item ids, and a model dropped from
                 // config or stripped of the trait may still own pages.
                 foreach ($ids as $id) {
@@ -209,13 +217,13 @@ class ContentSource implements ContentSourceInterface
             }
 
             /** @var Model $model */
-            $model = new $contentType;
+            $model = new $modelClass;
             $keyName = $model->getKeyName();
 
             // Asked once rather than per record: the scope is a query predicate
             // and cannot be evaluated against a loaded model.
             $scoped = method_exists($model, 'scopeSearchable')
-                ? $contentType::searchable()->whereIn($keyName, $ids)->pluck($keyName)->all()
+                ? $modelClass::searchable()->whereIn($keyName, $ids)->pluck($keyName)->all()
                 : $ids;
             $scoped = array_flip(array_map(strval(...), $scoped));
 
@@ -237,7 +245,9 @@ class ContentSource implements ContentSourceInterface
                     && (! method_exists($record, 'shouldBeSearchable') || $record->shouldBeSearchable());
 
                 if ($publishable) {
-                    $upserts[] = $item;
+                    // Keyed by item id: the same record tracked under two type
+                    // strings (class name, then morph alias) is one upsert.
+                    $upserts[$item->id] = $item;
                 } else {
                     $deletes[] = $item->id;
                 }
@@ -262,7 +272,7 @@ class ContentSource implements ContentSourceInterface
         }
 
         return [
-            'upserts' => $upserts,
+            'upserts' => array_values($upserts),
             'deletes' => array_values(array_unique($deletes)),
             'unresolved' => $unresolved,
         ];
@@ -278,6 +288,19 @@ class ContentSource implements ContentSourceInterface
     {
         return class_exists($contentType)
             && in_array(Searchable::class, class_uses_recursive($contentType), true);
+    }
+
+    /**
+     * The model class a tracker content_type names.
+     *
+     * getSearchableType() may return a Relation::morphMap() alias ('post')
+     * instead of the class; the tracker stores whatever it returns, and
+     * instantiating the alias would fail. The stored string stays the key in
+     * unresolved references, so a report reads as the tracker wrote it.
+     */
+    private function modelClass(string $contentType): string
+    {
+        return Relation::getMorphedModel($contentType) ?? $contentType;
     }
 
     /**
@@ -383,7 +406,8 @@ class ContentSource implements ContentSourceInterface
             return ['ids' => $ids, 'unresolved' => $unresolved];
         }
 
-        if (! $this->isIndexableModel($contentType)) {
+        $modelClass = $this->modelClass($contentType);
+        if (! $this->isIndexableModel($modelClass)) {
             // Nothing left to ask, and a model dropped from config or stripped
             // of the trait may still own exported pages. Reported, not skipped.
             foreach ($needsLookup as $key) {
@@ -394,13 +418,13 @@ class ContentSource implements ContentSourceInterface
         }
 
         /** @var Model $model */
-        $model = new $contentType;
+        $model = new $modelClass;
         $keyName = $model->getKeyName();
         $query = $model->newQuery()->whereIn($keyName, $needsLookup);
 
         // A soft-deleted row is still readable, and the trashed record still
         // knows the item id it published under.
-        if (in_array(SoftDeletes::class, class_uses_recursive($contentType), true)) {
+        if (in_array(SoftDeletes::class, class_uses_recursive($modelClass), true)) {
             $query = $query->withoutGlobalScope(SoftDeletingScope::class);
         }
 
