@@ -90,7 +90,7 @@
 #     run: git checkout "$BASE_SHA" -- container-action/
 #
 #   - name: Run AI review
-#     uses: tag1consulting/ai-pr-review/container-action@0252dc5edd8204c64d93c4ddab3c0a046da1c782 # v2.12.0
+#     uses: tag1consulting/ai-pr-review/container-action@ef8ae600a86707cb297d53a79c978bb91e789465 # v2.12.0
 #     # ... (same with: block as below)
 # ----------------------------------------------------------------------------
 
@@ -151,7 +151,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run AI review
-        uses: tag1consulting/ai-pr-review/container-action@0252dc5edd8204c64d93c4ddab3c0a046da1c782 # v2.12.0
+        uses: tag1consulting/ai-pr-review/container-action@ef8ae600a86707cb297d53a79c978bb91e789465 # v2.12.0
         env:
           FORCE_FULL_DIFF: ${{ contains(github.event.pull_request.labels.*.name, 'ai-review-rescan') }}
         with:
@@ -286,7 +286,7 @@ jobs:
            github.event.comment.author_association
          ))
       )
-    uses: tag1consulting/ai-pr-review/.github/workflows/slash-commands.yml@0252dc5edd8204c64d93c4ddab3c0a046da1c782 # v2.12.0
+    uses: tag1consulting/ai-pr-review/.github/workflows/slash-commands.yml@ef8ae600a86707cb297d53a79c978bb91e789465 # v2.12.0
     with:
       event-name: ${{ github.event_name }}
       comment-body: ${{ github.event.comment.body }}
