@@ -537,6 +537,35 @@ the column is simply absent; an incremental update that meets a deletion it
 cannot resolve says so and falls back to a full rebuild, which derives deletions
 from the index itself and does not need the mapping.
 
+#### Rebuilding from a migration
+
+When indexed output goes stale because the code that produces it changed rather
+than the content — an edited `toSearchableContent()`, a new field in the
+metadata — queue a forced full rebuild from the migration that ships the change,
+so every environment rebuilds when it deploys and nobody has to remember to:
+
+```php
+use Tag1\ScoltaLaravel\Jobs\TriggerRebuild;
+
+public function up(): void
+{
+    TriggerRebuild::dispatch(force: true);
+}
+```
+
+`force` is what makes it unconditional: an unforced request applies the tracked
+changes incrementally, and a full build it falls back to is skipped when the
+corpus fingerprint is unchanged. The flag rides on the job, so a build that
+outgrows one worker run stays forced across every resumed segment, and a build
+already in progress when the migration runs is left alone; the request waits for
+the lock and runs after it. Nothing under the build state directory needs to be
+touched. `php artisan scolta:build --queue --force` queues the same job by hand,
+and `php artisan scolta:build --force` runs it inline.
+
+On the `sync` queue connection the job runs inside `php artisan migrate`, for as
+long as the build takes. This is the Laravel counterpart of scolta-drupal's
+`scolta_queue_full_rebuild($reason, TRUE)` for update hooks.
+
 ## Debugging
 
 ### "AI features not working"
@@ -648,8 +677,9 @@ php artisan scolta:request-build            # Queue one rebuild request for the 
 php artisan scolta:status                   # Show tracker, content, index, and AI status
 php artisan scolta:status --json            # Same report as one JSON document on stdout (pipe to jq)
 php artisan scolta:discover                 # Find Searchable models not yet in config
-php artisan scolta:inspect Post 123         # Show what the index holds for one record: URL, indexed text, filters, metadata
-php artisan scolta:inspect Post 123 --json  # The same, as one JSON document on stdout
+php artisan scolta:inspect /posts/123       # Show what the index holds for the record at that path: URL, indexed text, filters, metadata
+php artisan scolta:inspect --model=Post --id=123  # The same, by model and primary key
+php artisan scolta:inspect /posts/123 --json  # The same, as one JSON document on stdout
 php artisan scolta:clear-cache              # Clear Scolta AI response caches
 php artisan scolta:cleanup                  # Remove stale index artifacts, orphaned index fragments, and retired indexes
 php artisan scolta:cleanup --dry-run        # Show what would be removed without deleting
