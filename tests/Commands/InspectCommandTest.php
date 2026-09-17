@@ -72,7 +72,10 @@ class InspectCommandTest extends TestCase
                 'body' => str_repeat("Seeded body text about {$animal}. ", 20),
             ]);
         }
-        $this->artisan('scolta:build', ['--sync' => true, '--force' => true])->assertExitCode(0);
+        // Artisan::call() rather than $this->artisan(): on Laravel 11 the
+        // PendingCommand leaves its OutputStyle mock bound, and every later
+        // command's output lands in the mock instead of Artisan::output().
+        $this->assertSame(0, Artisan::call('scolta:build', ['--sync' => true, '--force' => true]));
     }
 
     protected function tearDown(): void
