@@ -1,0 +1,29 @@
+# AI PR Review policy for scolta-laravel.
+# Schema and precedence: https://tag1consulting.github.io/ai-pr-review/policy.html
+#
+# Loaded from the PR's BASE branch, never from the PR head: a change here
+# applies to later PRs once merged, not to the PR that makes it.
+
+version: 1
+
+policies:
+  # phpcs, phpstan and semgrep are excluded because ci.yml already covers all
+  # three as blocking jobs, after a real composer update and against this
+  # repo's own config. The reviewer's copies have neither: its phpstan resolves
+  # no framework class and reports what it cannot see, and its phpcs applies
+  # whatever standard its image ships (Drupal's) to a Pint-formatted PSR-12
+  # codebase. On #132 that was 34 of 46 findings. Applies to every tier below.
+  standard:
+    extends: quick
+    exclude-analyzers: [phpcs, phpstan, semgrep]
+
+  deep:
+    extends: full
+    exclude-analyzers: [phpcs, phpstan, semgrep]
+
+routes:
+  # Releases are prepared on release/* branches; review them in full mode.
+  - when: {head-branch: 'release/*'}
+    policy: deep
+
+default: standard
