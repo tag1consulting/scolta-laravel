@@ -295,6 +295,8 @@ return [
         'title_match_boost' => env('SCOLTA_TITLE_MATCH_BOOST'),
         'title_all_terms_multiplier' => env('SCOLTA_TITLE_ALL_TERMS_MULTIPLIER'),
         'content_match_boost' => env('SCOLTA_CONTENT_MATCH_BOOST'),
+        // Hide results whose title nearly matches a higher-ranked one; only for content reachable at several URLs.
+        'title_dedup' => env('SCOLTA_TITLE_DEDUP', false),
         'recency_boost_max' => env('SCOLTA_RECENCY_BOOST_MAX'),
         'recency_half_life_days' => env('SCOLTA_RECENCY_HALF_LIFE_DAYS'),
         'recency_penalty_after_days' => 1825,
