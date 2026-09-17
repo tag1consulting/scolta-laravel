@@ -276,6 +276,7 @@ Scoring settings live under the `scoring` key in `config/scolta.php`.
 | Title match boost | — | `scoring.title_match_boost` | Boost when query terms appear in the title |
 | Title all-terms multiplier | — | `scoring.title_all_terms_multiplier` | Extra multiplier when ALL terms match the title |
 | Content match boost | — | `scoring.content_match_boost` | Boost for query term matches in body/excerpt |
+| Title dedup | `SCOLTA_TITLE_DEDUP` | `scoring.title_dedup` | Hide results whose title nearly matches a higher-ranked one (default `false`). Turn on only when the same content is reachable at several URLs; otherwise distinct pages with similar titles disappear |
 | Expand primary weight | — | `scoring.expand_primary_weight` | Weight for original query results vs AI-expanded results (higher = original query dominates; raise to 0.7+ if you want literal keyword matches to win) |
 | Recency strategy | `SCOLTA_RECENCY_STRATEGY` | `scoring.recency_strategy` | `exponential`, `linear`, `step`, `none`, or `custom` |
 | Recency boost max | — | `scoring.recency_boost_max` | Maximum positive boost for very recent content |

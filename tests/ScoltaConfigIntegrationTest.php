@@ -405,6 +405,12 @@ class ScoltaConfigIntegrationTest extends TestCase
         $this->assertFalse($this->makeConfig(['hide_empty_facets' => false])->hideEmptyFacets);
     }
 
+    public function test_title_dedup_reaches_the_typed_property(): void
+    {
+        $this->assertFalse($this->makeConfig()->titleDedup);
+        $this->assertTrue($this->makeConfig(['title_dedup' => true])->titleDedup);
+    }
+
     public function test_specificity_defaults_reach_the_typed_properties(): void
     {
         $config = $this->makeConfig();

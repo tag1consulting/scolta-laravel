@@ -152,7 +152,7 @@ class ConfigTest extends TestCase
 
         $expectedKeys = [
             'title_match_boost', 'title_all_terms_multiplier',
-            'content_match_boost', 'recency_boost_max',
+            'content_match_boost', 'title_dedup', 'recency_boost_max',
             'recency_half_life_days', 'recency_penalty_after_days',
             'recency_max_penalty', 'expand_primary_weight',
             'language', 'recency_strategy', 'recency_curve',
@@ -222,6 +222,7 @@ class ConfigTest extends TestCase
         $this->assertNull($scoring['title_match_boost']);
         $this->assertNull($scoring['title_all_terms_multiplier']);
         $this->assertNull($scoring['content_match_boost']);
+        $this->assertFalse($scoring['title_dedup']);
         $this->assertNull($scoring['recency_boost_max']);
         $this->assertNull($scoring['recency_half_life_days']);
         $this->assertNull($scoring['expand_primary_weight']);
