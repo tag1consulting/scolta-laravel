@@ -676,8 +676,9 @@ php artisan scolta:request-build            # Queue one rebuild request for the 
 php artisan scolta:status                   # Show tracker, content, index, and AI status
 php artisan scolta:status --json            # Same report as one JSON document on stdout (pipe to jq)
 php artisan scolta:discover                 # Find Searchable models not yet in config
-php artisan scolta:inspect Post 123         # Show what the index holds for one record: URL, indexed text, filters, metadata
-php artisan scolta:inspect Post 123 --json  # The same, as one JSON document on stdout
+php artisan scolta:inspect /posts/123       # Show what the index holds for the record at that path: URL, indexed text, filters, metadata
+php artisan scolta:inspect --model=Post --id=123  # The same, by model and primary key
+php artisan scolta:inspect /posts/123 --json  # The same, as one JSON document on stdout
 php artisan scolta:clear-cache              # Clear Scolta AI response caches
 php artisan scolta:cleanup                  # Remove stale index artifacts, orphaned index fragments, and retired indexes
 php artisan scolta:cleanup --dry-run        # Show what would be removed without deleting
