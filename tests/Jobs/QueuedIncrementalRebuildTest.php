@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel\Tests\Jobs;
 
 use Illuminate\Console\Command;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
@@ -133,6 +134,7 @@ class QueuedIncrementalRebuildTest extends TestCase
 
     protected function tearDown(): void
     {
+        Relation::$morphMap = [];
         SearchablePost::flushEventListeners();
         Schema::dropIfExists('searchable_posts');
         File::deleteDirectory($this->stateDir);
@@ -464,6 +466,36 @@ class QueuedIncrementalRebuildTest extends TestCase
             [(string) $this->postIds['Beta']],
             ScoltaTracker::query()->pluck('content_id')->all(),
         );
+    }
+
+    public function test_a_row_tracked_under_a_morph_alias_resolves_to_its_model(): void
+    {
+        // getSearchableType() may return a morphMap() alias; the tracker stores
+        // it verbatim, and ContentSource used to instantiate the string as a
+        // class, skipping the row on one path and reporting it unresolved on
+        // the other.
+        Relation::morphMap(['post' => SearchablePost::class]);
+        $source = app(ContentSource::class);
+
+        ScoltaTracker::track((string) $this->postIds['Alpha'], 'post', 'index');
+        ScoltaTracker::track((string) $this->postIds['Beta'], 'post', 'delete');
+        // A row written under the class name before the alias was registered:
+        // the same record twice in the tracker, once in the result.
+        ScoltaTracker::track((string) $this->postIds['Alpha'], SearchablePost::class, 'index');
+
+        $changes = $source->getTrackedChanges();
+        $this->assertSame([$this->itemId('Alpha')], array_map(fn ($item) => $item->id, $changes['upserts']));
+        $this->assertSame([$this->itemId('Beta')], $changes['deletes']);
+        $this->assertSame([], $changes['unresolved']);
+
+        $this->assertSame(
+            [$this->itemId('Alpha')],
+            array_map(fn ($item) => $item->id, iterator_to_array($source->getChangedContent(), false)),
+        );
+
+        // A string that is neither a class nor an alias is still reported.
+        ScoltaTracker::track((string) $this->postIds['Gamma'], 'unmapped', 'index');
+        $this->assertContains('unmapped:'.$this->postIds['Gamma'], $source->getTrackedChanges()['unresolved']);
     }
 
     // -----------------------------------------------------------------

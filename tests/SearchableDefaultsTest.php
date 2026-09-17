@@ -254,6 +254,24 @@ class SearchableDefaultsTest extends TestCase
     }
 
     // -------------------------------------------------------------------
+    // metadata.type: the morph class, the key scoring.metadata_boosts uses
+    // -------------------------------------------------------------------
+
+    public function test_metadata_type_is_morph_class(): void
+    {
+        $item = (new FakeSearchableModel([]))->toSearchableContent();
+
+        $this->assertSame(['type' => FakeSearchableModel::class], $item->metadata);
+    }
+
+    public function test_metadata_type_honours_morph_alias(): void
+    {
+        $item = (new FakeSearchableModel([], 1, 'posts', 'post'))->toSearchableContent();
+
+        $this->assertSame('post', $item->metadata['type']);
+    }
+
+    // -------------------------------------------------------------------
     // shouldBeSearchable() default returns true
     // -------------------------------------------------------------------
 
@@ -271,6 +289,13 @@ class SearchableDefaultsTest extends TestCase
     {
         $model = new FakeSearchableModel([]);
         $this->assertEquals(FakeSearchableModel::class, $model->getSearchableType());
+    }
+
+    public function test_get_searchable_type_returns_morph_alias_when_mapped(): void
+    {
+        $model = new FakeSearchableModel([], 1, 'posts', 'post');
+        $this->assertSame('post', $model->getSearchableType());
+        $this->assertSame($model->getSearchableType(), $model->toSearchableContent()->metadata['type']);
     }
 
     // -------------------------------------------------------------------
@@ -308,17 +333,27 @@ class FakeSearchableModel
 
     private string $tableName;
 
+    private ?string $morphAlias;
+
     /**
      * @param  array<string, mixed>  $attributes
      */
     public function __construct(
         array $attributes = [],
         int|string $primaryKey = 1,
-        string $table = 'items'
+        string $table = 'items',
+        ?string $morphAlias = null
     ) {
         $this->attributes = $attributes;
         $this->primaryKey = $primaryKey;
         $this->tableName = $table;
+        $this->morphAlias = $morphAlias;
+    }
+
+    /** Simulates Eloquent getMorphClass(): the morphMap alias, else the FQCN. */
+    public function getMorphClass(): string
+    {
+        return $this->morphAlias ?? static::class;
     }
 
     /** Simulates Eloquent magic property access. */
@@ -346,6 +381,12 @@ class FakeSearchableModel
 class FakeSearchableModelWithOverride
 {
     use Searchable;
+
+    /** Simulates Eloquent getMorphClass(). */
+    public function getMorphClass(): string
+    {
+        return static::class;
+    }
 
     public function toSearchableContent(): ContentItem
     {

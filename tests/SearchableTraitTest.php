@@ -59,6 +59,12 @@ class ConcreteSearchableModel
 {
     use Searchable;
 
+    /** Simulates Eloquent getMorphClass(). */
+    public function getMorphClass(): string
+    {
+        return static::class;
+    }
+
     public function toSearchableContent(): ContentItem
     {
         return new ContentItem(

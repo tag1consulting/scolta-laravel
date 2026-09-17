@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\Schema;
  * app uses — MySQL, PostgreSQL, SQLite, whatever.
  *
  * @property string $content_id Eloquent primary key of the changed record.
- * @property string $content_type Model class name (or getSearchableType()).
+ * @property string $content_type getSearchableType(): the morph class, or an override's value.
  * @property string|null $item_id ContentItem::$id, recorded when a deletion was tracked.
  * @property string $action Either 'index' or 'delete'.
  */

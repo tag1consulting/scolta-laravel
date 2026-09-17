@@ -387,6 +387,17 @@ return [
         // For 'custom': JSON array of [[days, boost], …] control points.
         // e.g. SCOLTA_RECENCY_CURVE='[[0,1.0],[180,0.5],[365,0.0]]'
         'recency_curve' => json_decode(env('SCOLTA_RECENCY_CURVE', '[]'), true) ?: [],
+
+        // Score multipliers keyed by fragment meta key, then exact meta value.
+        // Applied in the browser to every result whose meta carries a listed
+        // value, whether or not a facet is selected; tables on different keys
+        // multiply together; exact string match only. The default
+        // toSearchableContent() writes the model's morph class as `type`
+        // (App\Models\Post, or the Relation::morphMap() alias, e.g. `post`),
+        // so a per-model boost keys on that. JSON object, or a plain array in
+        // the published config: ['type' => ['post' => 1.4]].
+        // e.g. SCOLTA_METADATA_BOOSTS='{"type":{"post":1.4}}'
+        'metadata_boosts' => json_decode(env('SCOLTA_METADATA_BOOSTS', '[]'), true) ?: [],
     ],
 
     /*
