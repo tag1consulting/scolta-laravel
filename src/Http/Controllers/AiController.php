@@ -8,6 +8,7 @@ use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Cache;
+use Psr\Log\LoggerInterface;
 use Tag1\Scolta\Cache\CacheDriverInterface;
 use Tag1\Scolta\Cache\NullCacheDriver;
 use Tag1\Scolta\Http\AiControllerTrait;
@@ -57,6 +58,15 @@ abstract class AiController extends Controller
     protected function resolveEnricher(): PromptEnricherInterface
     {
         return new EventDrivenEnricher($this->events);
+    }
+
+    /**
+     * The application log, so a provider failure the handler degrades to a
+     * 200 response (timeout, 529, rejected key) still lands in the log.
+     */
+    protected function resolveLogger(): LoggerInterface
+    {
+        return app(LoggerInterface::class);
     }
 
     /**
