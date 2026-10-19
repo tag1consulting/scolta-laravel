@@ -20,8 +20,8 @@ use Tag1\ScoltaLaravel\Services\ScoltaAiService;
  *
  * Enabling the managed Amazee.ai gateway stores credentials and resolves model
  * names in two steps. When the model-resolution step fails, credentials are
- * stored with no resolved model, and config still carries the shipped dated
- * default (claude-sonnet-4-5-20250929) — which the Amazee gateway rejects with
+ * stored with no resolved model, and config still carries the shipped default
+ * (ScoltaAiService::DEFAULT_MODEL) — which the Amazee gateway may reject with
  * HTTP 400, so summarize silently returned nothing and expand ran unexpanded.
  *
  * The ScoltaAiService factory therefore injects the stored key only once a real
@@ -66,20 +66,20 @@ class AmazeeUnresolvedModelTest extends TestCase
     public function test_predicate_reports_resolved_for_real_model_name(): void
     {
         $this->assertTrue(
-            $this->invokePredicate(['ai_model' => 'claude-sonnet-4-5', 'ai_expansion_model' => 'claude-haiku-4-5'])
+            $this->invokePredicate(['ai_model' => 'claude-sonnet-5-5', 'ai_expansion_model' => 'claude-haiku-5-5'])
         );
     }
 
     // -------------------------------------------------------------------
     // Degrade: a key-less service throws ApiKeyMissingException (HTTP 200
-    // path) rather than sending the gateway the dated default.
+    // path) rather than sending the gateway the shipped default.
     // -------------------------------------------------------------------
 
     public function test_degraded_service_throws_instead_of_calling_gateway(): void
     {
         // What the factory builds in the unresolved state: amazeeActive true
         // (credentials stored) but no key injected. The first AI call throws
-        // ApiKeyMissingException before any HTTP — the dated default never
+        // ApiKeyMissingException before any HTTP — the shipped default never
         // reaches the gateway.
         $service = new ScoltaAiService(['ai_provider' => 'anthropic', 'ai_api_key' => ''], true);
 

@@ -99,14 +99,16 @@ class ScoltaServiceProvider extends ServiceProvider
                             if ($models['ai_model'] !== '' && $config['ai_model'] === $defaultModel) {
                                 $config['ai_model'] = $models['ai_model'];
                             }
-                            if ($models['ai_expansion_model'] !== '' && ($config['ai_expansion_model'] ?? '') === '') {
+                            $defaultExpansionModel = ScoltaAiService::DEFAULT_EXPANSION_MODEL;
+                            $expansionModel = $config['ai_expansion_model'] ?? '';
+                            if ($models['ai_expansion_model'] !== '' && ($expansionModel === '' || $expansionModel === $defaultExpansionModel)) {
                                 $config['ai_expansion_model'] = $models['ai_expansion_model'];
                             }
                         } else {
                             // Credentials are stored but model resolution never
                             // succeeded, so config still carries the shipped
-                            // dated default — which the Amazee LiteLLM gateway
-                            // rejects with HTTP 400, breaking AI permanently and
+                            // default — which the Amazee LiteLLM gateway may
+                            // reject with HTTP 400, breaking AI permanently and
                             // silently. Do NOT inject the Amazee key: a key-less
                             // client throws ApiKeyMissingException, which the
                             // controllers degrade to an unexpanded/no-summary
@@ -250,8 +252,8 @@ class ScoltaServiceProvider extends ServiceProvider
      * only when model resolution succeeds during an explicit enable, so it is
      * empty when the `/model/info` step failed — the clean signal that the
      * stored credentials cannot drive the gateway yet. Unlike Drupal/WordPress,
-     * no dated-default exclusion is needed: the store is never seeded with the
-     * dated default.
+     * no shipped-default exclusion is needed: the store is never seeded with the
+     * shipped default.
      *
      * @param  array{ai_model: string, ai_expansion_model: string}|null  $models
      *

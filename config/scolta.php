@@ -76,7 +76,12 @@ return [
     'ai_provider' => env('SCOLTA_AI_PROVIDER', ''),
     'ai_api_key' => env('SCOLTA_API_KEY', ''),
     'ai_model' => env('SCOLTA_AI_MODEL', ScoltaAiService::DEFAULT_MODEL),
-    'ai_expansion_model' => env('SCOLTA_EXPANSION_MODEL', ''),
+    // Model for query expansion only; summaries and follow-ups use ai_model.
+    // Defaults to the Haiku tier because expansion is a small, cheap call. It
+    // must name a model the selected provider serves: on a non-Anthropic
+    // provider set SCOLTA_EXPANSION_MODEL to one of its models, or to an empty
+    // string to use ai_model for every AI operation.
+    'ai_expansion_model' => env('SCOLTA_EXPANSION_MODEL', ScoltaAiService::DEFAULT_EXPANSION_MODEL),
     'ai_base_url' => env('SCOLTA_AI_BASE_URL', ''),
 
     /*

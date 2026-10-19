@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tag1\ScoltaLaravel\Services;
 
 use Illuminate\Support\Facades\Cache;
+use Tag1\Scolta\AiClient;
 use Tag1\Scolta\AiProvider\Amazee\AmazeeBudgetExceededException;
 use Tag1\Scolta\AiProvider\Amazee\KeyExpiryRecovery;
 use Tag1\Scolta\Config\ScoltaConfig;
@@ -30,13 +31,32 @@ class ScoltaAiService extends AiServiceAdapter
      * Referenced by both the published config and the service provider's
      * "is the model still the default?" check for Amazee auto-selected
      * models — a single constant so the two cannot silently diverge when
-     * the default is bumped.
+     * the default is bumped. Read from scolta-php's AiClient so every
+     * adapter ships the model the library ships, and bumping it is one
+     * change in scolta-php rather than one per adapter.
      *
      * @since 1.0.4
      *
      * @stability experimental
      */
-    public const DEFAULT_MODEL = 'claude-sonnet-4-5-20250929';
+    public const DEFAULT_MODEL = AiClient::DEFAULT_MODEL;
+
+    /**
+     * The default query-expansion model shipped in config/scolta.php.
+     *
+     * Expansion is a small, cheap call, so it defaults to the Haiku tier
+     * while summaries and follow-ups use DEFAULT_MODEL. Like DEFAULT_MODEL
+     * it is the value the service provider compares against to decide
+     * whether an Amazee auto-selected expansion model may replace it.
+     * Must name a model the selected provider serves: set
+     * SCOLTA_EXPANSION_MODEL (empty means "same as ai_model") when the
+     * provider is not Anthropic.
+     *
+     * @since 2.0.0
+     *
+     * @stability experimental
+     */
+    public const DEFAULT_EXPANSION_MODEL = 'claude-haiku-5-5';
 
     private bool $amazeeActive;
 

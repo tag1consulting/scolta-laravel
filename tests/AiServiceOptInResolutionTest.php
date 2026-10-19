@@ -108,20 +108,43 @@ class AiServiceOptInResolutionTest extends TestCase
     {
         $storage = new LaravelConfigStorage;
         $storage->store(...array_values(self::CREDS));
-        $storage->storeModels('claude-sonnet-4-5', 'claude-haiku-4-5');
+        // Names the gateway resolved, distinct from the shipped defaults so
+        // the assertions prove the defaults were replaced.
+        $storage->storeModels('gateway-sonnet', 'gateway-haiku');
 
         $service = $this->app->make(ScoltaAiService::class);
 
         $this->assertTrue($service->isAmazeeActive());
         $this->assertSame(self::CREDS['litellm_token'], $service->getConfig()->aiApiKey);
         $this->assertSame(self::CREDS['litellm_api_url'], $service->getConfig()->aiBaseUrl);
-        $this->assertSame('claude-sonnet-4-5', $service->getConfig()->aiModel);
+        $this->assertSame('gateway-sonnet', $service->getConfig()->aiModel);
+        $this->assertSame(
+            'gateway-haiku',
+            $service->getConfig()->aiExpansionModel,
+            'The shipped expansion default is replaced by the resolved one, like ai_model'
+        );
+    }
+
+    public function test_a_stored_connection_keeps_explicitly_configured_models(): void
+    {
+        $storage = new LaravelConfigStorage;
+        $storage->store(...array_values(self::CREDS));
+        $storage->storeModels('gateway-sonnet', 'gateway-haiku');
+        config([
+            'scolta.ai_model' => 'operators-model',
+            'scolta.ai_expansion_model' => 'operators-expansion-model',
+        ]);
+
+        $service = $this->app->make(ScoltaAiService::class);
+
+        $this->assertSame('operators-model', $service->getConfig()->aiModel);
+        $this->assertSame('operators-expansion-model', $service->getConfig()->aiExpansionModel);
     }
 
     public function test_a_stored_connection_without_resolved_models_degrades(): void
     {
         // Credentials stored while model resolution failed. Sending the gateway
-        // the shipped dated default gets an HTTP 400, so no key is injected and
+        // the shipped default may get an HTTP 400, so no key is injected and
         // the client degrades instead; re-running an explicit enable resolves
         // the models.
         (new LaravelConfigStorage)->store(...array_values(self::CREDS));
@@ -140,7 +163,7 @@ class AiServiceOptInResolutionTest extends TestCase
     {
         $storage = new LaravelConfigStorage;
         $storage->store(...array_values(self::CREDS));
-        $storage->storeModels('claude-sonnet-4-5', 'claude-haiku-4-5');
+        $storage->storeModels('claude-sonnet-5-5', 'claude-haiku-5-5');
 
         $recovery = new KeyExpiryRecovery($storage, new LaravelCacheDriver);
         $recovery->flagUpgradeNeeded();

@@ -18,7 +18,7 @@ class AiServiceTest extends TestCase
         $config = array_merge([
             'ai_provider' => 'anthropic',
             'ai_api_key' => 'test-key',
-            'ai_model' => 'claude-sonnet-4-5-20250929',
+            'ai_model' => 'claude-sonnet-5-5',
             'ai_base_url' => '',
             'site_name' => 'Test Site',
             'site_description' => 'test website',

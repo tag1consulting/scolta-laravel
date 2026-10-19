@@ -8,6 +8,7 @@ use Illuminate\Container\Container;
 use Illuminate\Foundation\Application;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Tag1\Scolta\AiClient;
 use Tag1\Scolta\Config\ScoltaConfig;
 use Tag1\ScoltaLaravel\Services\ScoltaAiService;
 
@@ -68,6 +69,17 @@ class ConfigTest extends TestCase
         $this->assertArrayHasKey('ai_api_key', $this->config);
         $this->assertArrayHasKey('ai_model', $this->config);
         $this->assertArrayHasKey('ai_base_url', $this->config);
+    }
+
+    public function test_ai_model_defaults_follow_scolta_php(): void
+    {
+        // The adapter ships the model the library ships, so a bump in
+        // scolta-php's AiClient::DEFAULT_MODEL cannot leave this package
+        // carrying a stale, dated ID.
+        $this->assertSame(AiClient::DEFAULT_MODEL, ScoltaAiService::DEFAULT_MODEL);
+        $this->assertSame(ScoltaAiService::DEFAULT_MODEL, $this->config['ai_model']);
+        $this->assertSame(ScoltaAiService::DEFAULT_EXPANSION_MODEL, $this->config['ai_expansion_model']);
+        $this->assertSame('claude-haiku-5-5', $this->config['ai_expansion_model']);
     }
 
     public function test_ai_feature_toggles(): void
