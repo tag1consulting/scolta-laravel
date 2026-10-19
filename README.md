@@ -238,8 +238,8 @@ All settings live in `config/scolta.php` with `.env` overrides. After editing `c
 | ------- | ---------- | ----------------------- | ------- | ----------- |
 | Provider | `SCOLTA_AI_PROVIDER` | `ai_provider` | *(none)* | `anthropic`, `openai` or `amazee`. No default: while none is selected, AI features are off and search works exactly as it does now. |
 | API key | `SCOLTA_API_KEY` | `ai_api_key` | — | Authentication for AI features |
-| Model | `SCOLTA_AI_MODEL` | `ai_model` | `claude-sonnet-4-5-20250929` | LLM model identifier |
-| Expansion model | `SCOLTA_EXPANSION_MODEL` | `ai_expansion_model` | `''` (same as `ai_model`) | Optional separate model for query expansion. When set, `expand-query` uses this model while `summarize` and `followup` use `ai_model`. Empty means all AI operations use `ai_model`. |
+| Model | `SCOLTA_AI_MODEL` | `ai_model` | `claude-sonnet-5-5` (scolta-php's `AiClient::DEFAULT_MODEL`) | LLM model identifier for `summarize` and `followup` |
+| Expansion model | `SCOLTA_EXPANSION_MODEL` | `ai_expansion_model` | `claude-haiku-5-5` | Model for `expand-query` only; `summarize` and `followup` use `ai_model`. Must be a model the selected provider serves, so on a non-Anthropic provider set it to one of that provider's models, or to `''` to use `ai_model` for every AI operation. |
 | Base URL | `SCOLTA_AI_BASE_URL` | `ai_base_url` | provider default | Custom endpoint for proxies or Azure OpenAI |
 | Query expansion | `SCOLTA_AI_EXPAND` | `ai_expand_query` | `true` | Toggle AI query expansion on/off |
 | Visitor expansion switch | `SCOLTA_EXPANSION_TOGGLE` | `expansion_toggle` | `true` | Render a switch in the results header letting each visitor turn expanded terms off for themselves. The choice lives in browser storage and only ever narrows — it can never re-enable expansion that `ai_expand_query` has turned off, and no switch is drawn where expansion is unavailable. Set to `false` to make expansion a site-level decision only |
@@ -254,7 +254,8 @@ In `.env`:
 ```env
 SCOLTA_AI_PROVIDER=anthropic   # required — there is no default; omit it and AI features stay off
 SCOLTA_API_KEY=sk-ant-...
-SCOLTA_AI_MODEL=claude-sonnet-4-5-20250929
+SCOLTA_AI_MODEL=claude-sonnet-5-5
+SCOLTA_EXPANSION_MODEL=claude-haiku-5-5
 SCOLTA_AI_EXPAND=true
 SCOLTA_AI_SUMMARIZE=true
 SCOLTA_EXPANSION_TOGGLE=true
