@@ -180,7 +180,7 @@ jobs:
           # Explicit signals only: the ai-review-full label always wins, then
           # the AI_REVIEW_MODE_DEFAULT repo variable (same var the rescan
           # slash command uses), then '', deferring to
-          # .ai-pr-review/policy.yml route matching by changed-file
+          # .github/ai-pr-review/policy.yml route matching by changed-file
           # path, base branch, or head branch (see docs/policy.md), and
           # finally the engine's own hardcoded 'quick' default if no policy
           # file exists. A branch-name convention like "full mode for
