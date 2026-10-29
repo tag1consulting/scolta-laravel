@@ -73,6 +73,9 @@ class BrowserConfigParityTest extends TestCase
         // Read only by autoInit() off the global window.scolta, never off the
         // instance config, so it is correctly absent from the extracted set.
         'container',
+        // Emitted (empty) ahead of a scolta-php whose scolta.js reads it;
+        // removable once the floor includes federated search.
+        'federatedSources',
     ];
 
     /**

@@ -87,6 +87,11 @@
                 fn ($value, $key) => is_string($key) && is_string($value) && $value !== '',
                 ARRAY_FILTER_USE_BOTH
             ),
+            // Through ScoltaConfig, which validates each entry, when the
+            // installed scolta-php has it; otherwise search stays local.
+            'federatedSources' => method_exists($config, 'normalizedFederatedSources')
+                ? $config->normalizedFederatedSources()
+                : [],
             'filterFieldDescriptions' => $config->filterFieldDescriptions,
             // Search as you type. Ten top-level keys, not scoring keys. The
             // suggestion action goes through the normalizer so an unrecognized
