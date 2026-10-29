@@ -500,6 +500,9 @@ class SearchComponentRenderTest extends TestCase
             // Same pattern: ScoltaConfig::$valueLabels landed in scolta-php
             // 2.0.0 (tag1consulting/scolta-php#357), past the locked version.
             'valueLabels',
+            // Emitted behind a method_exists() guard so the component works
+            // before and after ScoltaConfig::$federatedSources lands.
+            'federatedSources',
         ];
 
         $fromPhp = array_keys((new ScoltaConfig)->toBrowserConfig());

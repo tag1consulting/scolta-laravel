@@ -722,6 +722,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Federated Sources (experimental)
+    |--------------------------------------------------------------------------
+    |
+    | Other sites' Pagefind bundles to search alongside this one. Each entry
+    | is ['label' => 'Docs', 'url' => 'https://docs.example.com/scolta-pagefind/pagefind/pagefind.js',
+    | 'weight' => 1.0]. 'label' is the result's site badge, 'weight' (default
+    | 1.0) multiplies the remote's scores. Each remote must serve its bundle
+    | with CORS headers allowing this site. Entries without an absolute
+    | http(s) URL ending in pagefind.js are dropped. Needs a scolta-php with
+    | ScoltaConfig::$federatedSources; older ones ignore it.
+    |
+    */
+
+    'federated_sources' => [],
+
+    /*
+    |--------------------------------------------------------------------------
     | Search As You Type
     |--------------------------------------------------------------------------
     |
