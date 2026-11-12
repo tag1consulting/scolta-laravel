@@ -208,6 +208,28 @@ class SearchComponentRenderTest extends TestCase
         $this->assertSame([], $config['labels']);
     }
 
+    public function test_sort_options_are_emitted_and_filtered(): void
+    {
+        $this->writeFile($this->outputDir.'/pagefind/pagefind-entry.json', '{}');
+        $this->assertSame([], $this->renderAndParseConfig()['sortOptions']);
+
+        $this->setScoltaConfig(['scolta.sort_options' => [
+            ['field' => 'created', 'direction' => 'desc', 'label' => 'Newest'],
+            ['field' => 'price'],
+            ['field' => 'bad field', 'direction' => 'desc', 'label' => 'x'],
+            ['field' => 'created', 'direction' => 'sideways', 'label' => 'x'],
+            'created',
+        ]]);
+
+        $this->assertSame(
+            [
+                ['field' => 'created', 'direction' => 'desc', 'label' => 'Newest'],
+                ['field' => 'price', 'direction' => 'desc', 'label' => 'price'],
+            ],
+            $this->renderAndParseConfig()['sortOptions']
+        );
+    }
+
     public function test_value_labels_are_emitted_and_filtered(): void
     {
         $this->writeFile($this->outputDir.'/pagefind/pagefind-entry.json', '{}');
@@ -500,6 +522,9 @@ class SearchComponentRenderTest extends TestCase
             // Same pattern: ScoltaConfig::$valueLabels landed in scolta-php
             // 2.0.0 (tag1consulting/scolta-php#357), past the locked version.
             'valueLabels',
+            // Same pattern: ScoltaConfig::$sortOptions lands with
+            // tag1consulting/scolta-php#392, past the locked version.
+            'sortOptions',
         ];
 
         $fromPhp = array_keys((new ScoltaConfig)->toBrowserConfig());

@@ -87,6 +87,30 @@
                 fn ($value, $key) => is_string($key) && is_string($value) && $value !== '',
                 ARRAY_FILTER_USE_BOTH
             ),
+            // Local-read like valueLabels: ScoltaConfig::$sortOptions lands
+            // in scolta-php 2.0.0 (tag1consulting/scolta-php#392) and the sort
+            // control lives in the bundle. Malformed entries are dropped, as
+            // the bundle would also do; a missing label falls back to the field.
+            'sortOptions' => array_values(array_filter(array_map(
+                function ($option) {
+                    if (! is_array($option)) {
+                        return null;
+                    }
+                    $field = $option['field'] ?? null;
+                    $direction = $option['direction'] ?? 'desc';
+                    if (! is_string($field) || preg_match('/^[A-Za-z0-9_-]+$/', $field) !== 1 || ! in_array($direction, ['asc', 'desc'], true)) {
+                        return null;
+                    }
+                    $label = $option['label'] ?? '';
+
+                    return [
+                        'field' => $field,
+                        'direction' => $direction,
+                        'label' => is_string($label) && $label !== '' ? $label : $field,
+                    ];
+                },
+                (array) config('scolta.sort_options', [])
+            ))),
             'filterFieldDescriptions' => $config->filterFieldDescriptions,
             // Search as you type. Ten top-level keys, not scoring keys. The
             // suggestion action goes through the normalizer so an unrecognized
