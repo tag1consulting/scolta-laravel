@@ -722,6 +722,28 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Sort Options
+    |--------------------------------------------------------------------------
+    |
+    | The orders the widget offers besides relevance. Non-empty renders a
+    | "Sort: Relevance | <label> ..." control above the results; each option
+    | links to the same search with ?sort=<field>:<direction>. `field` must be
+    | a sortable field the index carries: `date` is always there but is the
+    | day a record was last changed, so sorting by publish date needs a
+    | sortable field of its own on the content item. Malformed entries are
+    | dropped; a missing label falls back to the field. No env() default, for
+    | the same reason as 'labels'.
+    |
+    | e.g. 'sort_options' => [
+    |     ['field' => 'created', 'direction' => 'desc', 'label' => 'Newest'],
+    | ],
+    |
+    */
+
+    'sort_options' => [],
+
+    /*
+    |--------------------------------------------------------------------------
     | Search As You Type
     |--------------------------------------------------------------------------
     |

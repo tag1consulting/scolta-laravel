@@ -73,6 +73,10 @@ class BrowserConfigParityTest extends TestCase
         // Read only by autoInit() off the global window.scolta, never off the
         // instance config, so it is correctly absent from the extracted set.
         'container',
+        // The locked scolta-php bundle predates the sort control
+        // (tag1consulting/scolta-php#392). Drop this entry once the lock
+        // carries a bundle that reads the key.
+        'sortOptions',
     ];
 
     /**
